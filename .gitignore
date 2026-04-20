@@ -1,0 +1,39 @@
+# Dépendances
+node_modules/
+backend/node_modules/
+frontend/node_modules/
+
+# Variables d'environnement (secrets)
+.env
+.env.local
+.env.production
+backend/.env
+frontend/.env.local
+
+# Uploads patients (données médicales — ne jamais versionner)
+backend/uploads/*
+!backend/uploads/.gitkeep
+
+# PDF générés
+*.pdf
+
+# Logs
+*.log
+logs/
+
+# Build frontend
+frontend/dist/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Tests / coverage
+coverage/
+# Core dumps
+core
+backend/core

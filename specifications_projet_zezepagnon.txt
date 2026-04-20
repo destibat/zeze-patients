@@ -1,0 +1,66 @@
+Avec plaisir ! Pour rédiger des spécifications vraiment adaptées à **ton** projet ZEZEPAGNON, j'ai besoin de quelques précisions. Réponds aux questions suivantes (même brièvement), et je te préparerai un document SPEC.md complet et prêt à utiliser.
+
+## Questions pour cadrer ton projet
+
+### 1. Contexte d'utilisation
+- cabinet médical individuel
+- Combien d'utilisateurs simultanés environ ? 5 utilisateurs
+- C'est un usage accessible via Internet
+
+### 2. Utilisateurs et rôles
+Quels types d'utilisateurs auront accès à l'application ?
+- Médecin(s)
+- Secrétaire / accueil
+- Administrateur
+
+
+### 3. Fonctionnalités souhaitées
+Coche/confirme celles qui t'intéressent :
+- Création et consultation de fiches patients
+- Historique des consultations
+- Prescriptions médicales (ordonnances)
+- Gestion des rendez-vous / agenda
+- Résultats d'examens (labo, imagerie)
+- Facturation / paiements
+- Export PDF (ordonnances, dossiers)
+- Statistiques / tableau de bord
+- Envoi de SMS/emails de rappel
+- Gestion de stock (médicaments, consommables)
+- Autre besoin spécifique ? Analyse d'analyse NFS et d'hématologie pour décterles pathologies. Fichiers fournis en pdf , en gif, png ou jpeg
+- Prévoir une inteface Banckend pour l'dministration: création des users, ajout des produits avec leur description et leur prix et les quantités en stock.
+
+### 4. Données à enregistrer pour un patient
+Au minimum : nom, prénom, sexe, date de naissance, téléphone. (obligatroire
+Veux-tu aussi : oui , mais pas obligatoire, optionnel
+- Adresse complète
+- Profession
+- Groupe sanguin
+- Allergies
+- Antécédents médicaux / familiaux
+- Personne à contacter en cas d'urgence
+- Photo du patient
+- Numéro d'assurance / mutuelle
+
+
+### 5. Stack technique
+As-tu déjà une préférence ou es-tu ouvert à une recommandation ?
+- **Option A** (recommandée, moderne) : React + Node.js/Express + mais avec une base Mysql ou mariaDb
+
+
+### 6. Déploiement
+- Application **desktop** (installée sur l'ordinateur du cabinet) ? Non
+- Application **web** accessible via navigateur en local ?
+- Application **web en ligne** avec hébergement sur Internet ? Oui, par en test sur mon PC Linux et en ligne après
+- Application **mobile** également ? Oui plus tard prévoir une version Mobile.
+
+### 7. Contexte Côte d'Ivoire
+Puisque tu es à Abidjan, y a-t-il des besoins spécifiques ?
+- Gestion de la **CMU** (Couverture Maladie Universelle) ? Non
+- Facturation en **FCFA** ? Oui
+- Intégration avec **Orange Money / MTN Money / Wave** pour les paiements ? Oui
+- Interface uniquement en français ou multilingue ? Oui Multilingue, avec le Français comme langue Principale
+
+### 8. Nom et identité
+- "ZEZEPAGNON" est le nom de l'application, du cabinet, ou du propriétaire ? Non du produit, mais Maitre Racine d'Afrique, ZEZEPAGNON Stockiste Alexis Brevet
+- As-tu un logo, des couleurs préférées pour l'interface ? Oui
+

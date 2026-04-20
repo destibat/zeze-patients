@@ -1,0 +1,99 @@
+{
+  "app": {
+    "nom": "ZEZEPAGNON Dossiers Patients",
+    "slogan": "La richesse des plantes africaines au service du bien-être"
+  },
+  "nav": {
+    "tableau_de_bord": "Tableau de bord",
+    "patients": "Patients",
+    "consultations": "Consultations",
+    "rendez_vous": "Rendez-vous",
+    "ordonnances": "Ordonnances",
+    "facturation": "Facturation",
+    "stock": "Stock",
+    "statistiques": "Statistiques",
+    "utilisateurs": "Utilisateurs",
+    "parametres": "Paramètres"
+  },
+  "auth": {
+    "connexion": "Connexion",
+    "deconnexion": "Déconnexion",
+    "email": "Adresse e-mail",
+    "mot_de_passe": "Mot de passe",
+    "se_connecter": "Se connecter",
+    "connexion_en_cours": "Connexion en cours...",
+    "email_requis": "L'adresse e-mail est requise",
+    "email_invalide": "Adresse e-mail invalide",
+    "mdp_requis": "Le mot de passe est requis",
+    "mdp_min": "Le mot de passe doit contenir au moins 8 caractères",
+    "erreur_connexion": "Identifiants incorrects",
+    "changer_mdp": "Changer le mot de passe",
+    "ancien_mdp": "Ancien mot de passe",
+    "nouveau_mdp": "Nouveau mot de passe",
+    "confirmer_mdp": "Confirmer le mot de passe",
+    "mdp_ne_correspond_pas": "Les mots de passe ne correspondent pas",
+    "mdp_change_succes": "Mot de passe modifié avec succès"
+  },
+  "roles": {
+    "administrateur": "Administrateur",
+    "stockiste": "Stockiste",
+    "secretaire": "Secrétaire",
+    "delegue": "Délégué"
+  },
+  "utilisateurs": {
+    "titre": "Gestion des utilisateurs",
+    "nouvel_utilisateur": "Nouvel utilisateur",
+    "modifier": "Modifier",
+    "desactiver": "Désactiver",
+    "reinitialiser_mdp": "Réinitialiser le mot de passe",
+    "actif": "Actif",
+    "inactif": "Inactif",
+    "nom": "Nom",
+    "prenom": "Prénom",
+    "email": "E-mail",
+    "telephone": "Téléphone",
+    "role": "Rôle",
+    "derniere_connexion": "Dernière connexion",
+    "jamais_connecte": "Jamais connecté",
+    "rechercher": "Rechercher un utilisateur...",
+    "aucun_resultat": "Aucun utilisateur trouvé",
+    "confirmer_desactivation": "Êtes-vous sûr de vouloir désactiver cet utilisateur ?",
+    "desactivation_succes": "Utilisateur désactivé avec succès",
+    "creation_succes": "Utilisateur créé avec succès",
+    "modification_succes": "Utilisateur modifié avec succès"
+  },
+  "commun": {
+    "enregistrer": "Enregistrer",
+    "annuler": "Annuler",
+    "supprimer": "Supprimer",
+    "modifier": "Modifier",
+    "confirmer": "Confirmer",
+    "rechercher": "Rechercher",
+    "chargement": "Chargement...",
+    "erreur": "Une erreur est survenue",
+    "succes": "Succès",
+    "oui": "Oui",
+    "non": "Non",
+    "retour": "Retour",
+    "requis": "Ce champ est requis",
+    "actions": "Actions",
+    "filtres": "Filtres",
+    "tous": "Tous",
+    "page_introuvable": "Page introuvable",
+    "retour_accueil": "Retour à l'accueil"
+  },
+  "patients": {
+    "titre": "Patients",
+    "nouveau": "Nouveau patient",
+    "dossier": "Dossier",
+    "age": "Âge",
+    "aucun": "Aucun patient trouvé"
+  },
+  "tableau_de_bord": {
+    "bienvenue": "Bienvenue",
+    "patients_actifs": "Patients actifs",
+    "consultations_auj": "Consultations aujourd'hui",
+    "rdv_auj": "Rendez-vous aujourd'hui",
+    "ca_mois": "CA du mois (FCFA)"
+  }
+}

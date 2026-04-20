@@ -1,0 +1,92 @@
+{
+  "app": {
+    "nom": "ZEZEPAGNON Patient Files",
+    "slogan": "The richness of African plants in the service of well-being"
+  },
+  "nav": {
+    "tableau_de_bord": "Dashboard",
+    "patients": "Patients",
+    "consultations": "Consultations",
+    "rendez_vous": "Appointments",
+    "ordonnances": "Prescriptions",
+    "facturation": "Billing",
+    "stock": "Stock",
+    "statistiques": "Statistics",
+    "utilisateurs": "Users",
+    "parametres": "Settings"
+  },
+  "auth": {
+    "connexion": "Login",
+    "deconnexion": "Logout",
+    "email": "Email address",
+    "mot_de_passe": "Password",
+    "se_connecter": "Sign in",
+    "connexion_en_cours": "Signing in...",
+    "email_requis": "Email address is required",
+    "email_invalide": "Invalid email address",
+    "mdp_requis": "Password is required",
+    "mdp_min": "Password must be at least 8 characters",
+    "erreur_connexion": "Incorrect credentials",
+    "changer_mdp": "Change password",
+    "ancien_mdp": "Current password",
+    "nouveau_mdp": "New password",
+    "confirmer_mdp": "Confirm password",
+    "mdp_ne_correspond_pas": "Passwords do not match",
+    "mdp_change_succes": "Password changed successfully"
+  },
+  "roles": {
+    "administrateur": "Administrator",
+    "stockiste": "Stockist",
+    "secretaire": "Secretary",
+    "delegue": "Delegate"
+  },
+  "utilisateurs": {
+    "titre": "User management",
+    "nouvel_utilisateur": "New user",
+    "modifier": "Edit",
+    "desactiver": "Deactivate",
+    "reinitialiser_mdp": "Reset password",
+    "actif": "Active",
+    "inactif": "Inactive",
+    "nom": "Last name",
+    "prenom": "First name",
+    "email": "Email",
+    "telephone": "Phone",
+    "role": "Role",
+    "derniere_connexion": "Last login",
+    "jamais_connecte": "Never logged in",
+    "rechercher": "Search for a user...",
+    "aucun_resultat": "No users found",
+    "confirmer_desactivation": "Are you sure you want to deactivate this user?",
+    "desactivation_succes": "User deactivated successfully",
+    "creation_succes": "User created successfully",
+    "modification_succes": "User updated successfully"
+  },
+  "commun": {
+    "enregistrer": "Save",
+    "annuler": "Cancel",
+    "supprimer": "Delete",
+    "modifier": "Edit",
+    "confirmer": "Confirm",
+    "rechercher": "Search",
+    "chargement": "Loading...",
+    "erreur": "An error occurred",
+    "succes": "Success",
+    "oui": "Yes",
+    "non": "No",
+    "retour": "Back",
+    "requis": "This field is required",
+    "actions": "Actions",
+    "filtres": "Filters",
+    "tous": "All",
+    "page_introuvable": "Page not found",
+    "retour_accueil": "Back to home"
+  },
+  "tableau_de_bord": {
+    "bienvenue": "Welcome",
+    "patients_actifs": "Active patients",
+    "consultations_auj": "Consultations today",
+    "rdv_auj": "Appointments today",
+    "ca_mois": "Monthly revenue (XOF)"
+  }
+}

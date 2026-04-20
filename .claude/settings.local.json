@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(chmod +x /home/alexis/Applis/Dossiers_patients/zeze_patients/scripts/install-prerequisites.sh)",
+      "Bash(npm create *)",
+      "Bash(ldd --version)",
+      "Bash(npm install *)",
+      "Bash(mysql *)",
+      "Bash(npx sequelize-cli *)",
+      "Bash(node *)",
+      "Bash(curl -s -X POST http://localhost:3000/api/auth/login -H 'Content-Type: application/json' -d '{\"email\":\"admin@zezepagnon.local\",\"password\":\"ZezeAdmin2026!\"}')",
+      "Bash(python3 -m json.tool)",
+      "Bash(sudo docker *)",
+      "Bash(docker compose exec *)",
+      "Bash(curl *)",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\('OK:', d['succes'], d.get\\('data',{}\\).get\\('utilisateur',{}\\).get\\('email',''\\)\\)\")"
+    ]
+  }
+}

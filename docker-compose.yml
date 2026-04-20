@@ -1,0 +1,82 @@
+version: '3.9'
+
+services:
+  # Base de données MariaDB
+  db:
+    image: mariadb:10.11
+    container_name: zezepagnon_db
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: P@ssW0rd
+      MYSQL_DATABASE: zezepagnon_dev
+      MYSQL_USER: zezepagnon
+      MYSQL_PASSWORD: ZezeDB2026!
+    ports:
+      - "3307:3306"  # 3306 local déjà occupé par MariaDB système
+    volumes:
+      - db_data:/var/lib/mysql
+    networks:
+      - zeze_network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-pP@ssW0rd"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  # Backend Node.js / Express
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    container_name: zezepagnon_backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: development
+      PORT: 3000
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_NAME: zezepagnon_dev
+      DB_USER: zezepagnon
+      DB_PASSWORD: ZezeDB2026!
+      JWT_SECRET: dev_jwt_secret_change_in_production_min_64_chars_xxxxxxxxxx
+      JWT_EXPIRES_IN: 15m
+      JWT_REFRESH_SECRET: dev_refresh_secret_change_in_production_min_64_chars_xx
+      JWT_REFRESH_EXPIRES_IN: 7d
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+      - ./database:/database
+      - ./logo-zeze.png:/app/assets/logo-zeze.png
+    networks:
+      - zeze_network
+
+  # Frontend React / Vite
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    container_name: zezepagnon_frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    networks:
+      - zeze_network
+
+volumes:
+  db_data:
+    driver: local
+
+networks:
+  zeze_network:
+    driver: bridge

@@ -1,0 +1,77 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --couleur-principale: #2E7D32;
+    --couleur-principale-fonce: #1B5E20;
+    --couleur-principale-clair: #81C784;
+    --couleur-or: #F9A825;
+    --couleur-terre: #D84315;
+    --fond-principal: #FAFAF7;
+    --fond-secondaire: #F5F1E8;
+    --texte-principal: #263238;
+    --texte-secondaire: #607D8B;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  body {
+    background-color: var(--fond-principal);
+    color: var(--texte-principal);
+    font-family: 'Inter', 'Open Sans', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Poppins', sans-serif;
+    font-weight: 600;
+  }
+}
+
+@layer components {
+  /* Bouton primaire ZEZEPAGNON */
+  .btn-primaire {
+    @apply bg-zeze-vert text-white font-medium px-4 py-2 rounded-bouton
+           hover:bg-zeze-vert-fonce transition-colors duration-200
+           focus:outline-none focus:ring-2 focus:ring-zeze-vert focus:ring-offset-2
+           disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  /* Bouton secondaire */
+  .btn-secondaire {
+    @apply border border-zeze-vert text-zeze-vert font-medium px-4 py-2 rounded-bouton
+           hover:bg-zeze-vert hover:text-white transition-colors duration-200
+           focus:outline-none focus:ring-2 focus:ring-zeze-vert focus:ring-offset-2
+           disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  /* Bouton danger */
+  .btn-danger {
+    @apply bg-medical-critique text-white font-medium px-4 py-2 rounded-bouton
+           hover:bg-red-800 transition-colors duration-200
+           focus:outline-none focus:ring-2 focus:ring-medical-critique focus:ring-offset-2
+           disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  /* Carte générique */
+  .carte {
+    @apply bg-white rounded-carte shadow-carte p-6 border border-gray-100;
+  }
+
+  /* Champ de formulaire */
+  .champ-input {
+    @apply w-full border border-gray-300 rounded-bouton px-3 py-2 text-sm
+           focus:outline-none focus:ring-2 focus:ring-zeze-vert focus:border-transparent
+           placeholder:text-texte-secondaire;
+  }
+
+  /* Badge de rôle */
+  .badge-role-administrateur { @apply bg-purple-100 text-purple-800; }
+  .badge-role-medecin { @apply bg-blue-100 text-blue-800; }
+  .badge-role-secretaire { @apply bg-gray-100 text-gray-800; }
+}
