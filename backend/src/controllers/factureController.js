@@ -27,11 +27,16 @@ const calculerStatut = (total, paye) => {
 
 const lister = async (req, res) => {
   const { statut, patient_id, debut, fin } = req.query;
+  const estAdmin = req.utilisateur.role === 'administrateur';
+
   const where = {};
   if (statut) where.statut = statut;
   if (patient_id) where.patient_id = patient_id;
   if (debut && fin) where.date_facture = { [Op.between]: [debut, fin] };
   else if (debut) where.date_facture = { [Op.gte]: debut };
+
+  // Non-admin : uniquement ses propres factures
+  if (!estAdmin) where.created_by = req.utilisateur.id;
 
   const factures = await Facture.findAll({
     where,

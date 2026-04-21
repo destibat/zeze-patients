@@ -107,7 +107,7 @@ const DashboardPage = () => {
           onClick={() => navigate('/rendez-vous')}
         />
         <CarteKPI
-          titre="CA du mois"
+          titre={stats?.ca_filtre ? 'Mon CA du mois' : 'CA du mois'}
           valeur={isLoading ? '…' : stats ? formatMontant(stats.ca_mois) : '—'}
           icone={TrendingUp}
           couleur="bg-emerald-600"

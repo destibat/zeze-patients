@@ -4,6 +4,9 @@ const { Patient, Consultation, Ordonnance, Facture, RendezVous, sequelize } = re
 const { Op } = require('sequelize');
 
 const obtenirStats = async (req, res) => {
+  const estAdmin = req.utilisateur.role === 'administrateur';
+  const userId = req.utilisateur.id;
+
   const aujourdhui = new Date().toISOString().split('T')[0];
   const debutMois = new Date();
   debutMois.setDate(1);
@@ -12,14 +15,25 @@ const obtenirStats = async (req, res) => {
   const debutJour = new Date(); debutJour.setHours(0, 0, 0, 0);
   const finJour   = new Date(); finJour.setHours(23, 59, 59, 999);
 
-  const [patientsActifs, consultationsAujourdhui, consultationsMois, ordonnancesMois, rdvAujourdhui, facturesARelancer] =
+  // Filtre CA selon le rôle
+  const whereFacturesMois = {
+    date_facture: { [Op.gte]: debutMois },
+    statut: { [Op.ne]: 'annulee' },
+    ...(estAdmin ? {} : { created_by: userId }),
+  };
+  const whereRelances = {
+    statut: { [Op.in]: ['en_attente', 'partiellement_payee'] },
+    ...(estAdmin ? {} : { created_by: userId }),
+  };
+
+  const [patientsActifs, consultationsAujourdhui, consultationsMois, facturesMois, rdvAujourdhui, facturesARelancer] =
     await Promise.all([
       Patient.count({ where: { archive: 0 } }),
       Consultation.count({ where: { date_consultation: aujourdhui } }),
       Consultation.count({ where: { date_consultation: { [Op.gte]: debutMois } } }),
-      Ordonnance.findAll({
-        where: { date_ordonnance: { [Op.gte]: debutMois }, statut: { [Op.ne]: 'annulee' } },
-        attributes: ['montant_total'],
+      Facture.findAll({
+        where: whereFacturesMois,
+        attributes: ['montant_paye'],
         raw: true,
       }),
       RendezVous.count({
@@ -28,18 +42,17 @@ const obtenirStats = async (req, res) => {
           statut: { [Op.notIn]: ['annule'] },
         },
       }),
-      Facture.count({
-        where: { statut: { [Op.in]: ['en_attente', 'partiellement_payee'] } },
-      }),
+      Facture.count({ where: whereRelances }),
     ]);
 
-  const caMois = ordonnancesMois.reduce((sum, o) => sum + (o.montant_total || 0), 0);
+  const caMois = facturesMois.reduce((sum, f) => sum + (f.montant_paye || 0), 0);
 
   res.json({
     patients_actifs: patientsActifs,
     consultations_aujourd_hui: consultationsAujourdhui,
     consultations_mois: consultationsMois,
     ca_mois: caMois,
+    ca_filtre: !estAdmin,
     rdv_aujourd_hui: rdvAujourdhui,
     factures_a_relancer: facturesARelancer,
   });
@@ -48,6 +61,8 @@ const obtenirStats = async (req, res) => {
 const obtenirStatsDetaillees = async (req, res) => {
   const maintenant = new Date();
   const { periode = 'annee', annee, mois, semaine, jour, debut, fin } = req.query;
+  const estAdmin = req.utilisateur.role === 'administrateur';
+  const userId = req.utilisateur.id;
 
   // ── Calcul de la plage de dates selon la période ──────────────────────────
   let dateDebut, dateFin, groupBy, labels;
@@ -121,16 +136,18 @@ const obtenirStatsDetaillees = async (req, res) => {
     date:        `SELECT DATE(date_consultation) AS cle, COUNT(*) AS total FROM consultations WHERE date_consultation BETWEEN :debut AND :fin GROUP BY DATE(date_consultation)`,
   };
 
+  const filtreUser = estAdmin ? '' : `AND created_by = :userId`;
+
   const sqlGroupFactures = {
-    mois:        `SELECT MONTH(date_facture) AS cle, SUM(montant_total) AS facture, SUM(montant_paye) AS encaisse FROM factures WHERE date_facture BETWEEN :debut AND :fin AND statut != 'annulee' GROUP BY MONTH(date_facture)`,
-    jour:        `SELECT DAY(date_facture) AS cle, SUM(montant_total) AS facture, SUM(montant_paye) AS encaisse FROM factures WHERE date_facture BETWEEN :debut AND :fin AND statut != 'annulee' GROUP BY DAY(date_facture)`,
-    jour_semaine:`SELECT DAY(date_facture) AS cle, SUM(montant_total) AS facture, SUM(montant_paye) AS encaisse FROM factures WHERE date_facture BETWEEN :debut AND :fin AND statut != 'annulee' GROUP BY DAY(date_facture)`,
-    heure:       `SELECT HOUR(created_at) AS cle, SUM(montant_total) AS facture, SUM(montant_paye) AS encaisse FROM factures WHERE date_facture = :debutDate AND statut != 'annulee' GROUP BY HOUR(created_at)`,
-    date:        `SELECT DATE(date_facture) AS cle, SUM(montant_total) AS facture, SUM(montant_paye) AS encaisse FROM factures WHERE date_facture BETWEEN :debut AND :fin AND statut != 'annulee' GROUP BY DATE(date_facture)`,
+    mois:        `SELECT MONTH(date_facture) AS cle, SUM(montant_total) AS facture, SUM(montant_paye) AS encaisse FROM factures WHERE date_facture BETWEEN :debut AND :fin AND statut != 'annulee' ${filtreUser} GROUP BY MONTH(date_facture)`,
+    jour:        `SELECT DAY(date_facture) AS cle, SUM(montant_total) AS facture, SUM(montant_paye) AS encaisse FROM factures WHERE date_facture BETWEEN :debut AND :fin AND statut != 'annulee' ${filtreUser} GROUP BY DAY(date_facture)`,
+    jour_semaine:`SELECT DAY(date_facture) AS cle, SUM(montant_total) AS facture, SUM(montant_paye) AS encaisse FROM factures WHERE date_facture BETWEEN :debut AND :fin AND statut != 'annulee' ${filtreUser} GROUP BY DAY(date_facture)`,
+    heure:       `SELECT HOUR(created_at) AS cle, SUM(montant_total) AS facture, SUM(montant_paye) AS encaisse FROM factures WHERE date_facture = :debutDate AND statut != 'annulee' ${filtreUser} GROUP BY HOUR(created_at)`,
+    date:        `SELECT DATE(date_facture) AS cle, SUM(montant_total) AS facture, SUM(montant_paye) AS encaisse FROM factures WHERE date_facture BETWEEN :debut AND :fin AND statut != 'annulee' ${filtreUser} GROUP BY DATE(date_facture)`,
   };
 
   const debutDate = dateDebut.toISOString().split('T')[0];
-  const replacements = { debut: dateDebut, fin: dateFin, debutDate };
+  const replacements = { debut: dateDebut, fin: dateFin, debutDate, userId };
 
   const [rowsConsultations, rowsFactures, patientsParSexe, ordonnances] = await Promise.all([
     sequelize.query(sqlGroupConsultations[groupBy], { replacements, type: sequelize.QueryTypes.SELECT }),

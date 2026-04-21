@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useAuth } from '../contexts/AuthContext';
 import api from '../services/api';
 import { TrendingUp, Users, Stethoscope, Package, ChevronLeft, ChevronRight } from 'lucide-react';
 
@@ -199,6 +200,8 @@ const libellePeriode = (data) => {
 };
 
 const StatistiquesPage = () => {
+  const { utilisateur } = useAuth();
+  const estAdmin = utilisateur?.role === 'administrateur';
   const now = new Date();
   const [periode, setPeriode] = useState('annee');
   const [annee, setAnnee] = useState(now.getFullYear());
@@ -273,7 +276,7 @@ const StatistiquesPage = () => {
                 <TrendingUp size={18} className="text-zeze-vert" />
               </div>
               <div>
-                <p className="text-xs text-texte-secondaire">CA facturé · {libellePeriode(data)}</p>
+                <p className="text-xs text-texte-secondaire">{estAdmin ? 'CA facturé' : 'Mon CA facturé'} · {libellePeriode(data)}</p>
                 <p className="text-2xl font-titres font-bold text-texte-principal">
                   {formatMontant(data?.total_facture)} <span className="text-sm font-normal text-texte-secondaire">FCFA</span>
                 </p>
@@ -284,7 +287,7 @@ const StatistiquesPage = () => {
                 <TrendingUp size={18} className="text-emerald-600" />
               </div>
               <div>
-                <p className="text-xs text-texte-secondaire">Encaissé · {libellePeriode(data)}</p>
+                <p className="text-xs text-texte-secondaire">{estAdmin ? 'Encaissé' : 'Mon encaissé'} · {libellePeriode(data)}</p>
                 <p className="text-2xl font-titres font-bold text-texte-principal">
                   {formatMontant(data?.total_encaisse)} <span className="text-sm font-normal text-texte-secondaire">FCFA</span>
                 </p>
@@ -308,7 +311,8 @@ const StatistiquesPage = () => {
             {/* CA */}
             <div className="carte">
               <h2 className="text-sm font-semibold text-texte-principal mb-4 flex items-center gap-2">
-                <TrendingUp size={15} className="text-zeze-vert" /> Chiffre d'affaires (FCFA)
+                <TrendingUp size={15} className="text-zeze-vert" />
+                {estAdmin ? "Chiffre d'affaires (FCFA)" : "Mon chiffre d'affaires (FCFA)"}
               </h2>
               <div className="flex gap-3 mb-2">
                 <span className="flex items-center gap-1 text-xs text-texte-secondaire"><span className="w-3 h-3 rounded-sm bg-zeze-vert/40 inline-block" /> Facturé</span>
