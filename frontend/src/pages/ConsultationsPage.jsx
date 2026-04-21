@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import api from '../services/api';
+import { useAuth } from '../contexts/AuthContext';
 import { Stethoscope, FileText, Search } from 'lucide-react';
 
 const useConsultationsGlobal = (params) =>
@@ -10,11 +11,32 @@ const useConsultationsGlobal = (params) =>
     queryFn: () => api.get('/consultations', { params }).then((r) => r.data),
   });
 
+const useUtilisateursFiltres = (estAdmin) =>
+  useQuery({
+    queryKey: ['users', 'stockistes-delegues'],
+    queryFn: () =>
+      api.get('/users', { params: { limite: 100, actif: true } }).then((r) => r.data.data || []),
+    enabled: estAdmin,
+    staleTime: 5 * 60 * 1000,
+  });
+
 const ConsultationsPage = () => {
   const navigate = useNavigate();
-  const [recherche, setRecherche] = useState('');
+  const { aLeRole } = useAuth();
+  const estAdmin = aLeRole('administrateur');
 
-  const { data: consultations = [], isLoading } = useConsultationsGlobal({});
+  const [recherche, setRecherche] = useState('');
+  const [filtreUser, setFiltreUser] = useState('');
+
+  const params = {};
+  if (filtreUser) params.medecin_id = filtreUser;
+
+  const { data: consultations = [], isLoading } = useConsultationsGlobal(params);
+  const { data: utilisateurs = [] } = useUtilisateursFiltres(estAdmin);
+
+  const utilisateursFiltres = utilisateurs.filter(
+    (u) => u.role === 'stockiste' || u.role === 'delegue'
+  );
 
   const filtrees = consultations.filter((c) => {
     if (!recherche) return true;
@@ -36,17 +58,33 @@ const ConsultationsPage = () => {
         </div>
       </div>
 
-      {/* Recherche */}
+      {/* Filtres */}
       <div className="carte py-4">
-        <div className="relative">
-          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-texte-secondaire" />
-          <input
-            type="text"
-            placeholder="Nom patient, numéro de dossier, motif..."
-            value={recherche}
-            onChange={(e) => setRecherche(e.target.value)}
-            className="champ-input pl-9"
-          />
+        <div className="flex flex-col sm:flex-row gap-3">
+          <div className="relative flex-1">
+            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-texte-secondaire" />
+            <input
+              type="text"
+              placeholder="Nom patient, numéro de dossier, motif..."
+              value={recherche}
+              onChange={(e) => setRecherche(e.target.value)}
+              className="champ-input pl-9"
+            />
+          </div>
+          {estAdmin && utilisateursFiltres.length > 0 && (
+            <select
+              value={filtreUser}
+              onChange={(e) => setFiltreUser(e.target.value)}
+              className="champ-input sm:w-56"
+            >
+              <option value="">Tous les utilisateurs</option>
+              {utilisateursFiltres.map((u) => (
+                <option key={u.id} value={u.id}>
+                  {u.prenom} {u.nom} ({u.role === 'stockiste' ? 'Stockiste' : 'Délégué'})
+                </option>
+              ))}
+            </select>
+          )}
         </div>
       </div>
 
@@ -69,7 +107,7 @@ const ConsultationsPage = () => {
                   <th className="text-left px-4 py-3 font-semibold text-texte-secondaire">Date</th>
                   <th className="text-left px-4 py-3 font-semibold text-texte-secondaire">Patient</th>
                   <th className="text-left px-4 py-3 font-semibold text-texte-secondaire hidden md:table-cell">Motif</th>
-                  <th className="text-left px-4 py-3 font-semibold text-texte-secondaire hidden lg:table-cell">Stockiste</th>
+                  <th className="text-left px-4 py-3 font-semibold text-texte-secondaire hidden lg:table-cell">Créateur</th>
                   <th className="text-center px-4 py-3 font-semibold text-texte-secondaire">Ordonnances</th>
                 </tr>
               </thead>

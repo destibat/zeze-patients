@@ -53,7 +53,7 @@ export const useCreerOrdonnance = (patientId) => {
         .then((r) => r.data),
     onSuccess: (_, { consultationId }) => {
       qc.invalidateQueries({ queryKey: ['consultations', patientId] });
-      qc.invalidateQueries({ queryKey: ['consultation', consultationId] });
+      qc.invalidateQueries({ queryKey: ['consultation', patientId, consultationId] });
     },
   });
 };

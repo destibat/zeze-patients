@@ -23,7 +23,16 @@
       "Bash(git commit -m 'CA filtré par utilisateur — admin voit global, autres voient leur propre CA *)",
       "Bash(git push *)",
       "Bash(git -C /home/alexis/Applis/Dossiers_patients/zeze_patients add -A)",
-      "Bash(git commit -m 'Patients filtrés par utilisateur + gains MAPA détaillés *)"
+      "Bash(git commit -m 'Patients filtrés par utilisateur + gains MAPA détaillés *)",
+      "Read(//home/**)",
+      "Bash(lsof -ti:3000)",
+      "Read(//proc/6290/root/app/src/middlewares/**)",
+      "Read(//proc/8311/**)",
+      "Read(//proc/6291/**)",
+      "Bash(sudo ls *)",
+      "Bash(sudo readlink *)",
+      "Bash(sudo cat *)",
+      "Bash(sudo grep *)"
     ]
   }
 }

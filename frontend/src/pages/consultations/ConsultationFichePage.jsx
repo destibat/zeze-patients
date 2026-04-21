@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useCreerOrdonnance } from '../../hooks/useConsultations';
-import { telechargerPDF } from '../../hooks/useOrdonnances';
+import { telechargerPDF, useValiderOrdonnance } from '../../hooks/useOrdonnances';
 import { useAuth } from '../../contexts/AuthContext';
 import ProduitPicker from '../../components/ordonnances/ProduitPicker';
 import Button from '../../components/ui/Button';
@@ -10,7 +10,7 @@ import Alert from '../../components/ui/Alert';
 import api from '../../services/api';
 import {
   ArrowLeft, FileText, Download, Plus, X, HeartPulse,
-  Thermometer, Activity, Weight, Ruler, Droplets, Receipt,
+  Thermometer, Activity, Weight, Ruler, Droplets, Receipt, CheckCircle,
 } from 'lucide-react';
 
 const fetchConsultation = (patientId, id) =>
@@ -33,7 +33,7 @@ const ConsultationFichePage = () => {
   const { id: patientId, consultationId } = useParams();
   const navigate = useNavigate();
   const { aLeRole } = useAuth();
-  const peutPrescrire = aLeRole('administrateur', 'stockiste');
+  const peutPrescrire = aLeRole('administrateur', 'stockiste', 'delegue');
 
   const { data: consultation, isLoading, isError } = useQuery({
     queryKey: ['consultation', patientId, consultationId],
@@ -42,12 +42,14 @@ const ConsultationFichePage = () => {
   });
 
   const creerOrdonnance = useCreerOrdonnance(patientId);
+  const validerOrd = useValiderOrdonnance();
 
   const [afficherFormulaireOrd, setAfficherFormulaireOrd] = useState(false);
   const [lignes, setLignes] = useState([]);
   const [notesOrd, setNotesOrd] = useState('');
   const [erreurOrd, setErreurOrd] = useState('');
   const [telechargement, setTelechargement] = useState(null);
+  const [validation, setValidation] = useState(null);
   const [facturation, setFacturation] = useState(null);
 
   const creerFacture = async (ord) => {
@@ -76,6 +78,14 @@ const ConsultationFichePage = () => {
     setTelechargement(ord.id);
     try { await telechargerPDF(ord.id, ord.numero); }
     finally { setTelechargement(null); }
+  };
+
+  const handleValider = async (ord) => {
+    if (!window.confirm(`Valider l'ordonnance ${ord.numero} ? Cette action est irréversible.`)) return;
+    setValidation(ord.id);
+    try { await validerOrd.mutateAsync(ord.id); }
+    catch (e) { alert(e?.response?.data?.message || 'Erreur lors de la validation'); }
+    finally { setValidation(null); }
   };
 
   if (isLoading) return <div className="flex justify-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-4 border-zeze-vert border-t-transparent" /></div>;
@@ -234,6 +244,16 @@ const ConsultationFichePage = () => {
               </p>
             </div>
             <div className="flex gap-2">
+              {peutPrescrire && ord.statut === 'brouillon' && (
+                <Button
+                  variante="secondaire"
+                  icone={CheckCircle}
+                  chargement={validation === ord.id}
+                  onClick={() => handleValider(ord)}
+                >
+                  Valider
+                </Button>
+              )}
               <Button
                 variante="secondaire"
                 icone={Download}
@@ -242,7 +262,7 @@ const ConsultationFichePage = () => {
               >
                 PDF
               </Button>
-              {ord.montant_total > 0 && (
+              {ord.montant_total > 0 && ord.statut !== 'annulee' && (
                 <Button
                   variante="secondaire"
                   icone={Receipt}

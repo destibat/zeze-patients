@@ -3,13 +3,26 @@
 const { Consultation, Patient, User, Ordonnance } = require('../models');
 const { getPosologie } = require('../services/posologieService');
 
+const getMedecinIds = async (utilisateur) => {
+  const { Op } = require('sequelize');
+  if (utilisateur.role === 'administrateur') return null; // pas de filtre
+  if (utilisateur.role === 'stockiste') {
+    const delegues = await User.findAll({ where: { stockiste_id: utilisateur.id }, attributes: ['id'] });
+    return { [Op.in]: [utilisateur.id, ...delegues.map((d) => d.id)] };
+  }
+  return utilisateur.id; // délégué ou autre : uniquement soi-même
+};
+
 const listerToutes = async (req, res) => {
   const { Op } = require('sequelize');
   const { debut, fin, medecin_id } = req.query;
   const where = {};
   if (debut && fin) where.date_consultation = { [Op.between]: [debut, fin] };
   else if (debut) where.date_consultation = { [Op.gte]: debut };
-  if (medecin_id) where.medecin_id = medecin_id;
+
+  const filtreMedecin = await getMedecinIds(req.utilisateur);
+  if (filtreMedecin !== null) where.medecin_id = filtreMedecin;
+  else if (medecin_id) where.medecin_id = medecin_id;
 
   const consultations = await Consultation.findAll({
     where,
@@ -25,8 +38,13 @@ const listerToutes = async (req, res) => {
 
 const listerParPatient = async (req, res) => {
   const { patientId } = req.params;
+  const where = { patient_id: patientId };
+
+  const filtreMedecin = await getMedecinIds(req.utilisateur);
+  if (filtreMedecin !== null) where.medecin_id = filtreMedecin;
+
   const consultations = await Consultation.findAll({
-    where: { patient_id: patientId },
+    where,
     include: [
       { model: User, as: 'medecin', attributes: ['id', 'nom', 'prenom'] },
       { model: Ordonnance, as: 'ordonnances', attributes: ['id', 'numero', 'statut', 'montant_total'] },

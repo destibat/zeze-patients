@@ -5,7 +5,10 @@ const { Op } = require('sequelize');
 
 const INCLUDE_BASE = [
   { model: Patient, as: 'patient', attributes: ['id', 'nom', 'prenom', 'telephone', 'numero_dossier'] },
-  { model: User, as: 'createur', attributes: ['id', 'nom', 'prenom', 'role', 'commission_rate', 'stockiste_id'] },
+  {
+    model: User, as: 'createur', attributes: ['id', 'nom', 'prenom', 'role', 'commission_rate', 'stockiste_id'],
+    include: [{ model: User, as: 'stockiste', attributes: ['id', 'nom', 'prenom', 'commission_rate'] }],
+  },
 ];
 
 const genererNumero = async () => {
@@ -35,8 +38,19 @@ const lister = async (req, res) => {
   if (debut && fin) where.date_facture = { [Op.between]: [debut, fin] };
   else if (debut) where.date_facture = { [Op.gte]: debut };
 
-  // Non-admin : uniquement ses propres factures
-  if (!estAdmin) where.created_by = req.utilisateur.id;
+  // Non-admin : ses propres factures + celles de ses délégués (pour les stockistes)
+  if (!estAdmin) {
+    if (req.utilisateur.role === 'stockiste') {
+      const delegues = await User.findAll({
+        where: { stockiste_id: req.utilisateur.id },
+        attributes: ['id'],
+      });
+      const ids = [req.utilisateur.id, ...delegues.map((d) => d.id)];
+      where.created_by = { [Op.in]: ids };
+    } else {
+      where.created_by = req.utilisateur.id;
+    }
+  }
 
   const factures = await Facture.findAll({
     where,

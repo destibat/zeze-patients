@@ -2,13 +2,24 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import api from '../services/api';
+import { useAuth } from '../contexts/AuthContext';
+import { useValiderOrdonnance } from '../hooks/useOrdonnances';
 import { telechargerPDF } from '../hooks/useOrdonnances';
-import { FileText, Download, Search, Receipt } from 'lucide-react';
+import { FileText, Download, Search, Receipt, CheckCircle } from 'lucide-react';
 
 const useOrdonnancesGlobal = (params) =>
   useQuery({
     queryKey: ['ordonnances-global', params],
     queryFn: () => api.get('/ordonnances', { params }).then((r) => r.data),
+  });
+
+const useUtilisateursFiltres = (estAdmin) =>
+  useQuery({
+    queryKey: ['users', 'stockistes-delegues'],
+    queryFn: () =>
+      api.get('/users', { params: { limite: 100, actif: true } }).then((r) => r.data.data || []),
+    enabled: estAdmin,
+    staleTime: 5 * 60 * 1000,
   });
 
 const formatMontant = (n) => new Intl.NumberFormat('fr-FR').format(n || 0) + ' FCFA';
@@ -21,12 +32,26 @@ const STATUT = {
 
 const OrdonnancesPage = () => {
   const navigate = useNavigate();
+  const { aLeRole } = useAuth();
+  const estAdmin = aLeRole('administrateur');
+  const peutValider = aLeRole('administrateur', 'stockiste', 'delegue');
+
   const [recherche, setRecherche] = useState('');
   const [filtreStatut, setFiltreStatut] = useState('');
+  const [filtreUser, setFiltreUser] = useState('');
   const [telechargement, setTelechargement] = useState(null);
+  const [validation, setValidation] = useState(null);
 
-  const { data: ordonnances = [], isLoading } = useOrdonnancesGlobal(
-    filtreStatut ? { statut: filtreStatut } : {}
+  const params = {};
+  if (filtreStatut) params.statut = filtreStatut;
+  if (filtreUser) params.medecin_id = filtreUser;
+
+  const { data: ordonnances = [], isLoading } = useOrdonnancesGlobal(params);
+  const { data: utilisateurs = [] } = useUtilisateursFiltres(estAdmin);
+  const validerOrd = useValiderOrdonnance();
+
+  const utilisateursFiltres = utilisateurs.filter(
+    (u) => u.role === 'stockiste' || u.role === 'delegue'
   );
 
   const filtrees = ordonnances.filter((o) => {
@@ -57,6 +82,19 @@ const OrdonnancesPage = () => {
     }
   };
 
+  const handleValider = async (e, ord) => {
+    e.stopPropagation();
+    if (!window.confirm(`Valider l'ordonnance ${ord.numero} ? Cette action est irréversible.`)) return;
+    setValidation(ord.id);
+    try {
+      await validerOrd.mutateAsync(ord.id);
+    } catch (err) {
+      alert(err?.response?.data?.message || 'Erreur lors de la validation');
+    } finally {
+      setValidation(null);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -83,6 +121,16 @@ const OrdonnancesPage = () => {
             <option value="">Tous statuts</option>
             {Object.entries(STATUT).map(([v, { label }]) => <option key={v} value={v}>{label}</option>)}
           </select>
+          {estAdmin && utilisateursFiltres.length > 0 && (
+            <select value={filtreUser} onChange={(e) => setFiltreUser(e.target.value)} className="champ-input sm:w-56">
+              <option value="">Tous les utilisateurs</option>
+              {utilisateursFiltres.map((u) => (
+                <option key={u.id} value={u.id}>
+                  {u.prenom} {u.nom} ({u.role === 'stockiste' ? 'Stockiste' : 'Délégué'})
+                </option>
+              ))}
+            </select>
+          )}
         </div>
       </div>
 
@@ -105,7 +153,7 @@ const OrdonnancesPage = () => {
                   <th className="text-left px-4 py-3 font-semibold text-texte-secondaire">N°</th>
                   <th className="text-left px-4 py-3 font-semibold text-texte-secondaire">Patient</th>
                   <th className="text-left px-4 py-3 font-semibold text-texte-secondaire hidden md:table-cell">Date</th>
-                  <th className="text-left px-4 py-3 font-semibold text-texte-secondaire hidden lg:table-cell">Stockiste</th>
+                  <th className="text-left px-4 py-3 font-semibold text-texte-secondaire hidden lg:table-cell">Créateur</th>
                   <th className="text-right px-4 py-3 font-semibold text-texte-secondaire hidden sm:table-cell">Montant</th>
                   <th className="text-center px-4 py-3 font-semibold text-texte-secondaire">Statut</th>
                   <th className="text-right px-4 py-3 font-semibold text-texte-secondaire">Actions</th>
@@ -139,13 +187,27 @@ const OrdonnancesPage = () => {
                       </td>
                       <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-end gap-1">
+                          {peutValider && o.statut === 'brouillon' && (
+                            <button
+                              onClick={(e) => handleValider(e, o)}
+                              disabled={validation === o.id}
+                              className="p-1.5 text-texte-secondaire hover:text-zeze-vert rounded"
+                              title="Valider l'ordonnance"
+                            >
+                              {validation === o.id
+                                ? <div className="w-[15px] h-[15px] border-2 border-zeze-vert border-t-transparent rounded-full animate-spin" />
+                                : <CheckCircle size={15} />}
+                            </button>
+                          )}
                           <button
                             onClick={(e) => handlePDF(e, o)}
                             disabled={telechargement === o.id}
                             className="p-1.5 text-texte-secondaire hover:text-zeze-vert rounded"
                             title="Télécharger PDF"
                           >
-                            <Download size={15} />
+                            {telechargement === o.id
+                              ? <div className="w-[15px] h-[15px] border-2 border-zeze-vert border-t-transparent rounded-full animate-spin" />
+                              : <Download size={15} />}
                           </button>
                           {o.montant_total > 0 && o.statut !== 'annulee' && (
                             <button

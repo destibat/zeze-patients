@@ -373,8 +373,10 @@ const VueGains = ({ factures, parametres, estAdmin }) => {
       stockistes[createur.id].venteDirecte += encaisse;
     } else if (createur.role === 'delegue' && createur.stockiste_id) {
       const sId = createur.stockiste_id;
-      if (!stockistes[sId]) stockistes[sId] = { createur: null, venteDirecte: 0, delegues: [] };
-      const tauxS = parseFloat(createur.commission_rate) || 25;
+      const stockisteInfo = createur.stockiste || null;
+      if (!stockistes[sId]) stockistes[sId] = { createur: stockisteInfo, venteDirecte: 0, delegues: [] };
+      else if (!stockistes[sId].createur && stockisteInfo) stockistes[sId].createur = stockisteInfo;
+      const tauxS = parseFloat(stockisteInfo?.commission_rate) || 25;
       stockistes[sId].delegues.push({
         createur,
         encaisse,

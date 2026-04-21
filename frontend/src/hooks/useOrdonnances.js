@@ -1,6 +1,18 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../services/api';
 
+export const useValiderOrdonnance = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id) => api.post(`/ordonnances/${id}/valider`).then((r) => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['ordonnances-global'] });
+      qc.invalidateQueries({ queryKey: ['consultation'] });
+      qc.invalidateQueries({ queryKey: ['consultations-global'] });
+    },
+  });
+};
+
 export const useOrdonnance = (id) =>
   useQuery({
     queryKey: ['ordonnance', id],

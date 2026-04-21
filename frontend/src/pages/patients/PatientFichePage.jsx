@@ -41,6 +41,7 @@ const PatientFichePage = () => {
   if (isError || !patient) return <div className="p-6"><Alert type="erreur" message="Dossier patient introuvable" /></div>;
 
   const peutVoirMedical = aLeRole('administrateur', 'stockiste');
+  const peutCreerConsultation = aLeRole('administrateur', 'stockiste', 'delegue');
 
   return (
     <div className="space-y-6 max-w-4xl">
@@ -157,7 +158,7 @@ const PatientFichePage = () => {
       {/* Contenu onglet Consultations */}
       {ongletActif === 'consultations' && (
         <div className="space-y-3">
-          {peutVoirMedical && !patient.archive && (
+          {peutCreerConsultation && !patient.archive && (
             <div className="flex justify-end">
               <Button variante="primaire" icone={Plus} onClick={() => navigate(`/patients/${id}/consultations/nouvelle`)}>
                 Nouvelle consultation

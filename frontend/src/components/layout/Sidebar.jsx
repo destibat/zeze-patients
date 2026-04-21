@@ -13,7 +13,7 @@ const entresNav = [
   { cle: 'consultations', chemin: '/consultations', icone: FileText, roles: ['administrateur', 'stockiste', 'delegue'] },
   { cle: 'rendez_vous', chemin: '/rendez-vous', icone: Calendar, roles: ['administrateur', 'stockiste', 'secretaire', 'delegue'] },
   { cle: 'ordonnances', chemin: '/ordonnances', icone: FileText, roles: ['administrateur', 'stockiste', 'delegue'] },
-  { cle: 'facturation', chemin: '/facturation', icone: Receipt, roles: ['administrateur', 'secretaire', 'delegue'] },
+  { cle: 'facturation', chemin: '/facturation', icone: Receipt, roles: ['administrateur', 'stockiste', 'secretaire', 'delegue'] },
   { cle: 'stock', chemin: '/stock', icone: Package, roles: ['administrateur', 'secretaire'] },
   { cle: 'statistiques', chemin: '/statistiques', icone: BarChart3, roles: ['administrateur'] },
   { cle: 'utilisateurs', chemin: '/admin/utilisateurs', icone: Users, roles: ['administrateur'] },
