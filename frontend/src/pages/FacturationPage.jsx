@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 import api from '../services/api';
 import Alert from '../components/ui/Alert';
 import Button from '../components/ui/Button';
@@ -345,8 +346,17 @@ const VueRelances = ({ factures, onPayer, onAnnuler }) => {
 
 // ── Gains ─────────────────────────────────────────────────────────────────────
 
-const VueGains = ({ factures, parametres }) => {
-  // Regroupe les factures payées par créateur
+const LigneTotal = ({ label, montant, couleur = 'text-texte-principal', petit = false }) => (
+  <div className={`flex items-center justify-between ${petit ? 'py-1' : 'py-2'}`}>
+    <p className={`${petit ? 'text-xs text-texte-secondaire' : 'text-sm text-texte-principal'}`}>{label}</p>
+    <p className={`font-semibold font-mono ${petit ? 'text-xs' : 'text-sm'} ${couleur}`}>{formatMontant(montant)}</p>
+  </div>
+);
+
+const VueGains = ({ factures, parametres, estAdmin }) => {
+  const tauxDelegue = parametres.commission_delegue ?? 15;
+
+  // Agréger les ventes par créateur
   const parCreateur = {};
   factures.forEach((f) => {
     if (f.statut === 'annulee' || !f.createur) return;
@@ -355,76 +365,137 @@ const VueGains = ({ factures, parametres }) => {
     parCreateur[cId].encaisse += f.montant_paye;
   });
 
-  const tauxDelegue = parametres.commission_delegue ?? 15;
-
-  // Regroupe les délégués sous leurs stockistes
+  // Regrouper délégués sous leurs stockistes
   const stockistes = {};
   Object.values(parCreateur).forEach(({ createur, encaisse }) => {
     if (createur.role === 'stockiste' || createur.role === 'administrateur') {
-      if (!stockistes[createur.id]) stockistes[createur.id] = { createur, encaisse: 0, delegues: [] };
-      stockistes[createur.id].encaisse += encaisse;
+      if (!stockistes[createur.id]) stockistes[createur.id] = { createur, venteDirecte: 0, delegues: [] };
+      stockistes[createur.id].venteDirecte += encaisse;
     } else if (createur.role === 'delegue' && createur.stockiste_id) {
       const sId = createur.stockiste_id;
-      if (!stockistes[sId]) {
-        // Stockiste sans ventes directes — on crée un groupe vide
-        stockistes[sId] = { createur: null, encaisse: 0, delegues: [] };
-      }
-      const tauxStockiste = parseFloat(createur.commission_rate) || 25;
-      const gainDelegue = Math.round(encaisse * tauxDelegue / 100);
-      const gainStockisteNet = Math.round(encaisse * (tauxStockiste - tauxDelegue) / 100);
-      stockistes[sId].delegues.push({ createur, encaisse, gainDelegue, gainStockisteNet, tauxStockiste });
-      stockistes[sId].encaisse += encaisse;
+      if (!stockistes[sId]) stockistes[sId] = { createur: null, venteDirecte: 0, delegues: [] };
+      const tauxS = parseFloat(createur.commission_rate) || 25;
+      stockistes[sId].delegues.push({
+        createur,
+        encaisse,
+        gainDelegue: Math.round(encaisse * tauxDelegue / 100),
+        gainStockisteNet: Math.round(encaisse * (tauxS - tauxDelegue) / 100),
+        montantMapa: Math.round(encaisse * (100 - tauxS) / 100),
+        tauxStockiste: tauxS,
+      });
     }
   });
 
   const groupes = Object.values(stockistes);
+
   if (groupes.length === 0) {
-    return <p className="text-sm text-texte-secondaire">Aucune donnée de gains disponible.</p>;
+    return <p className="text-sm text-texte-secondaire italic">Aucune donnée de gains disponible.</p>;
   }
 
+  // Totaux globaux pour l'admin
+  let totalEncaisseGlobal = 0;
+  let totalCommissionsGlobal = 0;
+  let totalMapaGlobal = 0;
+
+  groupes.forEach(({ createur, venteDirecte, delegues }) => {
+    const taux = createur ? (parseFloat(createur.commission_rate) || 25) : 25;
+    const totalStockiste = venteDirecte + delegues.reduce((s, d) => s + d.encaisse, 0);
+    totalEncaisseGlobal += totalStockiste;
+    totalCommissionsGlobal += Math.round(venteDirecte * taux / 100)
+      + delegues.reduce((s, d) => s + d.gainDelegue + d.gainStockisteNet, 0);
+    totalMapaGlobal += Math.round(venteDirecte * (100 - taux) / 100)
+      + delegues.reduce((s, d) => s + d.montantMapa, 0);
+  });
+
   return (
-    <div className="space-y-3">
-      {groupes.map(({ createur, encaisse, delegues }, idx) => {
-        const tauxStockiste = createur ? (parseFloat(createur.commission_rate) || 25) : 25;
-        const gainDirectStockiste = Math.round(encaisse * tauxStockiste / 100);
+    <div className="space-y-4">
+      {/* Résumé global — admin uniquement */}
+      {estAdmin && (
+        <div className="carte bg-gray-50 border-2 border-gray-200 space-y-2">
+          <p className="text-xs font-semibold text-texte-secondaire uppercase tracking-wide">Résumé global</p>
+          <div className="divide-y divide-bordure">
+            <LigneTotal label="Total encaissé (tous stockistes)" montant={totalEncaisseGlobal} couleur="text-texte-principal" />
+            <LigneTotal label="Total commissions versées aux stockistes et délégués" montant={totalCommissionsGlobal} couleur="text-blue-600" />
+            <LigneTotal label="Montant dû à MAPA ZEZEPAGNON (maison mère)" montant={totalMapaGlobal} couleur="text-zeze-vert" />
+          </div>
+        </div>
+      )}
+
+      {/* Détail par stockiste */}
+      {groupes.map(({ createur, venteDirecte, delegues }, idx) => {
+        const taux = createur ? (parseFloat(createur.commission_rate) || 25) : 25;
+        const totalVenteStockiste = venteDirecte + delegues.reduce((s, d) => s + d.encaisse, 0);
+        const gainDirectNet = Math.round(venteDirecte * taux / 100);
         const gainDeleguesTotal = delegues.reduce((s, d) => s + d.gainDelegue, 0);
-        const gainEncaisseDelegues = delegues.reduce((s, d) => s + d.encaisse, 0);
-        const gainNetStockiste = gainDirectStockiste - gainDeleguesTotal
-          + delegues.reduce((s, d) => s + d.gainStockisteNet, 0);
+        const gainStockisteNetDelegues = delegues.reduce((s, d) => s + d.gainStockisteNet, 0);
+        const gainStockisteTotal = gainDirectNet + gainStockisteNetDelegues;
+        const mapaStockiste = Math.round(venteDirecte * (100 - taux) / 100)
+          + delegues.reduce((s, d) => s + d.montantMapa, 0);
 
         return (
-          <div key={createur?.id || idx} className="carte border-l-4 border-l-blue-400 space-y-3">
-            <div className="flex items-center justify-between">
+          <div key={createur?.id || idx} className="carte border-l-4 border-l-blue-500 space-y-3">
+            {/* En-tête stockiste */}
+            <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="font-semibold text-texte-principal">
-                  {createur ? `${createur.prenom} ${createur.nom}` : 'Stockiste inconnu'}
-                  <span className="ml-2 text-xs text-texte-secondaire">({tauxStockiste}%)</span>
+                  {createur ? `${createur.prenom} ${createur.nom}` : 'Stockiste non identifié'}
+                  <span className="ml-2 text-xs font-normal text-texte-secondaire bg-blue-50 px-1.5 py-0.5 rounded">
+                    commission {taux}%
+                  </span>
                 </p>
-                <p className="text-xs text-texte-secondaire">
-                  {formatMontant(encaisse)} encaissés · gain net stockiste
+                <p className="text-xs text-texte-secondaire mt-0.5">
+                  Total vendu (lui + délégués) : {formatMontant(totalVenteStockiste)}
                 </p>
               </div>
-              <p className="text-xl font-titres font-bold text-blue-600">
-                {formatMontant(gainNetStockiste)}
-              </p>
             </div>
 
-            {delegues.length > 0 && (
-              <div className="space-y-1 border-t border-bordure pt-2">
-                {delegues.map((d) => (
-                  <div key={d.createur.id} className="flex items-center justify-between bg-fond-secondaire rounded-bouton px-3 py-2">
-                    <div>
-                      <p className="text-sm text-texte-principal">
-                        {d.createur.prenom} {d.createur.nom}
-                        <span className="ml-1 text-xs text-texte-secondaire">(délégué · {tauxDelegue}%)</span>
-                      </p>
-                      <p className="text-xs text-texte-secondaire">{formatMontant(d.encaisse)} encaissés</p>
+            {/* Ventilation */}
+            <div className="bg-fond-secondaire rounded-bouton px-3 divide-y divide-bordure">
+              {venteDirecte > 0 && (
+                <LigneTotal
+                  label={`Ventes directes stockiste (${taux}%)`}
+                  montant={gainDirectNet}
+                  couleur="text-blue-600"
+                  petit
+                />
+              )}
+              {delegues.map((d) => (
+                <div key={d.createur.id}>
+                  <div className="py-1">
+                    <p className="text-xs font-medium text-texte-principal">
+                      Délégué : {d.createur.prenom} {d.createur.nom}
+                      <span className="ml-1 text-texte-secondaire font-normal">— {formatMontant(d.encaisse)} vendus</span>
+                    </p>
+                    <div className="pl-3 mt-0.5 space-y-0.5">
+                      <div className="flex justify-between text-xs">
+                        <span className="text-texte-secondaire">Part délégué ({tauxDelegue}%)</span>
+                        <span className="font-semibold text-orange-600">{formatMontant(d.gainDelegue)}</span>
+                      </div>
+                      <div className="flex justify-between text-xs">
+                        <span className="text-texte-secondaire">Part stockiste ({d.tauxStockiste - tauxDelegue}%)</span>
+                        <span className="font-semibold text-blue-600">{formatMontant(d.gainStockisteNet)}</span>
+                      </div>
                     </div>
-                    <p className="text-sm font-semibold text-orange-600">{formatMontant(d.gainDelegue)}</p>
                   </div>
-                ))}
+                </div>
+              ))}
+              <div className="flex items-center justify-between py-2">
+                <p className="text-xs font-semibold text-texte-principal">Gain net stockiste</p>
+                <p className="text-sm font-bold text-blue-700">{formatMontant(gainStockisteTotal)}</p>
               </div>
-            )}
+              {delegues.length > 0 && (
+                <div className="flex items-center justify-between py-1.5">
+                  <p className="text-xs font-semibold text-orange-700">Total délégués</p>
+                  <p className="text-sm font-bold text-orange-600">{formatMontant(gainDeleguesTotal)}</p>
+                </div>
+              )}
+              {estAdmin && (
+                <div className="flex items-center justify-between py-1.5">
+                  <p className="text-xs font-semibold text-zeze-vert-fonce">Dû à MAPA ZEZEPAGNON</p>
+                  <p className="text-sm font-bold text-zeze-vert">{formatMontant(mapaStockiste)}</p>
+                </div>
+              )}
+            </div>
           </div>
         );
       })}
@@ -435,6 +506,8 @@ const VueGains = ({ factures, parametres }) => {
 // ── Page principale ───────────────────────────────────────────────────────────
 
 const FacturationPage = () => {
+  const { utilisateur } = useAuth();
+  const estAdmin = utilisateur?.role === 'administrateur';
   const navigate = useNavigate();
   const [vue, setVue] = useState('factures');
   const [filtreStatut, setFiltreStatut] = useState('');
@@ -532,7 +605,7 @@ const FacturationPage = () => {
             {gainsVisibles ? '▲ Masquer les gains' : '▼ Voir vos gains'}
           </button>
           {gainsVisibles && (
-            <VueGains factures={factures} parametres={parametres} />
+            <VueGains factures={factures} parametres={parametres} estAdmin={estAdmin} />
           )}
         </div>
       )}

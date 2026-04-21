@@ -20,7 +20,10 @@
       "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(d.get\\('full_name', d.get\\('message',''\\)\\)\\)\")",
       "Bash(git -C /home/alexis/Applis/Dossiers_patients/zeze_patients remote set-url origin https://github.com/destibat/zeze-patients.git)",
       "Bash(git -C /home/alexis/Applis/Dossiers_patients/zeze_patients remote -v)",
-      "Bash(git commit -m 'CA filtré par utilisateur — admin voit global, autres voient leur propre CA *)"
+      "Bash(git commit -m 'CA filtré par utilisateur — admin voit global, autres voient leur propre CA *)",
+      "Bash(git push *)",
+      "Bash(git -C /home/alexis/Applis/Dossiers_patients/zeze_patients add -A)",
+      "Bash(git commit -m 'Patients filtrés par utilisateur + gains MAPA détaillés *)"
     ]
   }
 }

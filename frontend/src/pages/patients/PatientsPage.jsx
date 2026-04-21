@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { useAuth } from '../../contexts/AuthContext';
 import { usePatients, useArchiverPatient } from '../../hooks/usePatients';
 import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
@@ -12,6 +13,8 @@ const sexeCouleur = { masculin: 'bleu', feminin: 'violet', autre: 'gris' };
 
 const PatientsPage = () => {
   const { t } = useTranslation();
+  const { utilisateur } = useAuth();
+  const estAdmin = utilisateur?.role === 'administrateur';
   const navigate = useNavigate();
   const [recherche, setRecherche] = useState('');
   const [filtreSexe, setFiltreSexe] = useState('');
@@ -41,10 +44,13 @@ const PatientsPage = () => {
       {/* En-tête */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-titres font-bold text-texte-principal">Patients</h1>
+          <h1 className="text-2xl font-titres font-bold text-texte-principal">
+            {estAdmin ? 'Patients' : 'Mes patients'}
+          </h1>
           {pagination && (
             <p className="text-sm text-texte-secondaire mt-1">
               {pagination.total} dossier{pagination.total !== 1 ? 's' : ''}
+              {!estAdmin && <span className="ml-1 text-xs">(vos dossiers uniquement)</span>}
             </p>
           )}
         </div>

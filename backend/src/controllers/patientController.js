@@ -22,6 +22,7 @@ const listerPatients = async (req, res) => {
   const page = parseInt(req.query.page, 10) || 1;
   const limite = parseInt(req.query.limite, 10) || 20;
   const { recherche, sexe, archive } = req.query;
+  const estAdmin = req.utilisateur.role === 'administrateur';
 
   const where = {};
 
@@ -30,6 +31,9 @@ const listerPatients = async (req, res) => {
   } else {
     where.archive = false;
   }
+
+  // Non-admin : uniquement ses propres patients
+  if (!estAdmin) where.created_by = req.utilisateur.id;
 
   if (sexe) where.sexe = sexe;
 
