@@ -13,6 +13,7 @@ import PatientFormPage from './pages/patients/PatientFormPage';
 import ConsultationFormPage from './pages/consultations/ConsultationFormPage';
 import ConsultationFichePage from './pages/consultations/ConsultationFichePage';
 import StockPage from './pages/StockPage';
+import MonStockPage from './pages/MonStockPage';
 import AgendaPage from './pages/AgendaPage';
 import FacturationPage from './pages/FacturationPage';
 import ConsultationsPage from './pages/ConsultationsPage';
@@ -98,6 +99,14 @@ const App = () => (
             <Route path="ordonnances" element={<OrdonnancesPage />} />
             <Route path="facturation" element={<FacturationPage />} />
             <Route path="stock" element={<StockPage />} />
+            <Route
+              path="mon-stock"
+              element={
+                <ProtectedRoute roles={['delegue']}>
+                  <MonStockPage />
+                </ProtectedRoute>
+              }
+            />
             <Route path="statistiques" element={<StatistiquesPage />} />
             <Route path="parametres" element={<ParametresPage />} />
           </Route>

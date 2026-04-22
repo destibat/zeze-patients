@@ -30,4 +30,14 @@ const desactiver = async (id) => {
   return data;
 };
 
-export default { lister, obtenir, creer, modifier, reinitialiserMdp, desactiver };
+const reactiver = async (id) => {
+  const { data } = await api.put(`/users/${id}/reactiver`);
+  return data;
+};
+
+const supprimer = async (id) => {
+  const { data } = await api.delete(`/users/${id}/supprimer`);
+  return data;
+};
+
+export default { lister, obtenir, creer, modifier, reinitialiserMdp, desactiver, reactiver, supprimer };

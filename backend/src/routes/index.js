@@ -24,9 +24,15 @@ router.use('/stock', require('./stockRoutes'));
 router.use('/rendez-vous', require('./rendezVousRoutes'));
 router.get('/consultations', authentifier, asyncHandler(require('../controllers/consultationController').listerToutes));
 router.use('/factures', require('./factureRoutes'));
+router.use('/stock-delegue', require('./stockDelegueRoutes'));
 router.use('/parametres', require('./parametreRoutes'));
 router.get('/stats', authentifier, asyncHandler(obtenirStats));
 router.get('/stats/detaillees', authentifier, asyncHandler(obtenirStatsDetaillees));
+
+// Routes de développement — jamais chargées en production
+if (process.env.NODE_ENV === 'development') {
+  router.use('/dev', require('./devRoutes'));
+}
 
 // Route 404 pour les endpoints inconnus
 router.use('*', (req, res) => {

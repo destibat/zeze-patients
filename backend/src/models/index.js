@@ -20,8 +20,10 @@ const StockMouvement = require('./StockMouvement')(sequelize);
 const RendezVous = require('./RendezVous')(sequelize);
 const Facture = require('./Facture')(sequelize);
 const ParametreCabinet = require('./ParametreCabinet')(sequelize);
+const StockDelegue = require('./StockDelegue')(sequelize);
+const MouvementDelegue = require('./MouvementDelegue')(sequelize);
 
-const models = { User, RefreshToken, AuditLog, Patient, Produit, Consultation, Ordonnance, StockMouvement, RendezVous, Facture, ParametreCabinet };
+const models = { User, RefreshToken, AuditLog, Patient, Produit, Consultation, Ordonnance, StockMouvement, RendezVous, Facture, ParametreCabinet, StockDelegue, MouvementDelegue };
 
 // Initialisation des associations
 Object.values(models).forEach((model) => {

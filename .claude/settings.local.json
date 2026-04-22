@@ -32,7 +32,10 @@
       "Bash(sudo ls *)",
       "Bash(sudo readlink *)",
       "Bash(sudo cat *)",
-      "Bash(sudo grep *)"
+      "Bash(sudo grep *)",
+      "Bash(docker-compose ps *)",
+      "Bash(docker compose *)",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(d.get\\('version','?'\\)\\)\")"
     ]
   }
 }

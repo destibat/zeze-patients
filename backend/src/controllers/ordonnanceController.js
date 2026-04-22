@@ -1,6 +1,6 @@
 'use strict';
 
-const { Ordonnance, Consultation, Patient, User } = require('../models');
+const { Ordonnance, Consultation, Patient, User, StockDelegue, sequelize } = require('../models');
 const { genererNumeroOrdonnance } = require('../services/numeroOrdonnanceService');
 const { getPosologie } = require('../services/posologieService');
 const pdfService = require('../services/pdfService');
@@ -47,23 +47,45 @@ const creer = async (req, res) => {
   if (!consultation) return res.status(404).json({ message: 'Consultation introuvable' });
 
   const { lignes = [], notes } = req.body;
+  const transaction = await sequelize.transaction();
 
-  const montant_total = lignes.reduce((sum, l) => sum + (l.prix_unitaire * l.quantite), 0);
-  const numero = await genererNumeroOrdonnance();
+  try {
+    if (req.utilisateur.role === 'delegue') {
+      for (const ligne of lignes.filter((l) => l.source === 'stock')) {
+        const item = await StockDelegue.findOne({
+          where: { delegue_id: req.utilisateur.id, produit_id: ligne.produit_id },
+          transaction,
+          lock: true,
+        });
+        if (!item || item.quantite < ligne.quantite) {
+          await transaction.rollback();
+          return res.status(422).json({ message: `Stock insuffisant pour ${ligne.nom_produit}` });
+        }
+        await item.decrement('quantite', { by: ligne.quantite, transaction });
+      }
+    }
 
-  const ordonnance = await Ordonnance.create({
-    numero,
-    consultation_id: consultationId,
-    patient_id: consultation.patient_id,
-    medecin_id: req.utilisateur.id,
-    date_ordonnance: consultation.date_consultation,
-    lignes,
-    montant_total,
-    notes,
-    statut: 'brouillon',
-  });
+    const montant_total = lignes.reduce((sum, l) => sum + (l.prix_unitaire * l.quantite), 0);
+    const numero = await genererNumeroOrdonnance();
 
-  res.status(201).json(ordonnance);
+    const ordonnance = await Ordonnance.create({
+      numero,
+      consultation_id: consultationId,
+      patient_id: consultation.patient_id,
+      medecin_id: req.utilisateur.id,
+      date_ordonnance: consultation.date_consultation,
+      lignes,
+      montant_total,
+      notes,
+      statut: 'brouillon',
+    }, { transaction });
+
+    await transaction.commit();
+    res.status(201).json(ordonnance);
+  } catch (e) {
+    await transaction.rollback();
+    throw e;
+  }
 };
 
 const obtenir = async (req, res) => {

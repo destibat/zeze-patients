@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '../services/api';
 import Alert from '../components/ui/Alert';
 import Button from '../components/ui/Button';
-import { User, Lock, Building2, Save, Percent, Eye, EyeOff } from 'lucide-react';
+import { User, Lock, Building2, Save, Percent, Eye, EyeOff, Store, Pencil, X, Check } from 'lucide-react';
 
 const Section = ({ titre, icone: Icone, children }) => (
   <div className="carte space-y-4">
@@ -131,6 +131,28 @@ const ParametresPage = () => {
     changerMdp.mutate({ ancienMotDePasse: mdp.ancien, nouveauMotDePasse: mdp.nouveau });
   };
 
+  // Cabinets des stockistes (admin uniquement)
+  const { data: stockistes = [] } = useQuery({
+    queryKey: ['users', { role: 'stockiste' }],
+    queryFn: () => api.get('/users', { params: { role: 'stockiste', limite: 100 } }).then((r) => r.data?.data || []),
+    enabled: estAdmin,
+  });
+  const [editionCabinet, setEditionCabinet] = useState(null); // { id, nom_cabinet }
+  const [succesStockiste, setSuccesStockiste] = useState('');
+  const [erreurStockiste, setErreurStockiste] = useState('');
+
+  const sauvegarderCabinet = useMutation({
+    mutationFn: ({ id, nom_cabinet }) => api.put(`/users/${id}`, { nom_cabinet }).then((r) => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['users', { role: 'stockiste' }] });
+      setSuccesStockiste('Nom du cabinet mis à jour');
+      setEditionCabinet(null);
+      setErreurStockiste('');
+      setTimeout(() => setSuccesStockiste(''), 3000);
+    },
+    onError: (e) => { setErreurStockiste(e?.response?.data?.message || 'Erreur'); },
+  });
+
   return (
     <div className="max-w-2xl space-y-6">
       <h1 className="text-2xl font-titres font-bold text-texte-principal">Paramètres</h1>
@@ -219,6 +241,73 @@ const ParametresPage = () => {
           <Button variante="primaire" icone={Save} chargement={sauvegarderCommissions.isPending} onClick={soumettreCommissions}>
             Enregistrer les taux
           </Button>
+        </Section>
+      )}
+
+      {/* Cabinets des stockistes (admin uniquement) */}
+      {estAdmin && (
+        <Section titre="Cabinets des stockistes" icone={Store}>
+          {succesStockiste && <Alert type="succes" message={succesStockiste} />}
+          {erreurStockiste && <Alert type="erreur" message={erreurStockiste} />}
+
+          {stockistes.length === 0 ? (
+            <p className="text-sm text-texte-secondaire italic">Aucun stockiste enregistré.</p>
+          ) : (
+            <div className="space-y-3">
+              {stockistes.map((s) => (
+                <div key={s.id} className="flex items-center gap-3 p-3 bg-fond-secondaire rounded-bouton">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-texte-principal">{s.prenom} {s.nom}</p>
+                    {editionCabinet?.id === s.id ? (
+                      <input
+                        autoFocus
+                        className="champ-input mt-1 text-sm"
+                        value={editionCabinet.nom_cabinet}
+                        onChange={(e) => setEditionCabinet({ ...editionCabinet, nom_cabinet: e.target.value })}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') sauvegarderCabinet.mutate(editionCabinet);
+                          if (e.key === 'Escape') setEditionCabinet(null);
+                        }}
+                        placeholder="Nom du cabinet"
+                      />
+                    ) : (
+                      <p className="text-sm text-texte-secondaire mt-0.5">
+                        {s.nom_cabinet || <span className="italic">Aucun nom de cabinet</span>}
+                      </p>
+                    )}
+                  </div>
+
+                  {editionCabinet?.id === s.id ? (
+                    <div className="flex items-center gap-1 flex-shrink-0">
+                      <button
+                        onClick={() => sauvegarderCabinet.mutate(editionCabinet)}
+                        disabled={sauvegarderCabinet.isPending}
+                        className="p-1.5 text-zeze-vert hover:bg-white rounded"
+                        title="Enregistrer"
+                      >
+                        <Check size={16} />
+                      </button>
+                      <button
+                        onClick={() => setEditionCabinet(null)}
+                        className="p-1.5 text-texte-secondaire hover:bg-white rounded"
+                        title="Annuler"
+                      >
+                        <X size={16} />
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setEditionCabinet({ id: s.id, nom_cabinet: s.nom_cabinet || '' })}
+                      className="p-1.5 text-texte-secondaire hover:text-zeze-vert flex-shrink-0 rounded hover:bg-white"
+                      title="Modifier le nom du cabinet"
+                    >
+                      <Pencil size={15} />
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </Section>
       )}
 

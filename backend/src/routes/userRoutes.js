@@ -6,6 +6,8 @@ const {
   modifierUtilisateur,
   reinitialiserMotDePasse,
   desactiverUtilisateur,
+  reactiverUtilisateur,
+  supprimerUtilisateur,
 } = require('../controllers/userController');
 const { authentifier } = require('../middlewares/authenticate');
 const { seulementAdmin } = require('../middlewares/authorize');
@@ -21,6 +23,8 @@ router.post('/', asyncHandler(creerUtilisateur));
 router.get('/:id', asyncHandler(obtenirUtilisateur));
 router.put('/:id', asyncHandler(modifierUtilisateur));
 router.put('/:id/reinitialiser-mdp', asyncHandler(reinitialiserMotDePasse));
+router.put('/:id/reactiver', asyncHandler(reactiverUtilisateur));
 router.delete('/:id', asyncHandler(desactiverUtilisateur));
+router.delete('/:id/supprimer', asyncHandler(supprimerUtilisateur));
 
 module.exports = router;

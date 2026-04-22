@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../contexts/AuthContext';
 import {
   LayoutDashboard, Users, UserRound, Calendar, FileText,
-  Receipt, Package, BarChart3, Settings, X,
+  Receipt, Package, BarChart3, Settings, X, Boxes,
 } from 'lucide-react';
 import logoMapa from '../../assets/logo-mapa.png';
 
@@ -14,6 +14,7 @@ const entresNav = [
   { cle: 'rendez_vous', chemin: '/rendez-vous', icone: Calendar, roles: ['administrateur', 'stockiste', 'secretaire', 'delegue'] },
   { cle: 'ordonnances', chemin: '/ordonnances', icone: FileText, roles: ['administrateur', 'stockiste', 'delegue'] },
   { cle: 'facturation', chemin: '/facturation', icone: Receipt, roles: ['administrateur', 'stockiste', 'secretaire', 'delegue'] },
+  { cle: 'mon_stock', chemin: '/mon-stock', icone: Boxes, roles: ['delegue'] },
   { cle: 'stock', chemin: '/stock', icone: Package, roles: ['administrateur', 'secretaire'] },
   { cle: 'statistiques', chemin: '/statistiques', icone: BarChart3, roles: ['administrateur'] },
   { cle: 'utilisateurs', chemin: '/admin/utilisateurs', icone: Users, roles: ['administrateur'] },
@@ -46,7 +47,9 @@ const Sidebar = ({ ouverte, onFermer }) => {
       >
         {/* Logo */}
         <div className="flex items-center justify-between px-4 py-4 border-b border-zeze-vert">
-          <img src={logoMapa} alt="MAPA ZEZEPAGNON" className="h-10 object-contain" />
+          <div className="bg-white rounded-lg px-2 py-1">
+            <img src={logoMapa} alt="MAPA ZEZEPAGNON" className="h-9 object-contain" />
+          </div>
           <button onClick={onFermer} className="lg:hidden text-white/70 hover:text-white">
             <X size={20} />
           </button>

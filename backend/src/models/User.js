@@ -44,6 +44,10 @@ module.exports = (sequelize) => {
       type: DataTypes.STRING(20),
       allowNull: true,
     },
+    nom_cabinet: {
+      type: DataTypes.STRING(200),
+      allowNull: true,
+    },
     commission_rate: {
       type: DataTypes.DECIMAL(5, 2),
       allowNull: false,

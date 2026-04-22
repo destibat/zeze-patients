@@ -95,7 +95,7 @@ const modifierUtilisateur = async (req, res) => {
     return erreur(res, 'Vous ne pouvez pas modifier votre propre rôle', 403);
   }
 
-  const { nom, prenom, email, role, telephone, actif, commission_rate, stockiste_id } = req.body;
+  const { nom, prenom, email, role, telephone, nom_cabinet, actif, commission_rate, stockiste_id } = req.body;
 
   const nouveauRole = role || utilisateur.role;
   if (nouveauRole === 'delegue' && !stockiste_id && !utilisateur.stockiste_id) {
@@ -113,6 +113,7 @@ const modifierUtilisateur = async (req, res) => {
     email: email?.toLowerCase().trim() || utilisateur.email,
     role: nouveauRole,
     telephone: telephone !== undefined ? telephone?.trim() || null : utilisateur.telephone,
+    nom_cabinet: nom_cabinet !== undefined ? nom_cabinet?.trim() || null : utilisateur.nom_cabinet,
     actif: actif !== undefined ? actif : utilisateur.actif,
     commission_rate: nouveauRole === 'stockiste' && commission_rate != null
       ? parseFloat(commission_rate)
@@ -159,6 +160,39 @@ const desactiverUtilisateur = async (req, res) => {
   return succes(res, null, 'Utilisateur désactivé avec succès');
 };
 
+// PUT /api/users/:id/reactiver — Admin seulement
+const reactiverUtilisateur = async (req, res) => {
+  const utilisateur = await User.findByPk(req.params.id);
+  if (!utilisateur) return erreur(res, 'Utilisateur introuvable', 404);
+  if (utilisateur.actif) return erreur(res, 'L\'utilisateur est déjà actif', 409);
+
+  await utilisateur.update({ actif: true });
+  await journaliser('REACTIVATE_USER', req.utilisateur?.id, req, utilisateur.id);
+
+  return succes(res, null, 'Utilisateur réactivé avec succès');
+};
+
+// DELETE /api/users/:id/supprimer — Suppression définitive (hard delete)
+const supprimerUtilisateur = async (req, res) => {
+  if (req.params.id === req.utilisateur.id) {
+    return erreur(res, 'Vous ne pouvez pas supprimer votre propre compte', 403);
+  }
+
+  const utilisateur = await User.findByPk(req.params.id);
+  if (!utilisateur) return erreur(res, 'Utilisateur introuvable', 404);
+
+  try {
+    await journaliser('DELETE_USER', req.utilisateur?.id, req, utilisateur.id);
+    await utilisateur.destroy();
+    return succes(res, null, 'Utilisateur supprimé définitivement');
+  } catch (e) {
+    if (e.name === 'SequelizeForeignKeyConstraintError') {
+      return erreur(res, 'Impossible de supprimer cet utilisateur : il a des données associées (consultations, ordonnances…). Désactivez-le à la place.', 409);
+    }
+    throw e;
+  }
+};
+
 module.exports = {
   listerUtilisateurs,
   obtenirUtilisateur,
@@ -166,4 +200,6 @@ module.exports = {
   modifierUtilisateur,
   reinitialiserMotDePasse,
   desactiverUtilisateur,
+  reactiverUtilisateur,
+  supprimerUtilisateur,
 };

@@ -1,6 +1,6 @@
 'use strict';
 
-const { Patient, Consultation, Ordonnance, Facture, RendezVous, sequelize } = require('../models');
+const { Patient, Consultation, Ordonnance, Facture, RendezVous, MouvementDelegue, sequelize } = require('../models');
 const { Op } = require('sequelize');
 
 const obtenirStats = async (req, res) => {
@@ -45,7 +45,22 @@ const obtenirStats = async (req, res) => {
       Facture.count({ where: whereRelances }),
     ]);
 
-  const caMois = facturesMois.reduce((sum, f) => sum + (f.montant_paye || 0), 0);
+  let caMois = facturesMois.reduce((sum, f) => sum + (f.montant_paye || 0), 0);
+
+  // Pour les délégués, ajouter les ventes directes validées au CA du mois
+  if (req.utilisateur.role === 'delegue') {
+    const ventesDirectes = await MouvementDelegue.findAll({
+      where: {
+        delegue_id: userId,
+        type: 'vente',
+        statut: 'valide',
+        date_mouvement: { [Op.gte]: debutMois },
+      },
+      attributes: ['montant_total'],
+      raw: true,
+    });
+    caMois += ventesDirectes.reduce((s, v) => s + (v.montant_total || 0), 0);
+  }
 
   res.json({
     patients_actifs: patientsActifs,

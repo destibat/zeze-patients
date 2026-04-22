@@ -41,3 +41,24 @@ export const useDesactiverUser = () => {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: [CLE_USERS] }),
   });
 };
+
+export const useReactiverUser = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: userService.reactiver,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: [CLE_USERS] }),
+  });
+};
+
+export const useSupprimerUser = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: userService.supprimer,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: [CLE_USERS] }),
+  });
+};
+
+export const useReinitialiserMdp = () =>
+  useMutation({
+    mutationFn: ({ id, nouveauMotDePasse }) => userService.reinitialiserMdp(id, nouveauMotDePasse),
+  });

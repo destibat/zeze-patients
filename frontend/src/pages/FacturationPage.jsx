@@ -7,8 +7,9 @@ import Alert from '../components/ui/Alert';
 import Button from '../components/ui/Button';
 import {
   Receipt, CreditCard, CheckCircle, Clock, AlertCircle,
-  XCircle, Plus, X, ChevronDown, ChevronUp, Bell, Phone, User, TrendingUp,
+  XCircle, Plus, X, ChevronDown, ChevronUp, Bell, Phone, User, TrendingUp, ShoppingBag, Check,
 } from 'lucide-react';
+import { useVentesDirectesDelegues, useVentesEnAttente, useValiderVente, useRefuserVente } from '../hooks/useStockDelegue';
 
 // ── Hooks ─────────────────────────────────────────────────────────────────────
 
@@ -122,12 +123,18 @@ const ModalPaiement = ({ facture, onFermer }) => {
 
 // ── Ligne facture ─────────────────────────────────────────────────────────────
 
+const parseLignes = (raw) => {
+  if (!raw) return [];
+  if (typeof raw === 'string') { try { return JSON.parse(raw); } catch { return []; } }
+  return Array.isArray(raw) ? raw : [];
+};
+
 const LigneFacture = ({ facture, onPayer, onAnnuler }) => {
   const [ouverte, setOuverte] = useState(false);
   const cfg = STATUT[facture.statut] || STATUT.en_attente;
   const Icone = cfg.icone;
   const restant = facture.montant_total - facture.montant_paye;
-  const lignes = facture.lignes || [];
+  const lignes = parseLignes(facture.lignes);
 
   return (
     <div className="border border-bordure rounded-carte overflow-hidden">
@@ -353,21 +360,57 @@ const LigneTotal = ({ label, montant, couleur = 'text-texte-principal', petit = 
   </div>
 );
 
-const VueGains = ({ factures, parametres, estAdmin }) => {
+const VueGains = ({ factures, ventesDirectes = [], parametres, estAdmin }) => {
   const tauxDelegue = parametres.commission_delegue ?? 15;
 
-  // Agréger les ventes par créateur
+  // Agréger les ventes par créateur (ordonnances)
   const parCreateur = {};
   factures.forEach((f) => {
     if (f.statut === 'annulee' || !f.createur) return;
     const cId = f.createur.id;
-    if (!parCreateur[cId]) parCreateur[cId] = { createur: f.createur, encaisse: 0 };
+    if (!parCreateur[cId]) {
+      parCreateur[cId] = {
+        createur: f.createur,
+        encaisse: 0,
+        encaisseOrdonnance: 0,
+        encaisseDirect: 0,
+        gainDelegateDirect: 0,
+        gainStockisteDirect: 0,
+      };
+    }
     parCreateur[cId].encaisse += f.montant_paye;
+    parCreateur[cId].encaisseOrdonnance += f.montant_paye;
+  });
+
+  // Fusionner les ventes directes des délégués (mouvements_delegue)
+  ventesDirectes.forEach(({ delegue, ventes_total, gain_delegue, commission_stockiste }) => {
+    const cId = delegue.id;
+    if (!parCreateur[cId]) {
+      parCreateur[cId] = {
+        createur: {
+          id: delegue.id,
+          nom: delegue.nom,
+          prenom: delegue.prenom,
+          role: 'delegue',
+          stockiste_id: delegue.stockiste_id,
+          stockiste: delegue.stockiste,
+        },
+        encaisse: 0,
+        encaisseOrdonnance: 0,
+        encaisseDirect: 0,
+        gainDelegateDirect: 0,
+        gainStockisteDirect: 0,
+      };
+    }
+    parCreateur[cId].encaisse += ventes_total;
+    parCreateur[cId].encaisseDirect += ventes_total;
+    parCreateur[cId].gainDelegateDirect += gain_delegue;
+    parCreateur[cId].gainStockisteDirect += commission_stockiste;
   });
 
   // Regrouper délégués sous leurs stockistes
   const stockistes = {};
-  Object.values(parCreateur).forEach(({ createur, encaisse }) => {
+  Object.values(parCreateur).forEach(({ createur, encaisse, encaisseOrdonnance, encaisseDirect, gainDelegateDirect, gainStockisteDirect }) => {
     if (createur.role === 'stockiste' || createur.role === 'administrateur') {
       if (!stockistes[createur.id]) stockistes[createur.id] = { createur, venteDirecte: 0, delegues: [] };
       stockistes[createur.id].venteDirecte += encaisse;
@@ -377,12 +420,21 @@ const VueGains = ({ factures, parametres, estAdmin }) => {
       if (!stockistes[sId]) stockistes[sId] = { createur: stockisteInfo, venteDirecte: 0, delegues: [] };
       else if (!stockistes[sId].createur && stockisteInfo) stockistes[sId].createur = stockisteInfo;
       const tauxS = parseFloat(stockisteInfo?.commission_rate) || 25;
+
+      // Gains ordonnance calculés au %, gains directs pris depuis la BDD (déjà calculés à la vente)
+      const gainDelegue = Math.round(encaisseOrdonnance * tauxDelegue / 100) + gainDelegateDirect;
+      const gainStockisteNet = Math.round(encaisseOrdonnance * (tauxS - tauxDelegue) / 100) + gainStockisteDirect;
+      const montantMapa = Math.round(encaisseOrdonnance * (100 - tauxS) / 100)
+        + (encaisseDirect - gainDelegateDirect - gainStockisteDirect);
+
       stockistes[sId].delegues.push({
         createur,
         encaisse,
-        gainDelegue: Math.round(encaisse * tauxDelegue / 100),
-        gainStockisteNet: Math.round(encaisse * (tauxS - tauxDelegue) / 100),
-        montantMapa: Math.round(encaisse * (100 - tauxS) / 100),
+        encaisseOrdonnance,
+        encaisseDirect,
+        gainDelegue,
+        gainStockisteNet,
+        montantMapa,
         tauxStockiste: tauxS,
       });
     }
@@ -436,7 +488,6 @@ const VueGains = ({ factures, parametres, estAdmin }) => {
 
         return (
           <div key={createur?.id || idx} className="carte border-l-4 border-l-blue-500 space-y-3">
-            {/* En-tête stockiste */}
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="font-semibold text-texte-principal">
@@ -451,7 +502,6 @@ const VueGains = ({ factures, parametres, estAdmin }) => {
               </div>
             </div>
 
-            {/* Ventilation */}
             <div className="bg-fond-secondaire rounded-bouton px-3 divide-y divide-bordure">
               {venteDirecte > 0 && (
                 <LigneTotal
@@ -468,6 +518,13 @@ const VueGains = ({ factures, parametres, estAdmin }) => {
                       Délégué : {d.createur.prenom} {d.createur.nom}
                       <span className="ml-1 text-texte-secondaire font-normal">— {formatMontant(d.encaisse)} vendus</span>
                     </p>
+                    {d.encaisseDirect > 0 && (
+                      <p className="text-xs text-texte-secondaire pl-2 mt-0.5">
+                        <span className="text-texte-secondaire">Ordonnances : {formatMontant(d.encaisseOrdonnance)}</span>
+                        <span className="mx-1.5">·</span>
+                        <span className="text-orange-600 font-medium">Ventes directes : {formatMontant(d.encaisseDirect)}</span>
+                      </p>
+                    )}
                     <div className="pl-3 mt-0.5 space-y-0.5">
                       <div className="flex justify-between text-xs">
                         <span className="text-texte-secondaire">Part délégué ({tauxDelegue}%)</span>
@@ -505,11 +562,128 @@ const VueGains = ({ factures, parametres, estAdmin }) => {
   );
 };
 
+const MODE_PAIEMENT_DELEGUE = {
+  especes:      'Espèces',
+  mobile_money: 'Mobile Money',
+  virement:     'Virement',
+  cheque:       'Chèque',
+};
+
+// ── Vue validation ventes délégués ────────────────────────────────────────────
+const VueValidationDelegues = () => {
+  const { data: ventes = [], isLoading } = useVentesEnAttente(true);
+  const valider = useValiderVente();
+  const refuser = useRefuserVente();
+  const [modes, setModes] = useState({});
+  const [erreur, setErreur] = useState('');
+
+  const handleValider = async (id) => {
+    const mode_paiement = modes[id] || 'especes';
+    setErreur('');
+    try {
+      await valider.mutateAsync({ id, mode_paiement });
+    } catch (e) {
+      setErreur(e?.response?.data?.message || 'Erreur lors de la validation');
+    }
+  };
+
+  const handleRefuser = async (id) => {
+    if (!window.confirm('Refuser cette vente ? Le stock du délégué sera restauré.')) return;
+    setErreur('');
+    try {
+      await refuser.mutateAsync(id);
+    } catch (e) {
+      setErreur(e?.response?.data?.message || 'Erreur lors du refus');
+    }
+  };
+
+  if (isLoading) {
+    return <div className="flex justify-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-4 border-zeze-vert border-t-transparent" /></div>;
+  }
+
+  if (ventes.length === 0) {
+    return (
+      <div className="carte text-center py-12 text-texte-secondaire">
+        <CheckCircle size={32} className="mx-auto mb-3 text-zeze-vert opacity-60" />
+        <p className="font-medium text-texte-principal">Aucune vente en attente</p>
+        <p className="text-sm mt-1">Toutes les ventes de vos délégués ont été traitées.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      {erreur && <div className="bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-2 rounded-carte">{erreur}</div>}
+      <p className="text-sm text-texte-secondaire">
+        {ventes.length} vente{ventes.length > 1 ? 's' : ''} en attente de validation — enregistrez le mode de paiement reçu par le délégué.
+      </p>
+      {ventes.map((v) => {
+        const lignes = parseLignes(v.lignes);
+        return (
+          <div key={v.id} className="carte border-l-4 border-l-yellow-400 space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div>
+                <p className="text-sm font-semibold text-texte-principal">
+                  {v.delegue?.prenom} {v.delegue?.nom}
+                  <span className="ml-2 text-xs font-normal text-texte-secondaire">
+                    {new Date(v.date_mouvement).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })}
+                  </span>
+                </p>
+                {v.client_nom && <p className="text-xs text-texte-secondaire">Client : {v.client_nom}</p>}
+              </div>
+              <p className="text-sm font-bold text-texte-principal font-mono">{formatMontant(v.montant_total)}</p>
+            </div>
+
+            {lignes.length > 0 && (
+              <div className="bg-fond-secondaire rounded-bouton px-3 py-2 text-xs text-texte-secondaire">
+                {lignes.map((l) => `${l.nom_produit} ×${l.quantite} = ${formatMontant(l.prix_unitaire * l.quantite)}`).join(' · ')}
+              </div>
+            )}
+
+            <div className="flex flex-col sm:flex-row gap-2 items-end">
+              <div className="flex-1">
+                <label className="block text-xs font-medium text-texte-principal mb-1">Mode de paiement reçu</label>
+                <select
+                  className="champ-input text-sm"
+                  value={modes[v.id] || 'especes'}
+                  onChange={(e) => setModes({ ...modes, [v.id]: e.target.value })}
+                >
+                  {Object.entries(MODE_PAIEMENT_DELEGUE).map(([val, label]) => (
+                    <option key={val} value={val}>{label}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  variante="primaire"
+                  icone={Check}
+                  chargement={valider.isPending}
+                  onClick={() => handleValider(v.id)}
+                >
+                  Valider
+                </Button>
+                <Button
+                  variante="fantome"
+                  onClick={() => handleRefuser(v.id)}
+                  chargement={refuser.isPending}
+                >
+                  Refuser
+                </Button>
+              </div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+};
+
 // ── Page principale ───────────────────────────────────────────────────────────
 
 const FacturationPage = () => {
   const { utilisateur } = useAuth();
   const estAdmin = utilisateur?.role === 'administrateur';
+  const estStockisteOuAdmin = ['administrateur', 'stockiste'].includes(utilisateur?.role);
   const navigate = useNavigate();
   const [vue, setVue] = useState('factures');
   const [filtreStatut, setFiltreStatut] = useState('');
@@ -520,6 +694,8 @@ const FacturationPage = () => {
     vue === 'factures' && filtreStatut ? { statut: filtreStatut } : {}
   );
   const { data: parametres = {} } = useParametres();
+  const { data: ventesDirectes = [] } = useVentesDirectesDelegues(estStockisteOuAdmin);
+  const { data: ventesAttente = [] } = useVentesEnAttente(estStockisteOuAdmin);
   const [gainsVisibles, setGainsVisibles] = useState(false);
 
   const totaux = factures.reduce(
@@ -532,6 +708,8 @@ const FacturationPage = () => {
     },
     { total: 0, paye: 0 }
   );
+
+  const totalVentesDirectes = ventesDirectes.reduce((s, v) => s + v.ventes_total, 0);
 
   const nbRelances = factures.filter((f) => f.statut === 'en_attente' || f.statut === 'partiellement_payee').length;
 
@@ -558,7 +736,7 @@ const FacturationPage = () => {
       </div>
 
       {/* Onglets */}
-      <div className="flex rounded-bouton overflow-hidden border border-bordure w-fit">
+      <div className="flex rounded-bouton overflow-hidden border border-bordure w-fit flex-wrap">
         <button
           onClick={() => setVue('factures')}
           className={`flex items-center gap-2 px-4 py-2 text-sm transition-colors ${vue === 'factures' ? 'bg-zeze-vert text-white font-medium' : 'text-texte-secondaire hover:bg-fond-secondaire'}`}
@@ -576,10 +754,23 @@ const FacturationPage = () => {
             </span>
           )}
         </button>
+        {estStockisteOuAdmin && (
+          <button
+            onClick={() => setVue('delegues')}
+            className={`flex items-center gap-2 px-4 py-2 text-sm transition-colors ${vue === 'delegues' ? 'bg-yellow-500 text-white font-medium' : 'text-texte-secondaire hover:bg-fond-secondaire'}`}
+          >
+            <ShoppingBag size={14} /> Ventes délégués
+            {ventesAttente.length > 0 && (
+              <span className={`text-xs px-1.5 py-0.5 rounded-full font-bold ${vue === 'delegues' ? 'bg-white text-yellow-600' : 'bg-yellow-100 text-yellow-700'}`}>
+                {ventesAttente.length}
+              </span>
+            )}
+          </button>
+        )}
       </div>
 
       {/* Résumé financier */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className={`grid grid-cols-1 gap-4 ${estStockisteOuAdmin && totalVentesDirectes > 0 ? 'sm:grid-cols-4' : 'sm:grid-cols-3'}`}>
         <div className="carte text-center">
           <p className="text-xs text-texte-secondaire uppercase tracking-wide mb-1">Total facturé</p>
           <p className="text-xl font-titres font-bold text-texte-principal">{formatMontant(totaux.total)}</p>
@@ -594,10 +785,17 @@ const FacturationPage = () => {
             {formatMontant(totaux.total - totaux.paye)}
           </p>
         </div>
+        {estStockisteOuAdmin && totalVentesDirectes > 0 && (
+          <div className="carte text-center border-l-4 border-l-orange-400">
+            <p className="text-xs text-texte-secondaire uppercase tracking-wide mb-1">Ventes directes délégués</p>
+            <p className="text-xl font-titres font-bold text-orange-600">{formatMontant(totalVentesDirectes)}</p>
+            <p className="text-xs text-texte-secondaire mt-0.5">Hors ordonnance</p>
+          </div>
+        )}
       </div>
 
       {/* Gains */}
-      {totaux.paye > 0 && (
+      {(totaux.paye > 0 || totalVentesDirectes > 0) && (
         <div className="space-y-3">
           <button
             onClick={() => setGainsVisibles((v) => !v)}
@@ -607,7 +805,12 @@ const FacturationPage = () => {
             {gainsVisibles ? '▲ Masquer les gains' : '▼ Voir vos gains'}
           </button>
           {gainsVisibles && (
-            <VueGains factures={factures} parametres={parametres} estAdmin={estAdmin} />
+            <VueGains
+              factures={factures}
+              ventesDirectes={ventesDirectes}
+              parametres={parametres}
+              estAdmin={estAdmin}
+            />
           )}
         </div>
       )}
@@ -623,7 +826,9 @@ const FacturationPage = () => {
       )}
 
       {/* Contenu */}
-      {isLoading ? (
+      {vue === 'delegues' ? (
+        <VueValidationDelegues />
+      ) : isLoading ? (
         <div className="flex justify-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-4 border-zeze-vert border-t-transparent" /></div>
       ) : vue === 'relances' ? (
         <VueRelances factures={factures} onPayer={setModalPaiement} onAnnuler={handleAnnuler} />

@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useCreerOrdonnance } from '../../hooks/useConsultations';
 import { telechargerPDF, useValiderOrdonnance } from '../../hooks/useOrdonnances';
+import { useMonStock } from '../../hooks/useStockDelegue';
 import { useAuth } from '../../contexts/AuthContext';
 import ProduitPicker from '../../components/ordonnances/ProduitPicker';
 import Button from '../../components/ui/Button';
@@ -34,6 +35,8 @@ const ConsultationFichePage = () => {
   const navigate = useNavigate();
   const { aLeRole } = useAuth();
   const peutPrescrire = aLeRole('administrateur', 'stockiste', 'delegue');
+  const estDelegue = aLeRole('delegue');
+  const { data: stockDelegue = [] } = useMonStock(estDelegue);
 
   const { data: consultation, isLoading, isError } = useQuery({
     queryKey: ['consultation', patientId, consultationId],
@@ -206,7 +209,13 @@ const ConsultationFichePage = () => {
 
             {erreurOrd && <Alert type="erreur" message={erreurOrd} />}
 
-            <ProduitPicker lignes={lignes} onChange={setLignes} posologie={posologie} />
+            <ProduitPicker
+              lignes={lignes}
+              onChange={setLignes}
+              posologie={posologie}
+              estDelegue={estDelegue}
+              stockDelegue={stockDelegue}
+            />
 
             <div>
               <label className="block text-sm font-medium text-texte-principal mb-1">Notes</label>
