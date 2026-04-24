@@ -1,6 +1,6 @@
 'use strict';
 
-const { Facture, Ordonnance, Patient, User } = require('../models');
+const { Facture, Ordonnance, Patient, User, Exercice } = require('../models');
 const { Op } = require('sequelize');
 
 const INCLUDE_BASE = [
@@ -75,6 +75,18 @@ const creerDepuisOrdonnance = async (req, res) => {
   const { ordonnanceId } = req.params;
   const { notes, mode_paiement, montant_paye = 0 } = req.body;
 
+  // Vérifier qu'un exercice est ouvert
+  const exercice = await Exercice.findOne({
+    where: { statut: { [Op.in]: ['ouvert', 'rouvert'] } },
+    attributes: ['id', 'numero'],
+  });
+  if (!exercice) {
+    return res.status(422).json({
+      message: 'Aucun exercice comptable ouvert. Ouvrez un exercice avant d\'émettre une facture.',
+      code: 'EXERCICE_REQUIS',
+    });
+  }
+
   const ordonnance = await Ordonnance.findByPk(ordonnanceId, {
     include: [{ model: Patient, as: 'patient', attributes: ['id', 'nom', 'prenom', 'numero_dossier'] }],
   });
@@ -102,6 +114,7 @@ const creerDepuisOrdonnance = async (req, res) => {
     statut: calculerStatut(ordonnance.montant_total, paye),
     lignes: ordonnance.lignes,
     notes,
+    exercice_id: exercice.id,
   });
 
   const factureComplete = await Facture.findByPk(facture.id, { include: INCLUDE_BASE });

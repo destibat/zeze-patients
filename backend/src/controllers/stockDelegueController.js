@@ -1,7 +1,16 @@
 'use strict';
 
-const { StockDelegue, MouvementDelegue, Produit, User, sequelize } = require('../models');
+const { StockDelegue, MouvementDelegue, Produit, User, Exercice, sequelize } = require('../models');
 const { Op } = require('sequelize');
+
+// Récupère l'exercice ouvert ou lance une erreur métier
+const getExerciceOuvert = async () => {
+  const exercice = await Exercice.findOne({
+    where: { statut: { [Op.in]: ['ouvert', 'rouvert'] } },
+    attributes: ['id', 'numero'],
+  });
+  return exercice;
+};
 
 // Taux délégué fixe : 15% du montant total de la vente
 const TAUX_DELEGUE = 0.15;
@@ -80,6 +89,15 @@ const vendre = async (req, res) => {
     return res.status(400).json({ message: 'Ajoutez au moins un produit à vendre.' });
   }
 
+  // Vérifier qu'un exercice est ouvert
+  const exercice = await getExerciceOuvert();
+  if (!exercice) {
+    return res.status(422).json({
+      message: 'Aucun exercice comptable ouvert. Ouvrez un exercice avant d\'enregistrer une vente.',
+      code: 'EXERCICE_REQUIS',
+    });
+  }
+
   // Taux dynamique selon commission_rate du stockiste parrain
   const tauxTotal = await getTauxStockiste(req.utilisateur.id);
   // MAPA garde (1 - tauxTotal), stockiste+délégué partagent tauxTotal
@@ -116,6 +134,7 @@ const vendre = async (req, res) => {
       client_nom: client_nom?.trim() || null,
       date_mouvement: today,
       statut: 'en_attente',
+      exercice_id: exercice.id,
     }, { transaction });
 
     await transaction.commit();

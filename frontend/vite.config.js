@@ -16,6 +16,7 @@ export default defineConfig({
       // En dev, redirige les appels /api vers le backend Express
       '/api': {
         target: 'http://backend:3000',
+        //target: 'http://localhost:3000',
         changeOrigin: true,
       },
     },

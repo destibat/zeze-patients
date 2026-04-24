@@ -6,7 +6,9 @@ import { useAuth } from '../../contexts/AuthContext';
 import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
 import Alert from '../../components/ui/Alert';
-import { ArrowLeft, Pencil, User, HeartPulse, Phone, Stethoscope, Plus, Trash2, FileText } from 'lucide-react';
+import { ArrowLeft, Pencil, User, HeartPulse, Phone, Stethoscope, Plus, Trash2, FileText, FolderOpen, FlaskConical } from 'lucide-react';
+import SectionFichiers from './components/SectionFichiers';
+import SectionAnalyseNFS from './components/SectionAnalyseNFS';
 
 const Onglet = ({ actif, onClick, children }) => (
   <button
@@ -107,6 +109,14 @@ const PatientFichePage = () => {
         <Onglet actif={ongletActif === 'consultations'} onClick={() => setOngletActif('consultations')}>
           <span className="flex items-center gap-1.5"><Stethoscope size={14} /> Consultations {consultations.length > 0 && <span className="ml-0.5 bg-zeze-vert text-white text-xs rounded-full w-4 h-4 flex items-center justify-center">{consultations.length}</span>}</span>
         </Onglet>
+        <Onglet actif={ongletActif === 'documents'} onClick={() => setOngletActif('documents')}>
+          <span className="flex items-center gap-1.5"><FolderOpen size={14} /> Documents</span>
+        </Onglet>
+        {peutVoirMedical && (
+          <Onglet actif={ongletActif === 'nfs'} onClick={() => setOngletActif('nfs')}>
+            <span className="flex items-center gap-1.5"><FlaskConical size={14} /> Analyse NFS</span>
+          </Onglet>
+        )}
       </div>
 
       {/* Contenu onglet Identité */}
@@ -210,6 +220,18 @@ const PatientFichePage = () => {
             ))
           )}
         </div>
+      )}
+
+      {/* Onglet Documents */}
+      {ongletActif === 'documents' && (
+        <div className="carte">
+          <SectionFichiers patientId={id} peutSupprimer={peutVoirMedical} />
+        </div>
+      )}
+
+      {/* Onglet Analyse NFS — stockiste et admin uniquement */}
+      {ongletActif === 'nfs' && peutVoirMedical && (
+        <SectionAnalyseNFS patientId={id} patient={patient} />
       )}
     </div>
   );

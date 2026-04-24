@@ -1,10 +1,10 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '../services/api';
 import Alert from '../components/ui/Alert';
 import Button from '../components/ui/Button';
-import { User, Lock, Building2, Save, Percent, Eye, EyeOff, Store, Pencil, X, Check } from 'lucide-react';
+import { User, Lock, Building2, Save, Percent, Eye, EyeOff, Store, Pencil, X, Check, ImageUp, FileImage, Upload } from 'lucide-react';
 
 const Section = ({ titre, icone: Icone, children }) => (
   <div className="carte space-y-4">
@@ -56,6 +56,95 @@ const useParametres = () =>
         r.data.reduce((acc, p) => ({ ...acc, [p.cle]: p.valeur }), {})
       ),
   });
+
+// ── Zone de dépôt de fichier ──────────────────────────────────────────────
+const ZoneFichier = ({ label, fichier, onFichier }) => {
+  const inputRef = useRef(null);
+  const [survol, setSurvol] = useState(false);
+
+  const traiter = (f) => {
+    if (!f) return;
+    if (!['image/png', 'image/jpeg'].includes(f.type)) return;
+    onFichier(f);
+  };
+
+  return (
+    <div>
+      <p className="text-xs font-medium text-texte-principal mb-1.5">{label}</p>
+      <div
+        className={`border-2 border-dashed rounded-bouton p-4 text-center cursor-pointer transition-colors ${survol ? 'border-zeze-vert bg-zeze-vert/5' : 'border-bordure hover:border-zeze-vert/40'}`}
+        onDragOver={(e) => { e.preventDefault(); setSurvol(true); }}
+        onDragLeave={() => setSurvol(false)}
+        onDrop={(e) => { e.preventDefault(); setSurvol(false); traiter(e.dataTransfer.files[0]); }}
+        onClick={() => inputRef.current?.click()}
+      >
+        <input ref={inputRef} type="file" accept=".png,.jpg,.jpeg" className="hidden" onChange={(e) => traiter(e.target.files[0])} />
+        {fichier ? (
+          <div className="flex items-center justify-center gap-2 text-sm text-zeze-vert">
+            <FileImage size={14} />
+            <span className="font-medium truncate max-w-[180px]">{fichier.name}</span>
+            <button type="button" onClick={(e) => { e.stopPropagation(); onFichier(null); }} className="text-texte-secondaire hover:text-medical-critique">
+              <X size={14} />
+            </button>
+          </div>
+        ) : (
+          <p className="text-xs text-texte-secondaire">PNG ou JPEG — Déposer ou cliquer</p>
+        )}
+      </div>
+    </div>
+  );
+};
+
+const SectionImagesOrdonnance = () => {
+  const [header, setHeader] = useState(null);
+  const [footer, setFooter] = useState(null);
+  const [succes, setSucces] = useState('');
+  const [erreur, setErreur] = useState('');
+
+  const uploader = useMutation({
+    mutationFn: () => {
+      const fd = new FormData();
+      if (header) fd.append('header', header);
+      if (footer) fd.append('footer', footer);
+      return api.post('/parametres/images-ordonnance', fd, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      }).then((r) => r.data);
+    },
+    onSuccess: (data) => {
+      setSucces(`Images mises à jour : ${data.mis_a_jour.join(', ')}`);
+      setErreur('');
+      setHeader(null);
+      setFooter(null);
+      setTimeout(() => setSucces(''), 5000);
+    },
+    onError: (e) => { setErreur(e?.response?.data?.message || 'Erreur lors de l\'envoi'); setSucces(''); },
+  });
+
+  return (
+    <Section titre="Images d'ordonnance" icone={ImageUp}>
+      <p className="text-xs text-texte-secondaire">
+        Ces images sont utilisées comme en-tête et pied de page sur toutes les ordonnances PDF générées. Format PNG ou JPEG uniquement.
+      </p>
+      {succes && <Alert type="succes" message={succes} />}
+      {erreur && <Alert type="erreur" message={erreur} />}
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <ZoneFichier label="En-tête (header)" fichier={header} onFichier={setHeader} />
+        <ZoneFichier label="Pied de page (footer)" fichier={footer} onFichier={setFooter} />
+      </div>
+
+      <Button
+        variante="primaire"
+        icone={uploader.isPending ? undefined : Upload}
+        chargement={uploader.isPending}
+        onClick={() => uploader.mutate()}
+        disabled={!header && !footer}
+      >
+        Envoyer les images
+      </Button>
+    </Section>
+  );
+};
 
 const ParametresPage = () => {
   const { utilisateur } = useAuth();
@@ -309,6 +398,11 @@ const ParametresPage = () => {
             </div>
           )}
         </Section>
+      )}
+
+      {/* Images d'ordonnance (admin + stockiste) */}
+      {['administrateur', 'stockiste'].includes(utilisateur?.role) && (
+        <SectionImagesOrdonnance />
       )}
 
       {/* Informations cabinet */}

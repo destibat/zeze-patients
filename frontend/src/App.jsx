@@ -22,6 +22,8 @@ import StatistiquesPage from './pages/StatistiquesPage';
 import ParametresPage from './pages/ParametresPage';
 import ChangerMotDePassePage from './pages/ChangerMotDePassePage';
 import NotFoundPage from './pages/NotFoundPage';
+import ExercicesPage from './pages/ExercicesPage';
+import BilanExercicePage from './pages/BilanExercicePage';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -109,6 +111,22 @@ const App = () => (
             />
             <Route path="statistiques" element={<StatistiquesPage />} />
             <Route path="parametres" element={<ParametresPage />} />
+            <Route
+              path="exercices"
+              element={
+                <ProtectedRoute roles={['administrateur', 'stockiste']}>
+                  <ExercicesPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="exercices/:id/bilan"
+              element={
+                <ProtectedRoute roles={['administrateur', 'stockiste']}>
+                  <BilanExercicePage />
+                </ProtectedRoute>
+              }
+            />
           </Route>
 
           {/* 404 */}

@@ -29,8 +29,10 @@
     "morgan": "^1.10.0",
     "multer": "^1.4.5-lts.1",
     "mysql2": "^3.9.7",
+    "pdf-parse": "^1.1.1",
     "pdfkit": "^0.15.0",
     "sequelize": "^6.37.3",
+    "tesseract.js": "^7.0.0",
     "uuid": "^10.0.0",
     "winston": "^3.13.0",
     "winston-daily-rotate-file": "^5.0.0"
@@ -45,8 +47,15 @@
   },
   "jest": {
     "testEnvironment": "node",
-    "testMatch": ["**/tests/**/*.test.js"],
-    "collectCoverageFrom": ["src/**/*.js"],
-    "coveragePathIgnorePatterns": ["/node_modules/", "/tests/"]
+    "testMatch": [
+      "**/tests/**/*.test.js"
+    ],
+    "collectCoverageFrom": [
+      "src/**/*.js"
+    ],
+    "coveragePathIgnorePatterns": [
+      "/node_modules/",
+      "/tests/"
+    ]
   }
 }

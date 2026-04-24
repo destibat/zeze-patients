@@ -30,6 +30,8 @@ router.post('/reset', devSeulement, async (req, res) => {
       'mouvements_delegue',
       'stock_delegue',
       'stock_mouvements',
+      'fichiers_patient',
+      'analyses_nfs',
     ];
     for (const table of tables) {
       await sequelize.query(`TRUNCATE TABLE \`${table}\``, { transaction: t });

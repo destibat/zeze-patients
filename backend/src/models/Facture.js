@@ -8,6 +8,7 @@ module.exports = (sequelize) => {
       Facture.belongsTo(models.Patient, { foreignKey: 'patient_id', as: 'patient' });
       Facture.belongsTo(models.Ordonnance, { foreignKey: 'ordonnance_id', as: 'ordonnance' });
       Facture.belongsTo(models.User, { foreignKey: 'created_by', as: 'createur' });
+      Facture.belongsTo(models.Exercice, { foreignKey: 'exercice_id', as: 'exercice' });
     }
 
     get montant_restant() {
@@ -48,6 +49,7 @@ module.exports = (sequelize) => {
         },
       },
       notes: { type: DataTypes.TEXT },
+      exercice_id: { type: DataTypes.UUID, allowNull: true },
     },
     {
       sequelize,

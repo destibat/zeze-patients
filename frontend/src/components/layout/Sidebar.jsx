@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../contexts/AuthContext';
 import {
   LayoutDashboard, Users, UserRound, Calendar, FileText,
-  Receipt, Package, BarChart3, Settings, X, Boxes,
+  Receipt, Package, BarChart3, Settings, X, Boxes, BookOpen,
 } from 'lucide-react';
 import logoMapa from '../../assets/logo-mapa.png';
 
@@ -17,6 +17,7 @@ const entresNav = [
   { cle: 'mon_stock', chemin: '/mon-stock', icone: Boxes, roles: ['delegue'] },
   { cle: 'stock', chemin: '/stock', icone: Package, roles: ['administrateur', 'secretaire'] },
   { cle: 'statistiques', chemin: '/statistiques', icone: BarChart3, roles: ['administrateur'] },
+  { cle: 'exercices', chemin: '/exercices', icone: BookOpen, roles: ['administrateur', 'stockiste'] },
   { cle: 'utilisateurs', chemin: '/admin/utilisateurs', icone: Users, roles: ['administrateur'] },
   { cle: 'parametres', chemin: '/parametres', icone: Settings, roles: ['administrateur'] },
 ];

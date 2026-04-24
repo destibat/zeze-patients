@@ -125,7 +125,11 @@ const FormulaireVente = ({ stock }) => {
       setSucces(`Vente enregistrée — ${formatMontant(total)}`);
       setLignes([]); setClientNom('');
     } catch (e) {
-      setErreur(e?.response?.data?.message || 'Erreur lors de la vente.');
+      if (e?.response?.data?.code === 'EXERCICE_REQUIS') {
+        setErreur('Aucun exercice comptable ouvert — impossible d\'enregistrer la vente. Contactez votre administrateur.');
+      } else {
+        setErreur(e?.response?.data?.message || 'Erreur lors de la vente.');
+      }
     }
   };
 

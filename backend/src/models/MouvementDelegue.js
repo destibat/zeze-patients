@@ -17,6 +17,7 @@ module.exports = (sequelize) => {
     date_mouvement: { type: DataTypes.DATEONLY, allowNull: false },
     statut: { type: DataTypes.ENUM('en_attente', 'valide', 'refuse'), allowNull: true },
     mode_paiement: { type: DataTypes.STRING(50), allowNull: true },
+    exercice_id: { type: DataTypes.UUID, allowNull: true },
   }, {
     tableName: 'mouvements_delegue',
     underscored: true,
@@ -25,6 +26,7 @@ module.exports = (sequelize) => {
   MouvementDelegue.associate = (models) => {
     MouvementDelegue.belongsTo(models.User, { foreignKey: 'delegue_id', as: 'delegue' });
     MouvementDelegue.belongsTo(models.Produit, { foreignKey: 'produit_id', as: 'produit' });
+    MouvementDelegue.belongsTo(models.Exercice, { foreignKey: 'exercice_id', as: 'exercice' });
   };
 
   return MouvementDelegue;

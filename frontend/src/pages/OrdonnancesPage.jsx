@@ -78,7 +78,10 @@ const OrdonnancesPage = () => {
       await api.post(`/factures/depuis-ordonnance/${ord.id}`, { montant_paye: 0 });
       navigate('/facturation');
     } catch (err) {
-      alert(err?.response?.data?.message || 'Erreur lors de la création de la facture');
+      const msg = err?.response?.data?.code === 'EXERCICE_REQUIS'
+        ? 'Aucun exercice comptable ouvert. L\'administrateur doit ouvrir un exercice dans "Exercices MAPA" avant de pouvoir facturer.'
+        : (err?.response?.data?.message || 'Erreur lors de la création de la facture');
+      alert(msg);
     }
   };
 

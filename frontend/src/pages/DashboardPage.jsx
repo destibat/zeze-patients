@@ -276,63 +276,131 @@ const DashboardStandard = ({ utilisateur }) => {
         />
       </div>
 
-      {/* Ventes des délégués — visible admin et stockiste uniquement */}
-      {estStockisteOuAdmin && gainsDelegues.length > 0 && (() => {
-        const totalVentes   = gainsDelegues.reduce((s, g) => s + g.ventes_mois, 0);
-        const totalDelegue  = gainsDelegues.reduce((s, g) => s + g.gain_delegue_mois, 0);
-        const totalStockiste = gainsDelegues.reduce((s, g) => s + g.commission_stockiste_mois, 0);
-        const totalMapa     = gainsDelegues.reduce((s, g) => s + g.part_mapa_mois, 0);
-        const fmt = (n) => new Intl.NumberFormat('fr-FR').format(n) + ' FCFA';
+      {/* Répartition financière — stockiste uniquement */}
+      {estStockisteOuAdmin && !isLoading && stats?.repartition && (() => {
+        const r = stats.repartition;
+        const fmt = (n) => new Intl.NumberFormat('fr-FR').format(Math.round(n || 0)) + ' FCFA';
+
+        // Agrégats ventes délégués
+        const caDelegueMois        = gainsDelegues.reduce((s, g) => s + g.ventes_mois, 0);
+        const gainsIndirectsMois   = gainsDelegues.reduce((s, g) => s + g.commission_stockiste_mois, 0);
+        const gainsDelegueMois     = gainsDelegues.reduce((s, g) => s + g.gain_delegue_mois, 0);
+        const mapaDelegueMois      = gainsDelegues.reduce((s, g) => s + g.part_mapa_mois, 0);
+
+        // Totaux combinés
+        const caTotal       = r.ca_direct + caDelegueMois;
+        const gainsTotaux   = r.gains_directs + gainsIndirectsMois;
+        const mapaTotal     = r.part_mapa_direct + mapaDelegueMois;
 
         return (
           <div className="space-y-4">
-            {/* Résumé global */}
-            <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-              <CarteKPI titre="Ventes délégués ce mois" valeur={fmt(totalVentes)}   icone={ShoppingBag} couleur="bg-blue-500" />
-              <CarteKPI titre="Part versée à MAPA"       valeur={fmt(totalMapa)}    icone={TrendingUp}  couleur="bg-zeze-terre" sous={`${100 - (gainsDelegues[0]?.taux_commission ?? 25)}% des ventes`} />
-              <CarteKPI titre="Votre part stockiste"      valeur={fmt(totalStockiste)} icone={TrendingUp} couleur="bg-zeze-or"  sous={`${gainsDelegues[0]?.taux_commission - 15 ?? 10}% des ventes`} />
-              <CarteKPI titre="Gains délégués (15%)"      valeur={fmt(totalDelegue)} icone={Users}       couleur="bg-zeze-vert" />
+            <h2 className="text-sm font-semibold text-texte-secondaire uppercase tracking-wide">
+              Répartition financière du mois
+            </h2>
+
+            {/* KPI synthèse globale */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <CarteKPI
+                titre="CA total du mois"
+                valeur={fmt(caTotal)}
+                icone={TrendingUp}
+                couleur="bg-slate-500"
+                sous={`Directs : ${fmt(r.ca_direct)}  ·  Délégués : ${fmt(caDelegueMois)}`}
+              />
+              <CarteKPI
+                titre="Vos gains totaux"
+                valeur={fmt(gainsTotaux)}
+                icone={TrendingUp}
+                couleur="bg-zeze-or"
+                sous={`Directs (${r.taux_direct}%) : ${fmt(r.gains_directs)}  ·  Reversés (${r.taux_indirect}%) : ${fmt(gainsIndirectsMois)}`}
+              />
+              <CarteKPI
+                titre={`Part versée à MAPA (${r.taux_mapa}%)`}
+                valeur={fmt(mapaTotal)}
+                icone={ShoppingBag}
+                couleur="bg-zeze-vert"
+                sous={`Directs : ${fmt(r.part_mapa_direct)}  ·  Délégués : ${fmt(mapaDelegueMois)}`}
+              />
             </div>
 
-            {/* Détail par délégué */}
+            {/* Ligne de détail : ventes directes vs délégués */}
             <div className="carte p-0 overflow-hidden">
-              <div className="px-4 py-3 border-b border-bordure">
-                <h2 className="text-sm font-semibold text-texte-principal flex items-center gap-2">
-                  <Users size={15} className="text-zeze-vert" /> Détail par délégué ce mois
-                </h2>
+              <div className="px-4 py-3 border-b border-bordure bg-fond-secondaire/60">
+                <h3 className="text-sm font-semibold text-texte-principal">Détail de la répartition</h3>
               </div>
               <table className="w-full text-sm">
                 <thead className="bg-fond-secondaire border-b border-bordure">
                   <tr>
-                    <th className="text-left px-4 py-2 font-semibold text-texte-secondaire text-xs">Délégué</th>
-                    <th className="text-right px-4 py-2 font-semibold text-texte-secondaire text-xs">Ventes</th>
-                    <th className="text-right px-4 py-2 font-semibold text-texte-secondaire text-xs hidden sm:table-cell">Part MAPA ({100 - (gainsDelegues[0]?.taux_commission ?? 25)}%)</th>
-                    <th className="text-right px-4 py-2 font-semibold text-texte-secondaire text-xs hidden md:table-cell">Votre part ({(gainsDelegues[0]?.taux_commission ?? 25) - 15}%)</th>
-                    <th className="text-right px-4 py-2 font-semibold text-texte-secondaire text-xs">Gain délégué (15%)</th>
+                    <th className="text-left px-4 py-2 font-semibold text-texte-secondaire text-xs">Source</th>
+                    <th className="text-right px-4 py-2 font-semibold text-texte-secondaire text-xs">CA</th>
+                    <th className="text-right px-4 py-2 font-semibold text-texte-secondaire text-xs hidden sm:table-cell">Part MAPA</th>
+                    <th className="text-right px-4 py-2 font-semibold text-texte-secondaire text-xs">Vos gains</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {gainsDelegues.map((g) => (
-                    <tr key={g.delegue.id} className="hover:bg-fond-secondaire/50 transition-colors">
-                      <td className="px-4 py-2 font-medium text-texte-principal">
-                        {g.delegue.prenom} {g.delegue.nom}
+                  {/* Ligne ventes directes */}
+                  <tr className="hover:bg-fond-secondaire/50">
+                    <td className="px-4 py-2.5">
+                      <p className="font-medium text-texte-principal text-xs">Ventes directes</p>
+                      <p className="text-xs text-texte-secondaire">Ordonnances que vous avez créées</p>
+                    </td>
+                    <td className="px-4 py-2.5 text-right font-mono text-xs text-texte-secondaire">{fmt(r.ca_direct)}</td>
+                    <td className="px-4 py-2.5 text-right font-mono text-xs text-zeze-vert font-semibold hidden sm:table-cell">
+                      {fmt(r.part_mapa_direct)}
+                      <span className="text-texte-secondaire font-normal"> ({r.taux_mapa}%)</span>
+                    </td>
+                    <td className="px-4 py-2.5 text-right font-mono text-xs text-zeze-or font-semibold">
+                      {fmt(r.gains_directs)}
+                      <span className="text-texte-secondaire font-normal"> ({r.taux_direct}%)</span>
+                    </td>
+                  </tr>
+
+                  {/* Lignes par délégué */}
+                  {gainsDelegues.length === 0 ? (
+                    <tr>
+                      <td colSpan={4} className="px-4 py-3 text-xs text-texte-secondaire italic text-center">
+                        Aucune vente délégué ce mois
                       </td>
-                      <td className="px-4 py-2 text-right font-mono text-xs text-texte-secondaire">
-                        {fmt(g.ventes_mois)}
+                    </tr>
+                  ) : gainsDelegues.map((g) => (
+                    <tr key={g.delegue.id} className="hover:bg-fond-secondaire/50">
+                      <td className="px-4 py-2.5">
+                        <p className="font-medium text-texte-principal text-xs">
+                          {g.delegue.prenom} {g.delegue.nom}
+                        </p>
+                        <p className="text-xs text-texte-secondaire">Commission reversée (délégué 15% · vous {r.taux_indirect}%)</p>
                       </td>
-                      <td className="px-4 py-2 text-right font-mono text-xs text-zeze-terre font-semibold hidden sm:table-cell">
+                      <td className="px-4 py-2.5 text-right font-mono text-xs text-texte-secondaire">{fmt(g.ventes_mois)}</td>
+                      <td className="px-4 py-2.5 text-right font-mono text-xs text-zeze-vert font-semibold hidden sm:table-cell">
                         {fmt(g.part_mapa_mois)}
+                        <span className="text-texte-secondaire font-normal"> ({r.taux_mapa}%)</span>
                       </td>
-                      <td className="px-4 py-2 text-right font-mono text-xs text-zeze-or font-semibold hidden md:table-cell">
+                      <td className="px-4 py-2.5 text-right font-mono text-xs text-zeze-or font-semibold">
                         {fmt(g.commission_stockiste_mois)}
-                      </td>
-                      <td className="px-4 py-2 text-right font-mono text-xs text-zeze-vert font-semibold">
-                        {fmt(g.gain_delegue_mois)}
+                        <span className="text-texte-secondaire font-normal"> ({r.taux_indirect}%)</span>
                       </td>
                     </tr>
                   ))}
                 </tbody>
+                {/* Ligne totaux */}
+                <tfoot className="border-t-2 border-gray-300 bg-fond-secondaire">
+                  <tr>
+                    <td className="px-4 py-2.5 font-semibold text-xs text-texte-principal">Total</td>
+                    <td className="px-4 py-2.5 text-right font-mono text-xs font-semibold text-texte-principal">{fmt(caTotal)}</td>
+                    <td className="px-4 py-2.5 text-right font-mono text-xs font-semibold text-zeze-vert hidden sm:table-cell">{fmt(mapaTotal)}</td>
+                    <td className="px-4 py-2.5 text-right font-mono text-xs font-semibold text-zeze-or">{fmt(gainsTotaux)}</td>
+                  </tr>
+                </tfoot>
               </table>
+
+              {/* Note délégués */}
+              {gainsDelegues.length > 0 && (
+                <div className="px-4 py-2 border-t border-bordure bg-blue-50">
+                  <p className="text-xs text-blue-700">
+                    Gains délégués (15%) ce mois : <strong>{fmt(gainsDelegueMois)}</strong> — versés directement aux délégués, non inclus dans vos gains.
+                  </p>
+                </div>
+              )}
             </div>
           </div>
         );

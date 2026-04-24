@@ -1,6 +1,6 @@
 'use strict';
 
-const { Patient, Consultation, Ordonnance, Facture, RendezVous, MouvementDelegue, sequelize } = require('../models');
+const { Patient, Consultation, Ordonnance, Facture, RendezVous, MouvementDelegue, User, sequelize } = require('../models');
 const { Op } = require('sequelize');
 
 const obtenirStats = async (req, res) => {
@@ -45,7 +45,8 @@ const obtenirStats = async (req, res) => {
       Facture.count({ where: whereRelances }),
     ]);
 
-  let caMois = facturesMois.reduce((sum, f) => sum + (f.montant_paye || 0), 0);
+  const caDirectMois = facturesMois.reduce((sum, f) => sum + (f.montant_paye || 0), 0);
+  let caMois = caDirectMois;
 
   // Pour les délégués, ajouter les ventes directes validées au CA du mois
   if (req.utilisateur.role === 'delegue') {
@@ -62,6 +63,23 @@ const obtenirStats = async (req, res) => {
     caMois += ventesDirectes.reduce((s, v) => s + (v.montant_total || 0), 0);
   }
 
+  // Pour les stockistes : retourner leur taux de commission et la répartition des ventes directes
+  let repartition = null;
+  if (req.utilisateur.role === 'stockiste') {
+    const user = await User.findByPk(userId, { attributes: ['commission_rate'] });
+    const tauxTotal = parseFloat(user?.commission_rate ?? 25);
+    const tauxMapa  = 100 - tauxTotal; // ex : 75%
+    repartition = {
+      taux_total:        tauxTotal,  // 25% — part totale du stockiste sur MAPA
+      taux_direct:       tauxTotal,  // 25% si stockiste vend lui-même
+      taux_indirect:     tauxTotal - 15, // 10% si vente par délégué
+      taux_mapa:         tauxMapa,   // 75%
+      ca_direct:         caDirectMois,
+      gains_directs:     Math.round(caDirectMois * tauxTotal / 100),
+      part_mapa_direct:  Math.round(caDirectMois * tauxMapa / 100),
+    };
+  }
+
   res.json({
     patients_actifs: patientsActifs,
     consultations_aujourd_hui: consultationsAujourdhui,
@@ -70,6 +88,7 @@ const obtenirStats = async (req, res) => {
     ca_filtre: !estAdmin,
     rdv_aujourd_hui: rdvAujourdhui,
     factures_a_relancer: facturesARelancer,
+    repartition, // null si non stockiste
   });
 };
 
