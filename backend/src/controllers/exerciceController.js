@@ -1,6 +1,6 @@
 'use strict';
 
-const { Exercice, MouvementDelegue, Facture, User, sequelize } = require('../models');
+const { Exercice, MouvementDelegue, Facture, User, ParametreCabinet, sequelize } = require('../models');
 const { Op } = require('sequelize');
 
 // ── Génération du numéro séquentiel ──────────────────────────────────────────
@@ -16,8 +16,24 @@ const genererNumero = async () => {
 };
 
 // ── Calcul du bilan complet d'un exercice ─────────────────────────────────────
-// Utilisé à la clôture (snapshot) et à la volée (endpoint bilan)
-const calculerBilan = async (exerciceId) => {
+// Pour un exercice ouvert/rouvert : recalcule les commissions depuis les taux actuels.
+// Pour un exercice clôturé : utilise les valeurs stockées dans les mouvements.
+const calculerBilan = async (exerciceId, statut = null) => {
+  // Si le statut n'est pas fourni, on le charge
+  let exerciceStatut = statut;
+  if (!exerciceStatut) {
+    const ex = await Exercice.findByPk(exerciceId, { attributes: ['statut'] });
+    exerciceStatut = ex?.statut ?? 'ouvert';
+  }
+  const recalculer = ['ouvert', 'rouvert'].includes(exerciceStatut);
+
+  // Taux délégué depuis parametres_cabinet (pour les exercices ouverts)
+  let tauxDelegueActuel = 0.15;
+  if (recalculer) {
+    const paramDelegue = await ParametreCabinet.findOne({ where: { cle: 'commission_delegue' } });
+    tauxDelegueActuel = parseFloat(paramDelegue?.valeur ?? 15) / 100;
+  }
+
   // ── Factures (ventes directes stockiste/secrétaire/admin) ─────────────────
   const factures = await Facture.findAll({
     where: {
@@ -106,6 +122,15 @@ const calculerBilan = async (exerciceId) => {
     const stockisteNom = stockiste ? `${stockiste.prenom} ${stockiste.nom}` : 'N/A';
     const tauxTotal = parseFloat(stockiste?.commission_rate ?? 25);
 
+    // Pour un exercice ouvert : recalculer depuis les taux actuels
+    // Pour un exercice clôturé : utiliser les valeurs enregistrées
+    const gainDelegue = recalculer
+      ? Math.round(v.montant_total * tauxDelegueActuel)
+      : v.gain_delegue;
+    const commissionStockiste = recalculer
+      ? Math.round(v.montant_total * (tauxTotal / 100 - tauxDelegueActuel))
+      : v.commission_stockiste;
+
     // Délégué
     if (!parDelegue[del.id]) {
       parDelegue[del.id] = {
@@ -116,8 +141,8 @@ const calculerBilan = async (exerciceId) => {
     }
     parDelegue[del.id].nb_ventes += 1;
     parDelegue[del.id].ca += v.montant_total;
-    parDelegue[del.id].gain_delegue += v.gain_delegue;
-    parDelegue[del.id].commission_stockiste += v.commission_stockiste;
+    parDelegue[del.id].gain_delegue += gainDelegue;
+    parDelegue[del.id].commission_stockiste += commissionStockiste;
 
     // Stockiste parrain
     if (stockisteId) {
@@ -130,7 +155,7 @@ const calculerBilan = async (exerciceId) => {
         };
       }
       parStockiste[stockisteId].ca_delegues += v.montant_total;
-      parStockiste[stockisteId].commission_delegues += v.commission_stockiste;
+      parStockiste[stockisteId].commission_delegues += commissionStockiste;
     }
 
     // Top produits ventes délégués
@@ -197,10 +222,17 @@ const ouvrir = async (req, res) => {
     });
   }
 
+  // date_ouverture optionnelle (rétroactive possible), par défaut aujourd'hui
+  let dateOuverture = new Date();
+  if (req.body?.date_ouverture) {
+    const parsed = new Date(req.body.date_ouverture);
+    if (!isNaN(parsed.getTime())) dateOuverture = parsed;
+  }
+
   const numero = await genererNumero();
   const exercice = await Exercice.create({
     numero,
-    date_ouverture: new Date(),
+    date_ouverture: dateOuverture,
     statut: 'ouvert',
     ouvert_par: req.utilisateur.id,
   });
@@ -217,7 +249,8 @@ const cloturer = async (req, res) => {
   }
 
   const dateCloture = new Date();
-  const bilan = await calculerBilan(exercice.id);
+  // Force recalculer avec taux actuels (l'exercice est encore ouvert à ce stade)
+  const bilan = await calculerBilan(exercice.id, exercice.statut);
 
   const transaction = await sequelize.transaction();
   try {
@@ -356,15 +389,25 @@ const obtenir = async (req, res) => {
 
 // ── GET /exercices/:id/bilan ──────────────────────────────────────────────────
 const obtenirBilan = async (req, res) => {
-  const exercice = await Exercice.findByPk(req.params.id);
+  const exercice = await Exercice.findByPk(req.params.id, {
+    include: [
+      { model: User, as: 'rouvreur', attributes: ['id', 'nom', 'prenom'] },
+    ],
+  });
   if (!exercice) return res.status(404).json({ message: 'Exercice introuvable' });
 
   const dureeJours = exercice.date_cloture
     ? Math.floor((new Date(exercice.date_cloture) - new Date(exercice.date_ouverture)) / 86400000)
     : Math.floor((new Date() - new Date(exercice.date_ouverture)) / 86400000);
 
-  // Toujours recalculer à la volée (snapshot figé sert uniquement d'archivage)
-  const bilan = await calculerBilan(exercice.id);
+  // Exercice clôturé + snapshot disponible → données figées à la clôture
+  // Exercice ouvert/rouvert → recalcul à la volée avec les taux actuels
+  let bilan;
+  if (exercice.statut === 'cloture' && exercice.bilan_snapshot) {
+    bilan = exercice.bilan_snapshot;
+  } else {
+    bilan = await calculerBilan(exercice.id, exercice.statut);
+  }
 
   res.json({
     exercice: {
@@ -374,10 +417,14 @@ const obtenirBilan = async (req, res) => {
       date_ouverture: exercice.date_ouverture,
       date_cloture: exercice.date_cloture,
       duree_jours: dureeJours,
+      motif_reouverture: exercice.motif_reouverture,
+      rouvreur_nom: exercice.rouvreur
+        ? `${exercice.rouvreur.prenom} ${exercice.rouvreur.nom}`
+        : null,
     },
     bilan,
     snapshot_disponible: !!exercice.bilan_snapshot,
   });
 };
 
-module.exports = { ouvrir, cloturer, rouvrir, lister, obtenir, obtenirActuel, obtenirBilan };
+module.exports = { ouvrir, cloturer, rouvrir, lister, obtenir, obtenirActuel, obtenirBilan, calculerBilan };

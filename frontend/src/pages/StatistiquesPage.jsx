@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../services/api';
-import { TrendingUp, Users, Stethoscope, Package, ChevronLeft, ChevronRight } from 'lucide-react';
+import { useExercices, useBilanExercice } from '../hooks/useExercices';
+import { TrendingUp, Users, Stethoscope, Package, ChevronLeft, ChevronRight, Printer, BookOpen } from 'lucide-react';
 
 const PERIODES = [
   { val: 'annee',     label: 'Année' },
@@ -19,6 +20,7 @@ const useStatsDetaillees = (params) =>
     queryKey: ['stats-detaillees', params],
     queryFn: () => api.get('/stats/detaillees', { params }).then((r) => r.data),
     keepPreviousData: true,
+    enabled: !!params,
   });
 
 const formatMontant = (n) => {
@@ -199,10 +201,228 @@ const libellePeriode = (data) => {
   return `${fmt(data.date_debut)} → ${fmt(data.date_fin)}`;
 };
 
+const fmtDate = (s) =>
+  s ? new Date(s).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
+
+const fmtMontant = (n) => new Intl.NumberFormat('fr-FR').format(Math.round(n || 0)) + ' FCFA';
+
+const KpiLigne = ({ label, valeur, emphasis, green, small }) => (
+  <div className={`flex items-center justify-between ${small ? 'py-0.5' : 'py-1'}`}>
+    <span className={`${small ? 'text-xs text-texte-secondaire pl-2' : 'text-sm text-texte-principal'}`}>{label}</span>
+    <span className={`font-mono text-right ${emphasis ? (green ? 'text-zeze-vert font-bold' : 'text-texte-principal font-bold') : small ? 'text-xs text-texte-secondaire' : 'text-sm text-texte-principal font-medium'}`}>
+      {valeur}
+    </span>
+  </div>
+);
+
+const ColonneExercice = ({ exercice, bilan, stats, isLoading }) => {
+  if (!exercice) return null;
+  const b = bilan?.bilan;
+  const commissions = b ? (b.commissions_stockistes || 0) + (b.commissions_delegues || 0) : null;
+
+  return (
+    <div className="space-y-5">
+      {/* En-tête exercice */}
+      <div className="bg-zeze-vert/5 border border-zeze-vert/20 rounded-carte p-3">
+        <p className="font-mono font-bold text-zeze-vert text-base">{exercice.numero}</p>
+        <p className="text-xs text-texte-secondaire mt-0.5">
+          {fmtDate(exercice.date_ouverture)} → {exercice.date_cloture ? fmtDate(exercice.date_cloture) : 'En cours'}
+        </p>
+        <p className="text-xs text-texte-secondaire">
+          {bilan?.exercice?.duree_jours ?? '—'} jours ·{' '}
+          <span className={exercice.statut === 'cloture' ? 'text-gray-500' : 'text-green-600 font-medium'}>
+            {exercice.statut === 'cloture' ? 'Clôturé' : exercice.statut === 'rouvert' ? 'Rouvert' : 'Ouvert'}
+          </span>
+        </p>
+      </div>
+
+      {/* Indicateurs financiers */}
+      <div className="space-y-0.5">
+        <p className="text-xs font-semibold text-texte-secondaire uppercase tracking-wide mb-1">Financier</p>
+        <KpiLigne label="CA total" valeur={isLoading ? '…' : b ? fmtMontant(b.ca_total) : '—'} emphasis />
+        <KpiLigne label="Factures directes" valeur={isLoading ? '…' : b ? fmtMontant(b.ca_factures) : '—'} small />
+        <KpiLigne label="Ventes délégués" valeur={isLoading ? '…' : b ? fmtMontant(b.ca_delegues) : '—'} small />
+        <div className="border-t border-bordure my-1" />
+        <KpiLigne label="Commissions" valeur={isLoading ? '…' : commissions !== null ? fmtMontant(commissions) : '—'} />
+        <KpiLigne label="Stockistes" valeur={isLoading ? '…' : b ? fmtMontant(b.commissions_stockistes) : '—'} small />
+        <KpiLigne label="Délégués" valeur={isLoading ? '…' : b ? fmtMontant(b.commissions_delegues) : '—'} small />
+        <div className="border-t border-bordure my-1" />
+        <KpiLigne label="Net MAPA" valeur={isLoading ? '…' : b ? fmtMontant(b.net_mapa) : '—'} emphasis green />
+      </div>
+
+      {/* Indicateurs activité */}
+      <div className="space-y-0.5 border-t border-bordure pt-3">
+        <p className="text-xs font-semibold text-texte-secondaire uppercase tracking-wide mb-1">Activité</p>
+        <KpiLigne label="Consultations" valeur={isLoading ? '…' : stats?.total_consultations ?? '—'} />
+        <KpiLigne label="Factures émises" valeur={isLoading ? '…' : b?.nb_factures ?? '—'} />
+        <KpiLigne label="Ventes délégués" valeur={isLoading ? '…' : b?.nb_ventes_delegues ?? '—'} />
+      </div>
+
+      {/* Chart CA */}
+      {stats?.ca_chart?.length > 0 && (
+        <div className="border-t border-bordure pt-3">
+          <p className="text-xs font-semibold text-texte-secondaire uppercase tracking-wide mb-3">CA sur la période</p>
+          <CAChart donnees={stats.ca_chart} />
+          <div className="flex gap-3 mt-2">
+            <span className="flex items-center gap-1 text-xs text-texte-secondaire">
+              <span className="w-3 h-3 rounded-sm bg-zeze-vert/40 inline-block" /> Facturé
+            </span>
+            <span className="flex items-center gap-1 text-xs text-texte-secondaire">
+              <span className="w-3 h-3 rounded-sm bg-zeze-vert inline-block" /> Encaissé
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* Top produits */}
+      {b?.top_produits?.length > 0 && (
+        <div className="border-t border-bordure pt-3">
+          <p className="text-xs font-semibold text-texte-secondaire uppercase tracking-wide mb-2">Top produits</p>
+          <div className="space-y-1.5">
+            {b.top_produits.slice(0, 5).map((p, i) => {
+              const max = b.top_produits[0]?.ca || 1;
+              const pct = Math.round((p.ca / max) * 100);
+              return (
+                <div key={i} className="space-y-0.5">
+                  <div className="flex justify-between text-xs">
+                    <span className="text-texte-principal truncate max-w-[60%]">{p.nom}</span>
+                    <span className="text-texte-secondaire">{p.quantite} u · {formatMontant(p.ca)} FCFA</span>
+                  </div>
+                  <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                    <div className="h-full bg-amber-400 rounded-full" style={{ width: `${pct}%` }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const StatsParExercice = () => {
+  const { data: exercicesData, isLoading: exLoading } = useExercices({ limite: 50 });
+  const exercices = exercicesData?.exercices ?? [];
+  const [ex1Id, setEx1Id] = useState('');
+  const [ex2Id, setEx2Id] = useState('');
+  const today = toDateInput(new Date());
+
+  const ex1 = exercices.find((e) => e.id === ex1Id) ?? null;
+  const ex2 = exercices.find((e) => e.id === ex2Id) ?? null;
+
+  const params1 = ex1 ? {
+    periode: 'intervalle',
+    debut: toDateInput(new Date(ex1.date_ouverture)),
+    fin: ex1.date_cloture ? toDateInput(new Date(ex1.date_cloture)) : today,
+  } : null;
+  const params2 = ex2 ? {
+    periode: 'intervalle',
+    debut: toDateInput(new Date(ex2.date_ouverture)),
+    fin: ex2.date_cloture ? toDateInput(new Date(ex2.date_cloture)) : today,
+  } : null;
+
+  const { data: bilan1, isLoading: b1Loading } = useBilanExercice(ex1Id || null);
+  const { data: bilan2, isLoading: b2Loading } = useBilanExercice(ex2Id || null);
+  const { data: stats1, isLoading: s1Loading } = useStatsDetaillees(params1);
+  const { data: stats2, isLoading: s2Loading } = useStatsDetaillees(params2);
+
+  return (
+    <div className="space-y-6">
+      {/* Sélecteurs */}
+      <div className="carte space-y-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-texte-principal mb-1">
+              Exercice principal <span className="text-medical-critique">*</span>
+            </label>
+            <select
+              value={ex1Id}
+              onChange={(e) => setEx1Id(e.target.value)}
+              className="champ-input"
+              disabled={exLoading}
+            >
+              <option value="">— Sélectionner un exercice —</option>
+              {exercices.map((e) => (
+                <option key={e.id} value={e.id}>
+                  {e.numero} · {e.statut === 'cloture' ? 'Clôturé' : e.statut === 'rouvert' ? 'Rouvert' : 'Ouvert'}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-texte-principal mb-1">
+              Exercice de comparaison <span className="text-texte-secondaire font-normal">(optionnel)</span>
+            </label>
+            <select
+              value={ex2Id}
+              onChange={(e) => setEx2Id(e.target.value)}
+              className="champ-input"
+              disabled={!ex1Id || exLoading}
+            >
+              <option value="">— Pas de comparaison —</option>
+              {exercices.filter((e) => e.id !== ex1Id).map((e) => (
+                <option key={e.id} value={e.id}>
+                  {e.numero} · {e.statut === 'cloture' ? 'Clôturé' : e.statut === 'rouvert' ? 'Rouvert' : 'Ouvert'}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+        {ex1Id && (
+          <div className="flex justify-end print:hidden">
+            <button
+              onClick={() => window.print()}
+              className="flex items-center gap-2 text-sm px-3 py-1.5 border border-bordure rounded-bouton hover:bg-fond-secondaire text-texte-principal transition-colors"
+            >
+              <Printer size={14} />
+              Imprimer / Exporter PDF
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Vide */}
+      {!ex1Id && (
+        <div className="carte text-center py-16">
+          <BookOpen size={36} className="mx-auto mb-3 text-texte-secondaire opacity-30" />
+          <p className="text-sm text-texte-secondaire">Sélectionnez un exercice pour afficher les statistiques</p>
+          <p className="text-xs text-texte-secondaire mt-1 opacity-70">Ajoutez un second exercice pour comparer</p>
+        </div>
+      )}
+
+      {/* Contenu */}
+      {ex1Id && (
+        <div className={`grid grid-cols-1 ${ex2Id ? 'xl:grid-cols-2' : ''} gap-6`}>
+          <div className="carte">
+            <ColonneExercice
+              exercice={ex1}
+              bilan={bilan1}
+              stats={stats1}
+              isLoading={b1Loading || s1Loading}
+            />
+          </div>
+          {ex2Id && (
+            <div className="carte">
+              <ColonneExercice
+                exercice={ex2}
+                bilan={bilan2}
+                stats={stats2}
+                isLoading={b2Loading || s2Loading}
+              />
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
 const StatistiquesPage = () => {
   const { utilisateur } = useAuth();
   const estAdmin = utilisateur?.role === 'administrateur';
   const now = new Date();
+  const [mode, setMode] = useState('calendaire');
   const [periode, setPeriode] = useState('annee');
   const [annee, setAnnee] = useState(now.getFullYear());
   const [mois, setMois] = useState(now.getMonth() + 1);
@@ -225,38 +445,65 @@ const StatistiquesPage = () => {
     <div className="space-y-6">
       {/* En-tête */}
       <div className="flex flex-col gap-4">
-        <h1 className="text-2xl font-titres font-bold text-texte-principal">Statistiques</h1>
-
-        {/* Sélecteur de période */}
-        <div className="carte py-3">
-          <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
-            <div className="flex rounded-bouton overflow-hidden border border-bordure">
-              {PERIODES.map((p) => (
-                <button
-                  key={p.val}
-                  onClick={() => setPeriode(p.val)}
-                  className={`px-3 py-1.5 text-sm transition-colors ${
-                    periode === p.val
-                      ? 'bg-zeze-vert text-white font-medium'
-                      : 'text-texte-secondaire hover:bg-fond-secondaire'
-                  }`}
-                >
-                  {p.label}
-                </button>
-              ))}
-            </div>
-            <div className="flex-1">
-              {periode === 'annee'     && <FiltresAnnee annee={annee} setAnnee={setAnnee} />}
-              {periode === 'mois'      && <FiltresMois annee={annee} setAnnee={setAnnee} mois={mois} setMois={setMois} />}
-              {periode === 'semaine'   && <FiltresSemaine semaine={semaine} setSemaine={setSemaine} />}
-              {periode === 'jour'      && <FiltresJour jour={jour} setJour={setJour} />}
-              {periode === 'intervalle'&& <FiltresIntervalle debut={debut} setDebut={setDebut} fin={fin} setFin={setFin} />}
-            </div>
+        <div className="flex items-center justify-between">
+          <h1 className="text-2xl font-titres font-bold text-texte-principal">Statistiques</h1>
+          {/* Toggle Calendaire / Par exercice */}
+          <div className="flex rounded-bouton overflow-hidden border border-bordure">
+            {[
+              { val: 'calendaire', label: 'Calendaire' },
+              { val: 'exercice',   label: 'Par exercice' },
+            ].map((m) => (
+              <button
+                key={m.val}
+                onClick={() => setMode(m.val)}
+                className={`px-3 py-1.5 text-sm transition-colors ${
+                  mode === m.val
+                    ? 'bg-zeze-vert text-white font-medium'
+                    : 'text-texte-secondaire hover:bg-fond-secondaire'
+                }`}
+              >
+                {m.label}
+              </button>
+            ))}
           </div>
         </div>
+
+        {/* Sélecteur de période — mode calendaire uniquement */}
+        {mode === 'calendaire' && (
+          <div className="carte py-3">
+            <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
+              <div className="flex rounded-bouton overflow-hidden border border-bordure">
+                {PERIODES.map((p) => (
+                  <button
+                    key={p.val}
+                    onClick={() => setPeriode(p.val)}
+                    className={`px-3 py-1.5 text-sm transition-colors ${
+                      periode === p.val
+                        ? 'bg-zeze-vert text-white font-medium'
+                        : 'text-texte-secondaire hover:bg-fond-secondaire'
+                    }`}
+                  >
+                    {p.label}
+                  </button>
+                ))}
+              </div>
+              <div className="flex-1">
+                {periode === 'annee'     && <FiltresAnnee annee={annee} setAnnee={setAnnee} />}
+                {periode === 'mois'      && <FiltresMois annee={annee} setAnnee={setAnnee} mois={mois} setMois={setMois} />}
+                {periode === 'semaine'   && <FiltresSemaine semaine={semaine} setSemaine={setSemaine} />}
+                {periode === 'jour'      && <FiltresJour jour={jour} setJour={setJour} />}
+                {periode === 'intervalle'&& <FiltresIntervalle debut={debut} setDebut={setDebut} fin={fin} setFin={setFin} />}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
-      {isLoading ? (
+      {/* Mode Par exercice */}
+      {mode === 'exercice' && <StatsParExercice />}
+
+      {/* Mode Calendaire */}
+      {mode === 'calendaire' && (isLoading ? (
         <div className="flex justify-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-4 border-zeze-vert border-t-transparent" /></div>
       ) : (
         <>
@@ -362,7 +609,7 @@ const StatistiquesPage = () => {
             </div>
           </div>
         </>
-      )}
+      ))}
     </div>
   );
 };

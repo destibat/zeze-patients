@@ -51,7 +51,7 @@ module.exports = (sequelize) => {
     commission_rate: {
       type: DataTypes.DECIMAL(5, 2),
       allowNull: false,
-      defaultValue: 25.00,
+      defaultValue: 30.00,
     },
     stockiste_id: {
       type: DataTypes.UUID,

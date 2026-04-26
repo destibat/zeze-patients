@@ -32,7 +32,7 @@ export const useBilanExercice = (id) =>
 export const useOuvrirExercice = () => {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: () => api.post('/exercices/ouvrir').then((r) => r.data),
+    mutationFn: (data = {}) => api.post('/exercices/ouvrir', data).then((r) => r.data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['exercice-actuel'] });
       qc.invalidateQueries({ queryKey: ['exercices'] });

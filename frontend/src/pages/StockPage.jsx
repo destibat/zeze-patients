@@ -2,9 +2,10 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
+import { useMettreAJourSeuil } from '../hooks/useStock';
 import Alert from '../components/ui/Alert';
 import Button from '../components/ui/Button';
-import { Package, TrendingUp, TrendingDown, AlertTriangle, X, Plus, Minus, RefreshCw } from 'lucide-react';
+import { Package, TrendingUp, TrendingDown, AlertTriangle, X, Plus, Minus, RefreshCw, Bell, BellOff } from 'lucide-react';
 
 const useStock = () =>
   useQuery({ queryKey: ['stock'], queryFn: () => api.get('/stock').then((r) => r.data) });
@@ -44,7 +45,12 @@ const MouvementModal = ({ produit, onFermer }) => {
   const [motif, setMotif] = useState('');
   const [dateLivraison, setDateLivraison] = useState('');
   const [erreur, setErreur] = useState('');
+  const [seuilEdition, setSeuilEdition] = useState(false);
+  const [seuilValeur, setSeuilValeur] = useState(
+    produit.seuil_alerte !== null ? String(produit.seuil_alerte) : ''
+  );
   const enregistrer = useEnregistrerMouvement(produit.id);
+  const mettreAJourSeuil = useMettreAJourSeuil();
   const { data: mouvements = [] } = useMouvements(produit.id);
 
   const soumettre = async () => {
@@ -140,6 +146,70 @@ const MouvementModal = ({ produit, onFermer }) => {
           </Button>
         </div>
 
+        {/* Seuil d'alerte */}
+        <div className="p-4 border-b border-bordure">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-xs font-semibold text-texte-secondaire uppercase tracking-wide">Seuil d'alerte</p>
+            {!seuilEdition && (
+              <button
+                type="button"
+                onClick={() => setSeuilEdition(true)}
+                className="text-xs text-zeze-vert hover:underline font-medium"
+              >
+                Modifier
+              </button>
+            )}
+          </div>
+          {!seuilEdition ? (
+            <div className="flex items-center gap-2">
+              {produit.seuil_alerte !== null ? (
+                <>
+                  <Bell size={13} className="text-orange-500" />
+                  <p className="text-sm text-texte-principal">
+                    Alerte si stock ≤ <strong>{produit.seuil_alerte}</strong>
+                  </p>
+                </>
+              ) : (
+                <>
+                  <BellOff size={13} className="text-texte-secondaire" />
+                  <p className="text-sm text-texte-secondaire italic">Aucune alerte configurée</p>
+                </>
+              )}
+            </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <input
+                type="number"
+                min={0}
+                value={seuilValeur}
+                onChange={(e) => setSeuilValeur(e.target.value)}
+                placeholder="Ex: 5 (vide = pas d'alerte)"
+                className="champ-input flex-1"
+              />
+              <Button
+                variante="primaire"
+                chargement={mettreAJourSeuil.isPending}
+                onClick={async () => {
+                  await mettreAJourSeuil.mutateAsync({
+                    produitId: produit.id,
+                    seuil_alerte: seuilValeur === '' ? null : parseInt(seuilValeur, 10),
+                  });
+                  setSeuilEdition(false);
+                }}
+              >
+                OK
+              </Button>
+              <button
+                type="button"
+                onClick={() => { setSeuilEdition(false); setSeuilValeur(produit.seuil_alerte !== null ? String(produit.seuil_alerte) : ''); }}
+                className="p-1.5 text-texte-secondaire hover:text-texte-principal"
+              >
+                <X size={16} />
+              </button>
+            </div>
+          )}
+        </div>
+
         {/* Historique */}
         <div className="flex-1 overflow-y-auto p-4">
           <p className="text-xs font-semibold text-texte-secondaire uppercase tracking-wide mb-2">Historique récent</p>
@@ -183,7 +253,11 @@ const StockPage = () => {
   const [filtreCategorie, setFiltreCategorie] = useState('');
 
   const peutGerer = aLeRole('administrateur', 'stockiste');
-  const alertes = produits.filter((p) => p.actif && p.quantite_stock <= p.seuil_alerte);
+  const alertes = produits.filter(
+    (p) => p.actif && p.seuil_alerte !== null && p.quantite_stock <= p.seuil_alerte
+  );
+  const ruptures = alertes.filter((p) => p.quantite_stock === 0);
+  const basStock = alertes.filter((p) => p.quantite_stock > 0);
   const produitsFiltres = filtreCategorie
     ? produits.filter((p) => p.categorie === filtreCategorie)
     : produits;
@@ -193,7 +267,10 @@ const StockPage = () => {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-titres font-bold text-texte-principal">Stock produits</h1>
-          <p className="text-sm text-texte-secondaire mt-1">{produits.length} produits · {alertes.length} alerte{alertes.length !== 1 ? 's' : ''}</p>
+          <p className="text-sm text-texte-secondaire mt-1">
+            {produits.length} produits
+            {alertes.length > 0 && ` · ${ruptures.length > 0 ? `${ruptures.length} rupture${ruptures.length > 1 ? 's' : ''}` : ''}${ruptures.length > 0 && basStock.length > 0 ? ', ' : ''}${basStock.length > 0 ? `${basStock.length} stock bas` : ''}`}
+          </p>
         </div>
         <select
           value={filtreCategorie}
@@ -205,17 +282,34 @@ const StockPage = () => {
         </select>
       </div>
 
+      {/* Alertes rupture */}
+      {ruptures.length > 0 && (
+        <div className="bg-red-50 border border-red-200 rounded-carte p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <AlertTriangle size={16} className="text-red-600" />
+            <p className="text-sm font-semibold text-red-800">Rupture de stock — {ruptures.length} produit{ruptures.length !== 1 ? 's' : ''}</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {ruptures.map((p) => (
+              <span key={p.id} className="text-xs bg-red-100 text-red-800 px-2 py-1 rounded-full font-medium">
+                {p.nom}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Alertes stock bas */}
-      {alertes.length > 0 && (
+      {basStock.length > 0 && (
         <div className="bg-orange-50 border border-orange-200 rounded-carte p-4">
           <div className="flex items-center gap-2 mb-2">
             <AlertTriangle size={16} className="text-orange-600" />
-            <p className="text-sm font-semibold text-orange-800">Stock bas — {alertes.length} produit{alertes.length !== 1 ? 's' : ''}</p>
+            <p className="text-sm font-semibold text-orange-800">Stock bas — {basStock.length} produit{basStock.length !== 1 ? 's' : ''}</p>
           </div>
           <div className="flex flex-wrap gap-2">
-            {alertes.map((p) => (
+            {basStock.map((p) => (
               <span key={p.id} className="text-xs bg-orange-100 text-orange-800 px-2 py-1 rounded-full">
-                {p.nom} ({p.quantite_stock})
+                {p.nom} ({p.quantite_stock}/{p.seuil_alerte})
               </span>
             ))}
           </div>
@@ -228,8 +322,9 @@ const StockPage = () => {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
           {produitsFiltres.map((p) => {
-            const stockBas = p.quantite_stock <= p.seuil_alerte;
-            const stockVide = p.quantite_stock === 0;
+            const aUnSeuil = p.seuil_alerte !== null;
+            const stockBas = aUnSeuil && p.quantite_stock <= p.seuil_alerte && p.quantite_stock > 0;
+            const stockVide = aUnSeuil && p.quantite_stock === 0;
             return (
               <div
                 key={p.id}
@@ -248,7 +343,9 @@ const StockPage = () => {
                     <p className={`text-2xl font-bold font-titres ${stockVide ? 'text-medical-critique' : stockBas ? 'text-orange-600' : 'text-zeze-vert'}`}>
                       {p.quantite_stock}
                     </p>
-                    <p className="text-xs text-texte-secondaire">unités · seuil {p.seuil_alerte}</p>
+                    <p className="text-xs text-texte-secondaire">
+                      unités{aUnSeuil ? ` · seuil ${p.seuil_alerte}` : ' · pas de seuil'}
+                    </p>
                   </div>
                   <div className="text-right">
                     <p className="text-xs font-mono text-texte-secondaire">{formatMontant(p.prix_unitaire)}</p>

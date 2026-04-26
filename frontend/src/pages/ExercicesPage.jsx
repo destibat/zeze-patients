@@ -32,28 +32,48 @@ const statutBadge = (s) => {
 const statutLabel = (s) => ({ ouvert: 'Ouvert', cloture: 'Clôturé', rouvert: 'Rouvert' }[s] ?? s);
 
 // ── Modal confirmation ouverture ─────────────────────────────────────────────
-const ModalOuvrir = ({ onConfirm, onAnnuler, loading }) => (
-  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-    <div className="bg-white rounded-carte shadow-xl w-full max-w-md mx-4 p-6 space-y-4">
-      <div className="flex items-start gap-3">
-        <BookOpen size={20} className="text-zeze-vert mt-0.5 flex-shrink-0" />
+const ModalOuvrir = ({ onConfirm, onAnnuler, loading }) => {
+  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+      <div className="bg-white rounded-carte shadow-xl w-full max-w-md mx-4 p-6 space-y-4">
+        <div className="flex items-start gap-3">
+          <BookOpen size={20} className="text-zeze-vert mt-0.5 flex-shrink-0" />
+          <div>
+            <h3 className="text-base font-semibold text-texte-principal">Ouvrir un nouvel exercice</h3>
+            <p className="text-sm text-texte-secondaire mt-1">
+              Un nouvel exercice va être créé et ouvert. Toutes les ventes et factures émises
+              à partir de maintenant y seront automatiquement rattachées.
+            </p>
+          </div>
+        </div>
         <div>
-          <h3 className="text-base font-semibold text-texte-principal">Ouvrir un nouvel exercice</h3>
-          <p className="text-sm text-texte-secondaire mt-1">
-            Un nouvel exercice va être créé et ouvert. Toutes les ventes et factures émises
-            à partir de maintenant y seront automatiquement rattachées.
-          </p>
+          <label className="block text-sm font-medium text-texte-principal mb-1">
+            Date d'ouverture
+          </label>
+          <input
+            type="date"
+            value={date}
+            onChange={(e) => setDate(e.target.value)}
+            max={new Date().toISOString().split('T')[0]}
+            className="champ-input text-sm w-full"
+          />
+          {date !== new Date().toISOString().split('T')[0] && (
+            <p className="text-xs text-amber-600 mt-1">
+              Date rétroactive — les ventes antérieures ne seront pas automatiquement rattachées.
+            </p>
+          )}
+        </div>
+        <div className="flex justify-end gap-2 pt-2">
+          <Button variante="fantome" onClick={onAnnuler}>Annuler</Button>
+          <Button variante="primaire" icone={BookOpen} chargement={loading} onClick={() => onConfirm(date)}>
+            Ouvrir l'exercice
+          </Button>
         </div>
       </div>
-      <div className="flex justify-end gap-2 pt-2">
-        <Button variante="fantome" onClick={onAnnuler}>Annuler</Button>
-        <Button variante="primaire" icone={BookOpen} chargement={loading} onClick={onConfirm}>
-          Ouvrir l'exercice
-        </Button>
-      </div>
     </div>
-  </div>
-);
+  );
+};
 
 // ── Modal clôture avec aperçu bilan ─────────────────────────────────────────
 const ModalCloturer = ({ exerciceId, onConfirm, onAnnuler, loading }) => {
@@ -324,9 +344,9 @@ const ExercicesPage = () => {
     setTimeout(() => setMessage({ type: '', texte: '' }), 5000);
   };
 
-  const handleOuvrir = async () => {
+  const handleOuvrir = async (dateOuverture) => {
     try {
-      await ouvrir.mutateAsync();
+      await ouvrir.mutateAsync({ date_ouverture: dateOuverture });
       setModalOuvrir(false);
       flash('succes', 'Exercice ouvert avec succès.');
     } catch (e) {

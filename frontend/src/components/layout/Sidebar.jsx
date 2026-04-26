@@ -1,6 +1,7 @@
 import { NavLink } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../contexts/AuthContext';
+import { useAlertesStock } from '../../hooks/useStock';
 import {
   LayoutDashboard, Users, UserRound, Calendar, FileText,
   Receipt, Package, BarChart3, Settings, X, Boxes, BookOpen,
@@ -25,6 +26,9 @@ const entresNav = [
 const Sidebar = ({ ouverte, onFermer }) => {
   const { t } = useTranslation();
   const { aLeRole } = useAuth();
+  const peutVoirStock = aLeRole('administrateur', 'secretaire');
+  const { data: alertes = [] } = useAlertesStock(peutVoirStock);
+  const nbAlertes = alertes.length;
 
   const entreesVisibles = entresNav.filter(({ roles }) => aLeRole(...roles));
 
@@ -73,7 +77,12 @@ const Sidebar = ({ ouverte, onFermer }) => {
               }
             >
               <Icone size={18} />
-              <span>{t(`nav.${cle}`)}</span>
+              <span className="flex-1">{t(`nav.${cle}`)}</span>
+              {cle === 'stock' && nbAlertes > 0 && (
+                <span className="bg-red-500 text-white text-xs font-bold min-w-[18px] h-[18px] rounded-full flex items-center justify-center px-1">
+                  {nbAlertes > 99 ? '99+' : nbAlertes}
+                </span>
+              )}
             </NavLink>
           ))}
         </nav>

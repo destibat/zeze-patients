@@ -2,11 +2,13 @@ const rateLimit = require('express-rate-limit');
 const config = require('../config/env');
 
 // Limiteur général pour toutes les routes API
+// En développement, le rate limiting est désactivé (polling HMR + hooks multiples)
 const limiteurGeneral = rateLimit({
   windowMs: config.rateLimit.windowMs,
   max: config.rateLimit.max,
   standardHeaders: true,
   legacyHeaders: false,
+  skip: () => config.env === 'development',
   message: {
     succes: false,
     message: 'Trop de requêtes, veuillez réessayer dans quelques minutes.',

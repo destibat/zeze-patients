@@ -3,10 +3,12 @@ import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
 import { useStatsStockDelegue, useGainsDelegues, useVentesEnAttente } from '../hooks/useStockDelegue';
+import { useExerciceActuel, useBilanExercice } from '../hooks/useExercices';
+import { useAlertesStock } from '../hooks/useStock';
 import {
   Users, Stethoscope, Calendar, TrendingUp, Bell,
   Clock, CheckCircle, AlertCircle, Phone,
-  ShoppingCart, ShoppingBag, Package,
+  ShoppingCart, ShoppingBag, Package, BookOpen, AlertTriangle,
 } from 'lucide-react';
 
 const toDateInput = (d) => d.toISOString().split('T')[0];
@@ -63,6 +65,124 @@ const CarteKPI = ({ titre, valeur, icone: Icone, couleur, sous, onClick, badge }
     )}
   </div>
 );
+
+// ── Widget exercice comptable (admin + stockiste) ─────────────────────────────
+const WidgetExercice = () => {
+  const navigate = useNavigate();
+  const { data, isLoading } = useExerciceActuel();
+  const exercice = data?.exercice;
+  const { data: bilanData, isLoading: bilanLoading } = useBilanExercice(exercice?.id);
+
+  const fmt = (n) => new Intl.NumberFormat('fr-FR').format(Math.round(n || 0)) + ' FCFA';
+
+  if (isLoading) {
+    return (
+      <div className="carte flex items-center justify-center py-4">
+        <div className="animate-spin rounded-full h-5 w-5 border-4 border-zeze-vert border-t-transparent" />
+      </div>
+    );
+  }
+
+  if (!exercice) {
+    return (
+      <div className="bg-amber-50 border border-amber-300 rounded-carte px-4 py-3 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0">
+            <BookOpen size={15} className="text-amber-700" />
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-amber-800">Aucun exercice comptable ouvert</p>
+            <p className="text-xs text-amber-700">La facturation est bloquée tant qu'aucun exercice n'est ouvert.</p>
+          </div>
+        </div>
+        <button onClick={() => navigate('/exercices')} className="text-xs font-semibold text-amber-700 hover:underline whitespace-nowrap ml-4">
+          Ouvrir →
+        </button>
+      </div>
+    );
+  }
+
+  const bilan = bilanData?.bilan;
+  const commissionsTotal = bilan ? bilan.commissions_stockistes + bilan.commissions_delegues : null;
+
+  return (
+    <div className="carte space-y-4">
+      <div className="flex items-center justify-between">
+        <h2 className="text-sm font-semibold text-texte-principal flex items-center gap-2">
+          <BookOpen size={15} className="text-zeze-vert" />
+          Exercice en cours
+          <span className={`text-xs px-2 py-0.5 rounded-full font-normal ${
+            exercice.statut === 'rouvert'
+              ? 'bg-amber-100 text-amber-700'
+              : 'bg-green-100 text-green-700'
+          }`}>
+            {exercice.statut === 'rouvert' ? 'Rouvert' : 'Ouvert'}
+          </span>
+        </h2>
+        <button
+          onClick={() => navigate(`/exercices/${exercice.id}/bilan`)}
+          className="text-xs text-zeze-vert hover:underline font-medium"
+        >
+          Voir le bilan complet →
+        </button>
+      </div>
+
+      {/* Infos exercice */}
+      <div className="flex flex-wrap gap-4 text-sm">
+        <div>
+          <p className="text-xs text-texte-secondaire">Numéro</p>
+          <p className="font-mono font-semibold text-zeze-vert">{exercice.numero}</p>
+        </div>
+        <div>
+          <p className="text-xs text-texte-secondaire">Ouvert le</p>
+          <p className="font-semibold text-texte-principal">
+            {new Date(exercice.date_ouverture).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })}
+          </p>
+        </div>
+        <div>
+          <p className="text-xs text-texte-secondaire">Durée</p>
+          <p className="font-semibold text-texte-principal">{data.duree_jours} jour{data.duree_jours > 1 ? 's' : ''}</p>
+        </div>
+      </div>
+
+      {/* Indicateurs financiers */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-1 border-t border-bordure">
+        <div>
+          <p className="text-xs text-texte-secondaire">CA accumulé</p>
+          <p className="text-sm font-bold text-texte-principal">{fmt(data.ca_accumule)}</p>
+          <p className="text-xs text-texte-secondaire">
+            Fact. {fmt(data.ca_factures)} · Dél. {fmt(data.ca_delegues)}
+          </p>
+        </div>
+        <div>
+          <p className="text-xs text-texte-secondaire">Commissions dues</p>
+          <p className="text-sm font-bold text-zeze-or">
+            {bilanLoading ? '…' : commissionsTotal !== null ? fmt(commissionsTotal) : '—'}
+          </p>
+          {!bilanLoading && bilan && (
+            <p className="text-xs text-texte-secondaire">
+              Stock. {fmt(bilan.commissions_stockistes)} · Dél. {fmt(bilan.commissions_delegues)}
+            </p>
+          )}
+        </div>
+        <div>
+          <p className="text-xs text-texte-secondaire">Net MAPA</p>
+          <p className="text-sm font-bold text-zeze-vert">
+            {bilanLoading ? '…' : bilan ? fmt(bilan.net_mapa) : '—'}
+          </p>
+        </div>
+        <div className="flex items-center justify-end">
+          <button
+            onClick={() => navigate('/exercices')}
+            className="text-xs px-3 py-1.5 rounded-bouton border border-zeze-vert/40 text-zeze-vert hover:bg-zeze-vert/10 transition-colors font-medium"
+          >
+            Gérer les exercices
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 // ── Dashboard délégué ─────────────────────────────────────────────────────────
 const DashboardDelegue = ({ utilisateur }) => {
@@ -233,6 +353,66 @@ const DashboardDelegue = ({ utilisateur }) => {
   );
 };
 
+// ── Widget alertes stock (admin + stockiste) ──────────────────────────────────
+const WidgetAlertesStock = () => {
+  const navigate = useNavigate();
+  const { data: alertes = [], isLoading } = useAlertesStock();
+
+  if (isLoading || alertes.length === 0) return null;
+
+  const ruptures = alertes.filter((p) => p.type_alerte === 'rupture');
+  const basStock = alertes.filter((p) => p.type_alerte === 'bas');
+
+  return (
+    <div className="space-y-2">
+      {ruptures.length > 0 && (
+        <div className="bg-red-50 border border-red-200 rounded-carte px-4 py-3">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <AlertTriangle size={15} className="text-red-600" />
+              <p className="text-sm font-semibold text-red-800">
+                Rupture de stock — {ruptures.length} produit{ruptures.length > 1 ? 's' : ''}
+              </p>
+            </div>
+            <button onClick={() => navigate('/stock')} className="text-xs text-red-700 font-semibold hover:underline">
+              Gérer →
+            </button>
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {ruptures.map((p) => (
+              <span key={p.id} className="text-xs bg-red-100 text-red-800 px-2 py-0.5 rounded-full font-medium">
+                {p.nom}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+      {basStock.length > 0 && (
+        <div className="bg-orange-50 border border-orange-200 rounded-carte px-4 py-3">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <AlertTriangle size={15} className="text-orange-600" />
+              <p className="text-sm font-semibold text-orange-800">
+                Stock bas — {basStock.length} produit{basStock.length > 1 ? 's' : ''}
+              </p>
+            </div>
+            <button onClick={() => navigate('/stock')} className="text-xs text-orange-700 font-semibold hover:underline">
+              Gérer →
+            </button>
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {basStock.map((p) => (
+              <span key={p.id} className="text-xs bg-orange-100 text-orange-800 px-2 py-0.5 rounded-full">
+                {p.nom} ({p.quantite_stock}/{p.seuil_alerte})
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 // ── Dashboard standard (admin, stockiste, secrétaire) ────────────────────────
 const DashboardStandard = ({ utilisateur }) => {
   const navigate = useNavigate();
@@ -275,6 +455,12 @@ const DashboardStandard = ({ utilisateur }) => {
           onClick={() => navigate('/statistiques')}
         />
       </div>
+
+      {/* Widget exercice comptable */}
+      {estStockisteOuAdmin && <WidgetExercice />}
+
+      {/* Alertes stock — admin et secrétaire uniquement (accès à /stock) */}
+      {['administrateur', 'secretaire'].includes(utilisateur?.role) && <WidgetAlertesStock />}
 
       {/* Répartition financière — stockiste uniquement */}
       {estStockisteOuAdmin && !isLoading && stats?.repartition && (() => {

@@ -51,10 +51,7 @@ const Champ = ({ label, children }) => (
 const useParametres = () =>
   useQuery({
     queryKey: ['parametres'],
-    queryFn: () =>
-      api.get('/parametres').then((r) =>
-        r.data.reduce((acc, p) => ({ ...acc, [p.cle]: p.valeur }), {})
-      ),
+    queryFn: () => api.get('/parametres').then((r) => r.data),
   });
 
 // ── Zone de dépôt de fichier ──────────────────────────────────────────────
@@ -152,20 +149,30 @@ const ParametresPage = () => {
   const [succes, setSucces] = useState('');
   const [erreur, setErreur] = useState('');
 
-  // Commissions
+  // Paramètres globaux (commissions + cabinet)
   const { data: parametres = {} } = useParametres();
   const [commissions, setCommissions] = useState({ commission_stockiste: '', commission_delegue: '' });
   const [succesComm, setSuccesComm] = useState('');
   const [erreurComm, setErreurComm] = useState('');
   const estAdmin = utilisateur?.role === 'administrateur';
 
+  // Cabinet
+  const [cabinet, setCabinet] = useState({ nom_cabinet: '', adresse: '' });
+  const [succesCabinet, setSuccesCabinet] = useState('');
+  const [erreurCabinet, setErreurCabinet] = useState('');
+
+  const sauvegarderParametres = useMutation({
+    mutationFn: (data) => api.put('/parametres', data).then((r) => r.data),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['parametres'] }); },
+  });
+
   const sauvegarderCommissions = useMutation({
     mutationFn: (data) => api.put('/parametres', data).then((r) => r.data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['parametres'] });
-      setSuccesComm('Commissions mises à jour');
+      setSuccesComm('Commissions mises à jour. Taux propagé à tous les stockistes actifs.');
       setErreurComm('');
-      setTimeout(() => setSuccesComm(''), 3000);
+      setTimeout(() => setSuccesComm(''), 4000);
     },
     onError: (e) => { setErreurComm(e?.response?.data?.message || 'Erreur'); },
   });
@@ -177,6 +184,24 @@ const ParametresPage = () => {
       setErreurComm('Les taux doivent être entre 0 et 100'); return;
     }
     sauvegarderCommissions.mutate({ commission_stockiste: s, commission_delegue: d });
+  };
+
+  const soumettreCabinet = () => {
+    const nom = (cabinet.nom_cabinet || parametres.nom_cabinet || '').trim();
+    const adr = (cabinet.adresse || parametres.adresse || '').trim();
+    if (!nom) { setErreurCabinet('Le nom du cabinet est requis'); return; }
+    sauvegarderParametres.mutate(
+      { nom_cabinet: nom, adresse: adr },
+      {
+        onSuccess: () => {
+          setSuccesCabinet('Informations cabinet mises à jour');
+          setErreurCabinet('');
+          setCabinet({ nom_cabinet: '', adresse: '' });
+          setTimeout(() => setSuccesCabinet(''), 3000);
+        },
+        onError: (e) => setErreurCabinet(e?.response?.data?.message || 'Erreur'),
+      }
+    );
   };
 
   // Profil
@@ -407,19 +432,65 @@ const ParametresPage = () => {
 
       {/* Informations cabinet */}
       <Section titre="Cabinet ZEZEPAGNON" icone={Building2}>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
-          {[
-            ['Cabinet', 'ZEZEPAGNON — Pharmacopée africaine'],
-            ['Adresse', 'Abidjan, Côte d\'Ivoire'],
-            ['Domaine', 'patients.zezepagnon.solution'],
-            ['Version', 'v1.0 — Phase 6'],
-          ].map(([label, val]) => (
-            <div key={label}>
-              <p className="text-xs text-texte-secondaire uppercase tracking-wide mb-0.5">{label}</p>
-              <p className="text-texte-principal">{val}</p>
+        {estAdmin ? (
+          <>
+            {succesCabinet && <Alert type="succes" message={succesCabinet} />}
+            {erreurCabinet && <Alert type="erreur" message={erreurCabinet} />}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Champ label="Nom du cabinet">
+                <input
+                  type="text"
+                  className="champ-input"
+                  placeholder={parametres.nom_cabinet || 'ZEZEPAGNON — Pharmacopée africaine'}
+                  value={cabinet.nom_cabinet}
+                  onChange={(e) => setCabinet({ ...cabinet, nom_cabinet: e.target.value })}
+                />
+              </Champ>
+              <Champ label="Adresse">
+                <input
+                  type="text"
+                  className="champ-input"
+                  placeholder={parametres.adresse || 'Abidjan, Côte d\'Ivoire'}
+                  value={cabinet.adresse}
+                  onChange={(e) => setCabinet({ ...cabinet, adresse: e.target.value })}
+                />
+              </Champ>
             </div>
-          ))}
-        </div>
+            <Button
+              variante="primaire"
+              icone={Save}
+              chargement={sauvegarderParametres.isPending}
+              onClick={soumettreCabinet}
+            >
+              Enregistrer les informations
+            </Button>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm pt-2 border-t border-bordure">
+              {[
+                ['Domaine', 'patients.zezepagnon.solution'],
+                ['Version', 'v1.0 — Phase 6'],
+              ].map(([label, val]) => (
+                <div key={label}>
+                  <p className="text-xs text-texte-secondaire uppercase tracking-wide mb-0.5">{label}</p>
+                  <p className="text-texte-principal">{val}</p>
+                </div>
+              ))}
+            </div>
+          </>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+            {[
+              ['Cabinet', parametres.nom_cabinet || 'ZEZEPAGNON — Pharmacopée africaine'],
+              ['Adresse', parametres.adresse || 'Abidjan, Côte d\'Ivoire'],
+              ['Domaine', 'patients.zezepagnon.solution'],
+              ['Version', 'v1.0 — Phase 6'],
+            ].map(([label, val]) => (
+              <div key={label}>
+                <p className="text-xs text-texte-secondaire uppercase tracking-wide mb-0.5">{label}</p>
+                <p className="text-texte-principal">{val}</p>
+              </div>
+            ))}
+          </div>
+        )}
       </Section>
     </div>
   );

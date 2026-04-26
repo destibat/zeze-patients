@@ -44,8 +44,8 @@ module.exports = (sequelize) => {
       },
       seuil_alerte: {
         type: DataTypes.INTEGER,
-        allowNull: false,
-        defaultValue: 5,
+        allowNull: true,
+        defaultValue: null,
       },
       actif: {
         type: DataTypes.BOOLEAN,

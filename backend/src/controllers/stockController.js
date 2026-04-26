@@ -66,4 +66,37 @@ const enregistrerMouvement = async (req, res) => {
   }
 };
 
-module.exports = { listerProduits, obtenirMouvements, enregistrerMouvement };
+const alertes = async (req, res) => {
+  const { Op } = require('sequelize');
+  const produits = await Produit.findAll({
+    where: { actif: true, seuil_alerte: { [Op.not]: null } },
+    order: [['quantite_stock', 'ASC']],
+    attributes: ['id', 'nom', 'categorie', 'prix_unitaire', 'quantite_stock', 'seuil_alerte'],
+  });
+  const enAlerte = produits
+    .filter((p) => p.quantite_stock <= p.seuil_alerte)
+    .map((p) => ({
+      ...p.toJSON(),
+      type_alerte: p.quantite_stock === 0 ? 'rupture' : 'bas',
+    }));
+  res.json(enAlerte);
+};
+
+const mettreAJourSeuil = async (req, res) => {
+  const produit = await Produit.findByPk(req.params.produitId);
+  if (!produit) return res.status(404).json({ message: 'Produit introuvable' });
+
+  const raw = req.body.seuil_alerte;
+  const valeur = (raw === null || raw === '' || raw === undefined)
+    ? null
+    : parseInt(raw, 10);
+
+  if (valeur !== null && (isNaN(valeur) || valeur < 0)) {
+    return res.status(400).json({ message: 'Seuil invalide — entier positif attendu' });
+  }
+
+  await produit.update({ seuil_alerte: valeur });
+  res.json(produit);
+};
+
+module.exports = { listerProduits, obtenirMouvements, enregistrerMouvement, alertes, mettreAJourSeuil };
