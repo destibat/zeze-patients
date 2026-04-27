@@ -95,7 +95,7 @@ const modifierUtilisateur = async (req, res) => {
     return erreur(res, 'Vous ne pouvez pas modifier votre propre rôle', 403);
   }
 
-  const { nom, prenom, email, role, telephone, nom_cabinet, actif, commission_rate, stockiste_id } = req.body;
+  const { nom, prenom, email, role, telephone, ville, pays, nom_cabinet, actif, commission_rate, stockiste_id } = req.body;
 
   const nouveauRole = role || utilisateur.role;
   if (nouveauRole === 'delegue' && !stockiste_id && !utilisateur.stockiste_id) {
@@ -113,6 +113,8 @@ const modifierUtilisateur = async (req, res) => {
     email: email?.toLowerCase().trim() || utilisateur.email,
     role: nouveauRole,
     telephone: telephone !== undefined ? telephone?.trim() || null : utilisateur.telephone,
+    ville: ville !== undefined ? ville?.trim() || null : utilisateur.ville,
+    pays: pays !== undefined ? pays?.trim() || null : utilisateur.pays,
     nom_cabinet: nom_cabinet !== undefined ? nom_cabinet?.trim() || null : utilisateur.nom_cabinet,
     actif: actif !== undefined ? actif : utilisateur.actif,
     commission_rate: nouveauRole === 'stockiste' && commission_rate != null

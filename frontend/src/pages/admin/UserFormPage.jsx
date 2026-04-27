@@ -57,6 +57,8 @@ const UserFormPage = () => {
         prenom: utilisateurExistant.prenom,
         email: utilisateurExistant.email,
         telephone: utilisateurExistant.telephone || '',
+        ville: utilisateurExistant.ville || '',
+        pays: utilisateurExistant.pays || '',
         role: utilisateurExistant.role,
         commission_rate: utilisateurExistant.commission_rate ?? 25,
         stockiste_id: utilisateurExistant.stockiste_id || '',
@@ -140,6 +142,24 @@ const UserFormPage = () => {
               {...register('telephone')}
             />
           </ChampFormulaire>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <ChampFormulaire label="Ville" erreur={errors.ville?.message}>
+              <input
+                className="champ-input"
+                placeholder="Abidjan"
+                {...register('ville')}
+              />
+            </ChampFormulaire>
+
+            <ChampFormulaire label="Pays" erreur={errors.pays?.message}>
+              <input
+                className="champ-input"
+                placeholder="Côte d'Ivoire"
+                {...register('pays')}
+              />
+            </ChampFormulaire>
+          </div>
 
           <ChampFormulaire label={t('utilisateurs.role')} erreur={errors.role?.message} obligatoire>
             <select

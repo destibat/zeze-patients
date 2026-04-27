@@ -44,6 +44,14 @@ module.exports = (sequelize) => {
       type: DataTypes.STRING(20),
       allowNull: true,
     },
+    ville: {
+      type: DataTypes.STRING(100),
+      allowNull: true,
+    },
+    pays: {
+      type: DataTypes.STRING(100),
+      allowNull: true,
+    },
     nom_cabinet: {
       type: DataTypes.STRING(200),
       allowNull: true,
