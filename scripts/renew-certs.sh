@@ -4,7 +4,7 @@
 set -e
 
 DOMAIN="patients.zezepagnon.solutions"
-APP_DIR="/opt/zezepagnon"
+APP_DIR="/var/www/zezepagnon"
 CERTS_DIR="$APP_DIR/nginx/certs"
 
 # Renouveler (certbot ne fait rien si expiration > 30 jours)
