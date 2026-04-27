@@ -23,8 +23,8 @@ services:
 
   backend:
     build:
-      context: ./backend
-      dockerfile: Dockerfile.prod
+      context: .
+      dockerfile: backend/Dockerfile.prod
     container_name: zezepagnon_backend
     restart: always
     depends_on:
