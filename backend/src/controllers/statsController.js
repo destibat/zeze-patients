@@ -47,9 +47,12 @@ const obtenirStats = async (req, res) => {
 
   const caDirectMois = facturesMois.reduce((sum, f) => sum + (f.montant_paye || 0), 0);
   let caMois = caDirectMois;
+  let gainsOrdonnancesMois = 0;
 
   // Pour les délégués, ajouter les ventes directes validées au CA du mois
+  // et calculer les gains sur les ordonnances (15% des factures encaissées)
   if (req.utilisateur.role === 'delegue') {
+    gainsOrdonnancesMois = Math.round(caDirectMois * 15 / 100);
     const ventesDirectes = await MouvementDelegue.findAll({
       where: {
         delegue_id: userId,
@@ -88,6 +91,7 @@ const obtenirStats = async (req, res) => {
     ca_filtre: !estAdmin,
     rdv_aujourd_hui: rdvAujourdhui,
     factures_a_relancer: facturesARelancer,
+    gains_ordonnances_mois: gainsOrdonnancesMois, // délégué : 15% des factures encaissées ce mois
     repartition, // null si non stockiste
   });
 };

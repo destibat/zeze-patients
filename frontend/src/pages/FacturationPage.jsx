@@ -360,6 +360,26 @@ const LigneTotal = ({ label, montant, couleur = 'text-texte-principal', petit = 
   </div>
 );
 
+// Vue gains simplifiée pour le délégué — uniquement ses propres 15%
+const VueGainsDelegue = ({ totalEncaisse, tauxDelegue = 15 }) => {
+  if (totalEncaisse <= 0) return null;
+  const gainDelegue = Math.round(totalEncaisse * tauxDelegue / 100);
+  return (
+    <div className="carte border-l-4 border-l-orange-400 space-y-3">
+      <p className="font-semibold text-texte-principal">
+        Mes gains
+        <span className="ml-2 text-xs font-normal text-texte-secondaire bg-orange-50 px-1.5 py-0.5 rounded">
+          {tauxDelegue}% de commission
+        </span>
+      </p>
+      <div className="bg-fond-secondaire rounded-bouton px-3 divide-y divide-bordure">
+        <LigneTotal label="Total encaissé (vos ordonnances)" montant={totalEncaisse} />
+        <LigneTotal label={`Vos gains (${tauxDelegue}%)`} montant={gainDelegue} couleur="text-orange-600" />
+      </div>
+    </div>
+  );
+};
+
 const VueGains = ({ factures, ventesDirectes = [], parametres, estAdmin }) => {
   const tauxDelegue = parametres.commission_delegue ?? 15;
 
@@ -683,6 +703,7 @@ const VueValidationDelegues = () => {
 const FacturationPage = () => {
   const { utilisateur } = useAuth();
   const estAdmin = utilisateur?.role === 'administrateur';
+  const estDelegue = utilisateur?.role === 'delegue';
   const estStockisteOuAdmin = ['administrateur', 'stockiste'].includes(utilisateur?.role);
   const navigate = useNavigate();
   const [vue, setVue] = useState('factures');
@@ -805,12 +826,16 @@ const FacturationPage = () => {
             {gainsVisibles ? '▲ Masquer les gains' : '▼ Voir vos gains'}
           </button>
           {gainsVisibles && (
-            <VueGains
-              factures={factures}
-              ventesDirectes={ventesDirectes}
-              parametres={parametres}
-              estAdmin={estAdmin}
-            />
+            estDelegue ? (
+              <VueGainsDelegue totalEncaisse={totaux.paye} tauxDelegue={parametres.commission_delegue ?? 15} />
+            ) : (
+              <VueGains
+                factures={factures}
+                ventesDirectes={ventesDirectes}
+                parametres={parametres}
+                estAdmin={estAdmin}
+              />
+            )
           )}
         </div>
       )}

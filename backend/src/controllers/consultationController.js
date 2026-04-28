@@ -103,12 +103,13 @@ const modifier = async (req, res) => {
   if (!consultation) return res.status(404).json({ message: 'Consultation introuvable' });
 
   const {
-    motif, symptomes, diagnostic, traitement_notes,
+    date_consultation, motif, symptomes, diagnostic, traitement_notes,
     tension_systolique, tension_diastolique, frequence_cardiaque,
     temperature, poids, taille, saturation_o2,
   } = req.body;
 
   await consultation.update({
+    ...(date_consultation && { date_consultation }),
     motif, symptomes, diagnostic, traitement_notes,
     tension_systolique, tension_diastolique, frequence_cardiaque,
     temperature, poids, taille, saturation_o2,

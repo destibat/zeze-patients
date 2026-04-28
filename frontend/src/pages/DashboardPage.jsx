@@ -254,19 +254,19 @@ const DashboardDelegue = ({ utilisateur }) => {
             onClick={() => navigate('/mon-stock')}
           />
           <CarteKPI
-            titre="Ventes directes"
+            titre="Ventes directes (stock)"
             valeur={valMontant(stockStats?.ventes_mois)}
             icone={ShoppingBag}
             couleur="bg-zeze-or"
-            sous={stockStats ? `Mon gain : ${formatMontant(stockStats.gain_delegue_mois)}` : null}
+            sous={stockStats ? `Gain validé : ${formatMontant(stockStats.gain_delegue_mois)}` : null}
             onClick={() => navigate('/mon-stock')}
           />
           <CarteKPI
-            titre="Mes gains (15% des ventes)"
-            valeur={valMontant(stockStats?.gain_delegue_mois)}
+            titre="Mes gains totaux (15%)"
+            valeur={isLoading || stockLoading ? '…' : formatMontant((stats?.gains_ordonnances_mois ?? 0) + (stockStats?.gain_delegue_mois ?? 0))}
             icone={TrendingUp}
             couleur="bg-emerald-600"
-            sous="Sur vos ventes directes ce mois"
+            sous={isLoading || stockLoading ? null : `Ordonnances : ${formatMontant(stats?.gains_ordonnances_mois ?? 0)} · Stock : ${formatMontant(stockStats?.gain_delegue_mois ?? 0)}`}
           />
         </div>
       </div>

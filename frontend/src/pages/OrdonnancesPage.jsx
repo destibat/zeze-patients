@@ -3,9 +3,15 @@ import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import api from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
-import { useValiderOrdonnance } from '../hooks/useOrdonnances';
-import { telechargerPDF } from '../hooks/useOrdonnances';
-import { FileText, Download, Search, Receipt, CheckCircle } from 'lucide-react';
+import {
+  useValiderOrdonnance, useSupprimerOrdonnance, useModifierOrdonnanceGlobal,
+  telechargerPDF,
+} from '../hooks/useOrdonnances';
+import ProduitPicker from '../components/ordonnances/ProduitPicker';
+import {
+  FileText, Download, Search, Receipt, CheckCircle,
+  Pencil, Trash2, X, Save, Loader2,
+} from 'lucide-react';
 
 const useOrdonnancesGlobal = (params) =>
   useQuery({
@@ -30,10 +36,87 @@ const STATUT = {
   annulee:   { label: 'Annulée',   couleur: 'bg-red-100 text-red-700' },
 };
 
+// ── Modal modification ────────────────────────────────────────────────────────
+const ModalModifier = ({ ordonnance, onFermer, onSauvegarder, loading }) => {
+  const [lignes, setLignes] = useState(() => {
+    const l = ordonnance.lignes;
+    return Array.isArray(l) ? l : [];
+  });
+  const [notes, setNotes] = useState(ordonnance.notes || '');
+
+  const handleSauvegarder = () => onSauvegarder({ lignes, notes });
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="bg-white rounded-carte shadow-xl w-full max-w-3xl max-h-[90vh] flex flex-col">
+        {/* En-tête */}
+        <div className="flex items-start justify-between p-5 border-b border-bordure">
+          <div>
+            <h3 className="text-base font-semibold text-texte-principal">
+              Modifier l'ordonnance {ordonnance.numero}
+            </h3>
+            <p className="text-sm text-texte-secondaire mt-0.5">
+              {ordonnance.patient?.prenom} {ordonnance.patient?.nom}
+            </p>
+          </div>
+          <button onClick={onFermer} className="text-texte-secondaire hover:text-texte-principal p-1">
+            <X size={18} />
+          </button>
+        </div>
+
+        {/* Corps */}
+        <div className="flex-1 overflow-y-auto p-5 space-y-4">
+          {ordonnance.statut === 'validee' && (
+            <div className="bg-amber-50 border border-amber-200 text-amber-700 text-sm rounded-bouton px-3 py-2">
+              Cette ordonnance est validée — seul un administrateur peut la modifier.
+            </div>
+          )}
+
+          <div>
+            <p className="text-sm font-medium text-texte-principal mb-2">Produits</p>
+            <ProduitPicker lignes={lignes} onChange={setLignes} />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-texte-principal mb-1">Notes</label>
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              rows={3}
+              className="champ-input w-full text-sm resize-none"
+              placeholder="Notes complémentaires..."
+            />
+          </div>
+        </div>
+
+        {/* Pied */}
+        <div className="flex justify-end gap-2 px-5 py-4 border-t border-bordure">
+          <button
+            onClick={onFermer}
+            className="px-4 py-2 text-sm font-medium text-texte-secondaire hover:text-texte-principal border border-bordure rounded-bouton transition-colors"
+          >
+            Annuler
+          </button>
+          <button
+            onClick={handleSauvegarder}
+            disabled={loading || lignes.length === 0}
+            className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-zeze-vert text-white rounded-bouton hover:bg-zeze-vert-fonce disabled:opacity-50 transition-colors"
+          >
+            {loading ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
+            Enregistrer
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ── Page principale ───────────────────────────────────────────────────────────
 const OrdonnancesPage = () => {
   const navigate = useNavigate();
-  const { aLeRole } = useAuth();
+  const { utilisateur, aLeRole } = useAuth();
   const estAdmin = aLeRole('administrateur');
+  const estStockiste = aLeRole('stockiste');
   const peutValider = aLeRole('administrateur', 'stockiste', 'delegue');
 
   const [recherche, setRecherche] = useState('');
@@ -41,6 +124,9 @@ const OrdonnancesPage = () => {
   const [filtreUser, setFiltreUser] = useState('');
   const [telechargement, setTelechargement] = useState(null);
   const [validation, setValidation] = useState(null);
+  const [suppression, setSuppression] = useState(null);
+  const [ordAModifier, setOrdAModifier] = useState(null);
+  const [erreur, setErreur] = useState('');
 
   const params = {};
   if (filtreStatut) params.statut = filtreStatut;
@@ -49,6 +135,8 @@ const OrdonnancesPage = () => {
   const { data: ordonnances = [], isLoading } = useOrdonnancesGlobal(params);
   const { data: utilisateurs = [] } = useUtilisateursFiltres(estAdmin);
   const validerOrd = useValiderOrdonnance();
+  const supprimerOrd = useSupprimerOrdonnance();
+  const modifierOrd = useModifierOrdonnanceGlobal();
 
   const utilisateursFiltres = utilisateurs.filter(
     (u) => u.role === 'stockiste' || u.role === 'delegue'
@@ -64,6 +152,14 @@ const OrdonnancesPage = () => {
       o.patient?.numero_dossier?.toLowerCase().includes(q)
     );
   });
+
+  // Un utilisateur peut agir sur une ordonnance s'il l'a créée,
+  // ou s'il est stockiste (ses délégués), ou s'il est admin
+  const peutAgir = (o) => {
+    if (estAdmin) return true;
+    if (estStockiste) return true; // le backend filtre déjà la liste
+    return o.medecin_id === utilisateur?.id;
+  };
 
   const handlePDF = async (e, ord) => {
     e.stopPropagation();
@@ -98,6 +194,36 @@ const OrdonnancesPage = () => {
     }
   };
 
+  const handleSupprimer = async (e, ord) => {
+    e.stopPropagation();
+    if (!window.confirm(`Supprimer l'ordonnance ${ord.numero} ? Cette action est irréversible.`)) return;
+    setSuppression(ord.id);
+    setErreur('');
+    try {
+      await supprimerOrd.mutateAsync(ord.id);
+    } catch (err) {
+      setErreur(err?.response?.data?.message || 'Erreur lors de la suppression');
+    } finally {
+      setSuppression(null);
+    }
+  };
+
+  const handleModifier = (e, ord) => {
+    e.stopPropagation();
+    setOrdAModifier(ord);
+    setErreur('');
+  };
+
+  const handleSauvegarderModification = async ({ lignes, notes }) => {
+    setErreur('');
+    try {
+      await modifierOrd.mutateAsync({ id: ordAModifier.id, lignes, notes });
+      setOrdAModifier(null);
+    } catch (err) {
+      setErreur(err?.response?.data?.message || 'Erreur lors de la modification');
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -106,6 +232,13 @@ const OrdonnancesPage = () => {
           <p className="text-sm text-texte-secondaire mt-1">{filtrees.length} ordonnance{filtrees.length !== 1 ? 's' : ''}</p>
         </div>
       </div>
+
+      {erreur && (
+        <div className="bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3 rounded-carte flex items-center justify-between">
+          <span>{erreur}</span>
+          <button onClick={() => setErreur('')} className="ml-3 text-red-500 hover:text-red-700"><X size={14} /></button>
+        </div>
+      )}
 
       {/* Filtres */}
       <div className="carte py-4">
@@ -165,6 +298,8 @@ const OrdonnancesPage = () => {
               <tbody className="divide-y divide-gray-100">
                 {filtrees.map((o) => {
                   const cfg = STATUT[o.statut] || STATUT.brouillon;
+                  const peutEditer = peutAgir(o) && (estAdmin || o.statut === 'brouillon');
+                  const peutSupprimer = peutAgir(o) && (estAdmin || o.statut === 'brouillon');
                   return (
                     <tr
                       key={o.id}
@@ -198,8 +333,17 @@ const OrdonnancesPage = () => {
                               title="Valider l'ordonnance"
                             >
                               {validation === o.id
-                                ? <div className="w-[15px] h-[15px] border-2 border-zeze-vert border-t-transparent rounded-full animate-spin" />
+                                ? <Loader2 size={15} className="animate-spin text-zeze-vert" />
                                 : <CheckCircle size={15} />}
+                            </button>
+                          )}
+                          {peutEditer && (
+                            <button
+                              onClick={(e) => handleModifier(e, o)}
+                              className="p-1.5 text-texte-secondaire hover:text-blue-600 rounded"
+                              title="Modifier l'ordonnance"
+                            >
+                              <Pencil size={15} />
                             </button>
                           )}
                           <button
@@ -209,7 +353,7 @@ const OrdonnancesPage = () => {
                             title="Télécharger PDF"
                           >
                             {telechargement === o.id
-                              ? <div className="w-[15px] h-[15px] border-2 border-zeze-vert border-t-transparent rounded-full animate-spin" />
+                              ? <Loader2 size={15} className="animate-spin text-zeze-vert" />
                               : <Download size={15} />}
                           </button>
                           {o.montant_total > 0 && o.statut !== 'annulee' && (
@@ -219,6 +363,18 @@ const OrdonnancesPage = () => {
                               title="Créer une facture"
                             >
                               <Receipt size={15} />
+                            </button>
+                          )}
+                          {peutSupprimer && (
+                            <button
+                              onClick={(e) => handleSupprimer(e, o)}
+                              disabled={suppression === o.id}
+                              className="p-1.5 text-texte-secondaire hover:text-red-600 rounded"
+                              title="Supprimer l'ordonnance"
+                            >
+                              {suppression === o.id
+                                ? <Loader2 size={15} className="animate-spin text-red-500" />
+                                : <Trash2 size={15} />}
                             </button>
                           )}
                         </div>
@@ -231,6 +387,16 @@ const OrdonnancesPage = () => {
           </div>
         )}
       </div>
+
+      {/* Modal modification */}
+      {ordAModifier && (
+        <ModalModifier
+          ordonnance={ordAModifier}
+          onFermer={() => { setOrdAModifier(null); setErreur(''); }}
+          onSauvegarder={handleSauvegarderModification}
+          loading={modifierOrd.isPending}
+        />
+      )}
     </div>
   );
 };

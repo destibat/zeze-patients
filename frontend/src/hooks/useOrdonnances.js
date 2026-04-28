@@ -13,6 +13,30 @@ export const useValiderOrdonnance = () => {
   });
 };
 
+export const useSupprimerOrdonnance = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id) => api.delete(`/ordonnances/${id}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['ordonnances-global'] });
+      qc.invalidateQueries({ queryKey: ['consultation'] });
+      qc.invalidateQueries({ queryKey: ['consultations-global'] });
+    },
+  });
+};
+
+export const useModifierOrdonnanceGlobal = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...data }) => api.put(`/ordonnances/${id}`, data).then((r) => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['ordonnances-global'] });
+      qc.invalidateQueries({ queryKey: ['consultation'] });
+      qc.invalidateQueries({ queryKey: ['consultations-global'] });
+    },
+  });
+};
+
 export const useOrdonnance = (id) =>
   useQuery({
     queryKey: ['ordonnance', id],

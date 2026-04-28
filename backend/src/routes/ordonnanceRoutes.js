@@ -12,6 +12,7 @@ router.use(authentifier);
 router.get('/', tousLesRoles, asyncHandler(ctrl.lister));
 router.get('/:id', tousLesRoles, asyncHandler(ctrl.obtenir));
 router.put('/:id', adminMedecinOuDelegue, asyncHandler(ctrl.modifier));
+router.delete('/:id', adminMedecinOuDelegue, asyncHandler(ctrl.supprimer));
 router.post('/:id/valider', adminMedecinOuDelegue, asyncHandler(ctrl.valider));
 router.get('/:id/pdf', tousLesRoles, asyncHandler(ctrl.genererPDF));
 

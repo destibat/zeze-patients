@@ -50,6 +50,7 @@ const ConsultationFichePage = () => {
   const [afficherFormulaireOrd, setAfficherFormulaireOrd] = useState(false);
   const [lignes, setLignes] = useState([]);
   const [notesOrd, setNotesOrd] = useState('');
+  const [dateOrd, setDateOrd] = useState(new Date().toISOString().split('T')[0]);
   const [erreurOrd, setErreurOrd] = useState('');
   const [telechargement, setTelechargement] = useState(null);
   const [validation, setValidation] = useState(null);
@@ -71,10 +72,13 @@ const ConsultationFichePage = () => {
     if (lignes.length === 0) { setErreurOrd('Ajoutez au moins un produit.'); return; }
     setErreurOrd('');
     try {
-      await creerOrdonnance.mutateAsync({ consultationId, lignes, notes: notesOrd });
+      await creerOrdonnance.mutateAsync({
+        consultationId, lignes, notes: notesOrd, date_ordonnance: dateOrd,
+      });
       setAfficherFormulaireOrd(false);
       setLignes([]);
       setNotesOrd('');
+      setDateOrd(new Date().toISOString().split('T')[0]);
     } catch (e) {
       setErreurOrd(e?.response?.data?.message || 'Erreur lors de la création.');
     }
@@ -220,15 +224,27 @@ const ConsultationFichePage = () => {
               stockDelegue={stockDelegue}
             />
 
-            <div>
-              <label className="block text-sm font-medium text-texte-principal mb-1">Notes</label>
-              <textarea
-                rows={2}
-                className="champ-input resize-none"
-                placeholder="Instructions supplémentaires..."
-                value={notesOrd}
-                onChange={(e) => setNotesOrd(e.target.value)}
-              />
+            <div className="flex flex-col sm:flex-row gap-3">
+              <div className="sm:w-48 flex-shrink-0">
+                <label className="block text-sm font-medium text-texte-principal mb-1">Date de l'ordonnance</label>
+                <input
+                  type="date"
+                  className="champ-input"
+                  value={dateOrd}
+                  max={new Date().toISOString().split('T')[0]}
+                  onChange={(e) => setDateOrd(e.target.value)}
+                />
+              </div>
+              <div className="flex-1">
+                <label className="block text-sm font-medium text-texte-principal mb-1">Notes</label>
+                <textarea
+                  rows={2}
+                  className="champ-input resize-none"
+                  placeholder="Instructions supplémentaires..."
+                  value={notesOrd}
+                  onChange={(e) => setNotesOrd(e.target.value)}
+                />
+              </div>
             </div>
 
             <div className="flex gap-2">
