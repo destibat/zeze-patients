@@ -1,7 +1,7 @@
 services:
   db:
     image: mariadb:10.11
-    container_name: zezepagnon_db
+    container_name: cisse_db
     restart: always
     environment:
       MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
@@ -9,9 +9,9 @@ services:
       MYSQL_USER: ${DB_USER}
       MYSQL_PASSWORD: ${DB_PASSWORD}
     volumes:
-      - db_data:/var/lib/mysql
+      - db_data_cisse:/var/lib/mysql
     networks:
-      - zeze_network
+      - cisse_network
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DB_ROOT_PASSWORD}"]
       interval: 10s
@@ -23,7 +23,8 @@ services:
     build:
       context: .
       dockerfile: backend/Dockerfile.prod
-    container_name: zezepagnon_backend
+    image: zezepagnon-backend
+    container_name: cisse_backend
     restart: always
     depends_on:
       db:
@@ -42,16 +43,17 @@ services:
       JWT_REFRESH_EXPIRES_IN: 7d
       FRONTEND_URL: ${FRONTEND_URL}
     volumes:
-      - uploads_data:/app/uploads
+      - uploads_cisse:/app/uploads
     networks:
-      - zeze_network
+      - cisse_network
       - zeze_proxy
 
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile.prod
-    container_name: zezepagnon_frontend
+    image: zezepagnon-frontend
+    container_name: cisse_frontend
     restart: always
     depends_on:
       - backend
@@ -59,11 +61,11 @@ services:
       - zeze_proxy
 
 volumes:
-  db_data:
-  uploads_data:
+  db_data_cisse:
+  uploads_cisse:
 
 networks:
-  zeze_network:
+  cisse_network:
     driver: bridge
   zeze_proxy:
     external: true
