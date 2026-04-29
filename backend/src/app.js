@@ -13,6 +13,9 @@ const { gestionErreurs } = require('./middlewares/errorHandler');
 
 const app = express();
 
+// Nginx reverse proxy — trust first hop so rate-limit sees real client IPs
+app.set('trust proxy', 1);
+
 // --- Sécurité HTTP ---
 app.use(helmet());
 
