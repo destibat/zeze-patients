@@ -34,7 +34,7 @@ const useRdvAujourdhui = () => {
 
 const formatMontant = (n) =>
   n >= 1_000_000
-    ? (n / 1_000_000).toFixed(1).replace('.', ',') + ' M FCFA'
+    ? new Intl.NumberFormat('fr-FR', { minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(n / 1_000_000) + ' M FCFA'
     : new Intl.NumberFormat('fr-FR').format(n) + ' FCFA';
 
 const STATUT_RDV = {
