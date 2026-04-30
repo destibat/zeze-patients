@@ -588,6 +588,7 @@ const MODE_PAIEMENT_DELEGUE = {
   mobile_money: 'Mobile Money',
   virement:     'Virement',
   cheque:       'Chèque',
+  en_attente:   'Paiement en attente',
 };
 
 // ── Vue validation ventes revendeurs ────────────────────────────────────────────
@@ -599,7 +600,8 @@ const VueValidationDelegues = () => {
   const [erreur, setErreur] = useState('');
 
   const handleValider = async (id) => {
-    const mode_paiement = modes[id] || 'especes';
+    const modeSelectionne = modes[id] || 'especes';
+    const mode_paiement = modeSelectionne === 'en_attente' ? null : modeSelectionne;
     setErreur('');
     try {
       await valider.mutateAsync({ id, mode_paiement });
@@ -663,9 +665,9 @@ const VueValidationDelegues = () => {
 
             <div className="flex flex-col sm:flex-row gap-2 items-end">
               <div className="flex-1">
-                <label className="block text-xs font-medium text-texte-principal mb-1">Mode de paiement reçu</label>
+                <label className="block text-xs font-medium text-texte-principal mb-1">Statut paiement</label>
                 <select
-                  className="champ-input text-sm"
+                  className={`champ-input text-sm ${(modes[v.id] || 'especes') === 'en_attente' ? 'border-yellow-400 bg-yellow-50' : ''}`}
                   value={modes[v.id] || 'especes'}
                   onChange={(e) => setModes({ ...modes, [v.id]: e.target.value })}
                 >
@@ -702,7 +704,7 @@ const VueValidationDelegues = () => {
 // ── Vue Factures Achat (revendeur ↔ stockiste) ────────────────────────────────
 
 const MODES_PAIEMENT_ACHAT = ['especes', 'mobile_money', 'virement', 'cheque'];
-const LABELS_MODE = { especes: 'Espèces', mobile_money: 'Mobile Money', virement: 'Virement', cheque: 'Chèque' };
+const LABELS_MODE = { especes: 'Espèces', mobile_money: 'Mobile Money', virement: 'Virement', cheque: 'Chèque', en_attente: 'En attente' };
 
 const VueFacturesAchat = ({ estDelegue }) => {
   const { data: factures = [], isLoading } = useFacturesAchat();
