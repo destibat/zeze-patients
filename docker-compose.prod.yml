@@ -62,7 +62,9 @@ services:
 
 volumes:
   db_data:
+    name: zezepagnon_db_data
   uploads_data:
+    name: zezepagnon_uploads_data
 
 networks:
   zeze_network:
