@@ -1,7 +1,8 @@
 'use strict';
 
 const express = require('express');
-const { authentifier, autoriser } = require('../middlewares/authenticate');
+const { authentifier } = require('../middlewares/authenticate');
+const { autoriser } = require('../middlewares/authorize');
 const { asyncHandler } = require('../middlewares/errorHandler');
 const { lister, marquerPaye } = require('../controllers/factureAchatController');
 
