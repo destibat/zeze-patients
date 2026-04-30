@@ -1,6 +1,6 @@
 'use strict';
 
-const { StockDelegue, MouvementDelegue, Produit, User, Exercice, sequelize } = require('../models');
+const { StockDelegue, MouvementDelegue, FactureAchat, Produit, User, Exercice, sequelize } = require('../models');
 const { Op } = require('sequelize');
 
 // Récupère l'exercice ouvert ou lance une erreur métier
@@ -52,6 +52,10 @@ const acheter = async (req, res) => {
   const montant_total = produit.prix_unitaire * quantite;
   const today = new Date().toISOString().split('T')[0];
 
+  // Récupérer le stockiste parrain du revendeur
+  const delegue = await User.findByPk(req.utilisateur.id, { attributes: ['stockiste_id'] });
+  const stockiste_id = delegue?.stockiste_id;
+
   const transaction = await sequelize.transaction();
   try {
     const [item] = await StockDelegue.findOrCreate({
@@ -61,7 +65,7 @@ const acheter = async (req, res) => {
     });
     await item.increment('quantite', { by: quantite, transaction });
 
-    await MouvementDelegue.create({
+    const mouvement = await MouvementDelegue.create({
       delegue_id: req.utilisateur.id,
       type: 'achat',
       produit_id,
@@ -71,6 +75,16 @@ const acheter = async (req, res) => {
       gain_delegue: 0,
       date_mouvement: today,
     }, { transaction });
+
+    if (stockiste_id) {
+      await FactureAchat.create({
+        mouvement_id:    mouvement.id,
+        delegue_id:      req.utilisateur.id,
+        stockiste_id,
+        montant_total,
+        statut_paiement: 'en_attente',
+      }, { transaction });
+    }
 
     await transaction.commit();
     await item.reload({

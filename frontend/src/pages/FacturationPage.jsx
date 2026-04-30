@@ -7,9 +7,10 @@ import Alert from '../components/ui/Alert';
 import Button from '../components/ui/Button';
 import {
   Receipt, CreditCard, CheckCircle, Clock, AlertCircle,
-  XCircle, Plus, X, ChevronDown, ChevronUp, Bell, Phone, User, TrendingUp, ShoppingBag, Check,
+  XCircle, Plus, X, ChevronDown, ChevronUp, Bell, Phone, User, TrendingUp, ShoppingBag, Check, Package,
 } from 'lucide-react';
 import { useVentesDirectesDelegues, useVentesEnAttente, useValiderVente, useRefuserVente } from '../hooks/useStockDelegue';
+import { useFacturesAchat, useMarquerPaye } from '../hooks/useFacturesAchat';
 
 // ── Hooks ─────────────────────────────────────────────────────────────────────
 
@@ -698,6 +699,98 @@ const VueValidationDelegues = () => {
   );
 };
 
+// ── Vue Factures Achat (revendeur ↔ stockiste) ────────────────────────────────
+
+const MODES_PAIEMENT_ACHAT = ['especes', 'mobile_money', 'virement', 'cheque'];
+const LABELS_MODE = { especes: 'Espèces', mobile_money: 'Mobile Money', virement: 'Virement', cheque: 'Chèque' };
+
+const VueFacturesAchat = ({ estDelegue }) => {
+  const { data: factures = [], isLoading } = useFacturesAchat();
+  const marquerPaye = useMarquerPaye();
+  const [modes, setModes] = useState({});
+
+  const totalEnAttente = factures.filter((f) => f.statut_paiement === 'en_attente').reduce((s, f) => s + f.montant_total, 0);
+  const totalPaye      = factures.filter((f) => f.statut_paiement === 'paye').reduce((s, f) => s + f.montant_total, 0);
+
+  if (isLoading) return <div className="flex justify-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-4 border-zeze-vert border-t-transparent" /></div>;
+
+  if (factures.length === 0) return (
+    <div className="carte text-center py-12 text-texte-secondaire">
+      <Package size={32} className="mx-auto mb-3 opacity-30" />
+      <p>{estDelegue ? 'Aucun achat enregistré' : 'Aucune facture revendeur'}</p>
+    </div>
+  );
+
+  return (
+    <div className="space-y-4">
+      {/* Résumé */}
+      <div className="grid grid-cols-2 gap-4">
+        <div className="carte text-center border-l-4 border-l-yellow-400">
+          <p className="text-xs text-texte-secondaire uppercase tracking-wide mb-1">En attente</p>
+          <p className="text-xl font-titres font-bold text-yellow-600">{formatMontant(totalEnAttente)}</p>
+        </div>
+        <div className="carte text-center border-l-4 border-l-green-400">
+          <p className="text-xs text-texte-secondaire uppercase tracking-wide mb-1">Encaissé</p>
+          <p className="text-xl font-titres font-bold text-zeze-vert">{formatMontant(totalPaye)}</p>
+        </div>
+      </div>
+
+      {/* Liste */}
+      <div className="space-y-3">
+        {factures.map((f) => {
+          const isPaye = f.statut_paiement === 'paye';
+          const produit = f.mouvement?.produit;
+          return (
+            <div key={f.id} className={`carte border-l-4 ${isPaye ? 'border-l-green-400' : 'border-l-yellow-400'}`}>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium border ${isPaye ? 'bg-green-50 text-green-700 border-green-200' : 'bg-yellow-50 text-yellow-700 border-yellow-200'}`}>
+                      {isPaye ? 'Payé' : 'En attente'}
+                    </span>
+                    <span className="text-xs text-texte-secondaire">{f.mouvement?.date_mouvement}</span>
+                  </div>
+                  {!estDelegue && (
+                    <p className="text-sm font-medium text-texte-principal">
+                      {f.delegue?.prenom} {f.delegue?.nom}
+                    </p>
+                  )}
+                  <p className="text-sm text-texte-secondaire">
+                    {produit?.nom ?? '—'} × {f.mouvement?.quantite ?? '—'}
+                  </p>
+                  <p className="text-lg font-bold text-texte-principal">{formatMontant(f.montant_total)}</p>
+                  {isPaye && f.mode_paiement && (
+                    <p className="text-xs text-texte-secondaire">Payé le {f.date_paiement} · {LABELS_MODE[f.mode_paiement] ?? f.mode_paiement}</p>
+                  )}
+                </div>
+
+                {!isPaye && (
+                  <div className="flex items-center gap-2">
+                    <select
+                      className="champ-input text-sm"
+                      value={modes[f.id] ?? 'especes'}
+                      onChange={(e) => setModes((m) => ({ ...m, [f.id]: e.target.value }))}
+                    >
+                      {MODES_PAIEMENT_ACHAT.map((m) => <option key={m} value={m}>{LABELS_MODE[m]}</option>)}
+                    </select>
+                    <Button
+                      size="sm"
+                      onClick={() => marquerPaye.mutate({ id: f.id, mode_paiement: modes[f.id] ?? 'especes' })}
+                      disabled={marquerPaye.isPending}
+                    >
+                      <Check size={14} className="mr-1" /> Marquer payé
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
 // ── Page principale ───────────────────────────────────────────────────────────
 
 const FacturationPage = () => {
@@ -788,6 +881,15 @@ const FacturationPage = () => {
             )}
           </button>
         )}
+        {(estStockisteOuAdmin || estDelegue) && (
+          <button
+            onClick={() => setVue('achats')}
+            className={`flex items-center gap-2 px-4 py-2 text-sm transition-colors ${vue === 'achats' ? 'bg-indigo-600 text-white font-medium' : 'text-texte-secondaire hover:bg-fond-secondaire'}`}
+          >
+            <Package size={14} />
+            {estDelegue ? 'Mes achats' : 'Factures revendeurs'}
+          </button>
+        )}
       </div>
 
       {/* Résumé financier */}
@@ -851,7 +953,9 @@ const FacturationPage = () => {
       )}
 
       {/* Contenu */}
-      {vue === 'delegues' ? (
+      {vue === 'achats' ? (
+        <VueFacturesAchat estDelegue={estDelegue} />
+      ) : vue === 'delegues' ? (
         <VueValidationDelegues />
       ) : isLoading ? (
         <div className="flex justify-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-4 border-zeze-vert border-t-transparent" /></div>
