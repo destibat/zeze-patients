@@ -5,8 +5,8 @@
 #   sudo bash scripts/creer-admin-cabinet.sh <conteneur> <nom> <prenom> <email> <mot_de_passe>
 #
 # Exemples :
-#   sudo bash scripts/creer-admin-cabinet.sh cisse_backend Cisse Jean jean.cisse@email.com MotDePasse123
-#   sudo bash scripts/creer-admin-cabinet.sh alice_backend Alice Marie marie.alice@email.com MotDePasse456
+#   sudo bash scripts/creer-admin-cabinet.sh cisse_backend Diarra Cissé diarra.cisse@zezepagnon.solutions MotDePasse123
+#   sudo bash scripts/creer-admin-cabinet.sh alice_backend Alice Marie marie.alice@zezepagnon.solutions MotDePasse456
 
 CONTENEUR=$1
 NOM=$2
@@ -22,17 +22,19 @@ if [ -z "$CONTENEUR" ] || [ -z "$NOM" ] || [ -z "$PRENOM" ] || [ -z "$EMAIL" ] |
 fi
 
 sudo docker exec -i "$CONTENEUR" node -e "
-const { sequelize } = require('./src/models');
-const bcrypt = require('bcryptjs');
+const { sequelize, User } = require('./src/models');
 
 (async () => {
   try {
     await sequelize.authenticate();
-    const hash = await bcrypt.hash('$MOT_DE_PASSE', 12);
-    await sequelize.query(\`
-      INSERT INTO utilisateurs (id, nom, prenom, email, mot_de_passe, role, actif, createdAt, updatedAt)
-      VALUES (UUID(), '$NOM', '$PRENOM', '$EMAIL', '\${hash}', 'administrateur', 1, NOW(), NOW())
-    \`);
+    const user = await User.create({
+      nom: '$NOM',
+      prenom: '$PRENOM',
+      email: '$EMAIL',
+      password_hash: '$MOT_DE_PASSE',
+      role: 'administrateur',
+      actif: true,
+    });
     console.log('✓ Admin créé : $PRENOM $NOM ($EMAIL) sur $CONTENEUR');
     await sequelize.close();
   } catch (err) {
