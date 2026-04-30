@@ -8,7 +8,7 @@ import Button from '../components/ui/Button';
 import { Package, TrendingUp, TrendingDown, AlertTriangle, X, Plus, Minus, RefreshCw, Bell, BellOff } from 'lucide-react';
 
 const useStock = () =>
-  useQuery({ queryKey: ['stock'], queryFn: () => api.get('/stock').then((r) => r.data) });
+  useQuery({ queryKey: ['stock'], queryFn: () => api.get('/stock').then((r) => r.data), refetchInterval: 60 * 1000 });
 
 const useMouvements = (produitId) =>
   useQuery({

@@ -23,6 +23,8 @@ export const useAcheterStock = () => {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['stock-delegue'] });
       qc.invalidateQueries({ queryKey: ['stock-delegue-stats'] });
+      qc.invalidateQueries({ queryKey: ['stock'] });
+      qc.invalidateQueries({ queryKey: ['stock-alertes'] });
     },
   });
 };
