@@ -40,7 +40,7 @@
     "administrateur": "Administrator",
     "stockiste": "Stockist",
     "secretaire": "Secretary",
-    "delegue": "Delegate"
+    "delegue": "Reseller"
   },
   "utilisateurs": {
     "titre": "User management",
