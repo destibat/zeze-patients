@@ -88,9 +88,9 @@ const SectionFichesPDF = ({ exerciceId, exerciceNumero, delegues = [] }) => {
         </div>
       </div>
 
-      {/* Récap délégués */}
+      {/* Récap revendeurs */}
       <div className="border border-bordure rounded-bouton p-3 space-y-2">
-        <p className="text-xs font-semibold text-texte-secondaire uppercase tracking-wide">Fiches délégués</p>
+        <p className="text-xs font-semibold text-texte-secondaire uppercase tracking-wide">Fiches revendeurs</p>
         <div className="flex flex-wrap gap-2">
           <Button
             variante="secondaire"
@@ -104,14 +104,14 @@ const SectionFichesPDF = ({ exerciceId, exerciceNumero, delegues = [] }) => {
               )
             }
           >
-            Récap tous délégués
+            Récap tous revendeurs
           </Button>
         </div>
 
-        {/* Bilan individuel par délégué */}
+        {/* Bilan individuel par revendeur */}
         {delegues.length > 0 && (
           <div className="pt-2 border-t border-bordure">
-            <p className="text-xs text-texte-secondaire mb-2">Bilan individuel par délégué :</p>
+            <p className="text-xs text-texte-secondaire mb-2">Bilan individuel par revendeur :</p>
             <div className="flex flex-wrap gap-2">
               {delegues.map((d) => (
                 <Button

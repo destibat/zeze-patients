@@ -179,7 +179,7 @@ export const AperçuBilan = ({ bilan, exercice }) => {
         {[
           { label: 'CA Total', val: bilan.ca_total, couleur: 'text-zeze-vert font-bold' },
           { label: 'Com. Stockistes', val: bilan.commissions_stockistes, couleur: 'text-blue-600' },
-          { label: 'Com. Délégués', val: bilan.commissions_delegues, couleur: 'text-purple-600' },
+          { label: 'Com. Revendeurs', val: bilan.commissions_delegues, couleur: 'text-purple-600' },
           { label: 'Net MAPA', val: bilan.net_mapa, couleur: 'text-red-600 font-bold' },
         ].map(({ label, val, couleur }) => (
           <div key={label} className="bg-fond-secondaire rounded-bouton p-3 text-center">
@@ -189,7 +189,7 @@ export const AperçuBilan = ({ bilan, exercice }) => {
         ))}
       </div>
 
-      {/* Sous-totaux factures vs délégués */}
+      {/* Sous-totaux factures vs revendeurs */}
       <div className="grid grid-cols-2 gap-3 text-sm">
         <div className="border border-bordure rounded-bouton p-3">
           <p className="text-xs text-texte-secondaire mb-1">Factures directes</p>
@@ -197,16 +197,16 @@ export const AperçuBilan = ({ bilan, exercice }) => {
           <p className="text-xs text-texte-secondaire">{bilan.nb_factures} facture{bilan.nb_factures > 1 ? 's' : ''}</p>
         </div>
         <div className="border border-bordure rounded-bouton p-3">
-          <p className="text-xs text-texte-secondaire mb-1">Ventes délégués</p>
+          <p className="text-xs text-texte-secondaire mb-1">Ventes revendeurs</p>
           <p className="font-medium text-texte-principal">{fmtFCFA(bilan.ca_delegues)}</p>
           <p className="text-xs text-texte-secondaire">{bilan.nb_ventes_delegues} vente{bilan.nb_ventes_delegues > 1 ? 's' : ''}</p>
         </div>
       </div>
 
-      {/* Détail délégués */}
+      {/* Détail revendeurs */}
       {bilan.par_delegue?.length > 0 && (
         <div>
-          <p className="text-xs font-semibold text-texte-secondaire uppercase tracking-wide mb-2">Délégués</p>
+          <p className="text-xs font-semibold text-texte-secondaire uppercase tracking-wide mb-2">Revendeurs</p>
           <div className="divide-y divide-bordure border border-bordure rounded-bouton overflow-hidden text-sm">
             {bilan.par_delegue.map((d) => (
               <div key={d.id} className="flex items-center justify-between px-3 py-2">

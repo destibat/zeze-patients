@@ -322,7 +322,7 @@ const ParametresPage = () => {
           {erreurComm && <Alert type="erreur" message={erreurComm} />}
 
           <p className="text-xs text-texte-secondaire">
-            Les gains sont calculés sur le montant encaissé. Taux par défaut pour les stockistes : <strong>{parametres.commission_stockiste ?? 25}%</strong>. Le taux d'un stockiste peut être ajusté individuellement dans sa fiche. Commission délégué : <strong>{parametres.commission_delegue ?? 15}%</strong> prélevés sur la part du stockiste.
+            Les gains sont calculés sur le montant encaissé. Taux par défaut pour les stockistes : <strong>{parametres.commission_stockiste ?? 25}%</strong>. Le taux d'un stockiste peut être ajusté individuellement dans sa fiche. Commission revendeur : <strong>{parametres.commission_delegue ?? 15}%</strong> prélevés sur la part du stockiste.
           </p>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -338,7 +338,7 @@ const ParametresPage = () => {
                 onChange={(e) => setCommissions({ ...commissions, commission_stockiste: e.target.value })}
               />
             </Champ>
-            <Champ label="Commission délégué (%)">
+            <Champ label="Commission revendeur (%)">
               <input
                 type="number"
                 min={0}

@@ -80,7 +80,7 @@ const ConsultationsPage = () => {
               <option value="">Tous les utilisateurs</option>
               {utilisateursFiltres.map((u) => (
                 <option key={u.id} value={u.id}>
-                  {u.prenom} {u.nom} ({u.role === 'stockiste' ? 'Stockiste' : 'Délégué'})
+                  {u.prenom} {u.nom} ({u.role === 'stockiste' ? 'Stockiste' : 'Revendeur'})
                 </option>
               ))}
             </select>

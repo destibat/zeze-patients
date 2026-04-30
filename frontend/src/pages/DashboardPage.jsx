@@ -184,7 +184,7 @@ const WidgetExercice = () => {
   );
 };
 
-// ── Dashboard délégué ─────────────────────────────────────────────────────────
+// ── Dashboard revendeur ─────────────────────────────────────────────────────────
 const DashboardDelegue = ({ utilisateur }) => {
   const navigate = useNavigate();
   const { data: stats, isLoading } = useStats();
@@ -323,7 +323,7 @@ const DashboardDelegue = ({ utilisateur }) => {
           )}
         </div>
 
-        {/* Accès rapides délégué */}
+        {/* Accès rapides revendeur */}
         <div className="space-y-3">
           <h2 className="text-sm font-semibold text-texte-principal">Accès rapides</h2>
           <div className="grid grid-cols-1 gap-3">
@@ -467,7 +467,7 @@ const DashboardStandard = ({ utilisateur }) => {
         const r = stats.repartition;
         const fmt = (n) => new Intl.NumberFormat('fr-FR').format(Math.round(n || 0)) + ' FCFA';
 
-        // Agrégats ventes délégués
+        // Agrégats ventes revendeurs
         const caDelegueMois        = gainsDelegues.reduce((s, g) => s + g.ventes_mois, 0);
         const gainsIndirectsMois   = gainsDelegues.reduce((s, g) => s + g.commission_stockiste_mois, 0);
         const gainsDelegueMois     = gainsDelegues.reduce((s, g) => s + g.gain_delegue_mois, 0);
@@ -491,7 +491,7 @@ const DashboardStandard = ({ utilisateur }) => {
                 valeur={fmt(caTotal)}
                 icone={TrendingUp}
                 couleur="bg-slate-500"
-                sous={`Directs : ${fmt(r.ca_direct)}  ·  Délégués : ${fmt(caDelegueMois)}`}
+                sous={`Directs : ${fmt(r.ca_direct)}  ·  Revendeurs : ${fmt(caDelegueMois)}`}
               />
               <CarteKPI
                 titre="Vos gains totaux"
@@ -505,11 +505,11 @@ const DashboardStandard = ({ utilisateur }) => {
                 valeur={fmt(mapaTotal)}
                 icone={ShoppingBag}
                 couleur="bg-zeze-vert"
-                sous={`Directs : ${fmt(r.part_mapa_direct)}  ·  Délégués : ${fmt(mapaDelegueMois)}`}
+                sous={`Directs : ${fmt(r.part_mapa_direct)}  ·  Revendeurs : ${fmt(mapaDelegueMois)}`}
               />
             </div>
 
-            {/* Ligne de détail : ventes directes vs délégués */}
+            {/* Ligne de détail : ventes directes vs revendeurs */}
             <div className="carte p-0 overflow-hidden">
               <div className="px-4 py-3 border-b border-bordure bg-fond-secondaire/60">
                 <h3 className="text-sm font-semibold text-texte-principal">Détail de la répartition</h3>
@@ -541,11 +541,11 @@ const DashboardStandard = ({ utilisateur }) => {
                     </td>
                   </tr>
 
-                  {/* Lignes par délégué */}
+                  {/* Lignes par revendeur */}
                   {gainsDelegues.length === 0 ? (
                     <tr>
                       <td colSpan={4} className="px-4 py-3 text-xs text-texte-secondaire italic text-center">
-                        Aucune vente délégué ce mois
+                        Aucune vente revendeur ce mois
                       </td>
                     </tr>
                   ) : gainsDelegues.map((g) => (
@@ -554,7 +554,7 @@ const DashboardStandard = ({ utilisateur }) => {
                         <p className="font-medium text-texte-principal text-xs">
                           {g.delegue.prenom} {g.delegue.nom}
                         </p>
-                        <p className="text-xs text-texte-secondaire">Commission reversée (délégué 15% · vous {r.taux_indirect}%)</p>
+                        <p className="text-xs text-texte-secondaire">Commission reversée (revendeur 15% · vous {r.taux_indirect}%)</p>
                       </td>
                       <td className="px-4 py-2.5 text-right font-mono text-xs text-texte-secondaire">{fmt(g.ventes_mois)}</td>
                       <td className="px-4 py-2.5 text-right font-mono text-xs text-zeze-vert font-semibold hidden sm:table-cell">
@@ -579,11 +579,11 @@ const DashboardStandard = ({ utilisateur }) => {
                 </tfoot>
               </table>
 
-              {/* Note délégués */}
+              {/* Note revendeurs */}
               {gainsDelegues.length > 0 && (
                 <div className="px-4 py-2 border-t border-bordure bg-blue-50">
                   <p className="text-xs text-blue-700">
-                    Gains délégués (15%) ce mois : <strong>{fmt(gainsDelegueMois)}</strong> — versés directement aux délégués, non inclus dans vos gains.
+                    Gains revendeurs (15%) ce mois : <strong>{fmt(gainsDelegueMois)}</strong> — versés directement aux revendeurs, non inclus dans vos gains.
                   </p>
                 </div>
               )}

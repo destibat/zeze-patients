@@ -154,7 +154,7 @@ const OrdonnancesPage = () => {
   });
 
   // Un utilisateur peut agir sur une ordonnance s'il l'a créée,
-  // ou s'il est stockiste (ses délégués), ou s'il est admin
+  // ou s'il est stockiste (ses revendeurs), ou s'il est admin
   const peutAgir = (o) => {
     if (estAdmin) return true;
     if (estStockiste) return true; // le backend filtre déjà la liste
@@ -262,7 +262,7 @@ const OrdonnancesPage = () => {
               <option value="">Tous les utilisateurs</option>
               {utilisateursFiltres.map((u) => (
                 <option key={u.id} value={u.id}>
-                  {u.prenom} {u.nom} ({u.role === 'stockiste' ? 'Stockiste' : 'Délégué'})
+                  {u.prenom} {u.nom} ({u.role === 'stockiste' ? 'Stockiste' : 'Revendeur'})
                 </option>
               ))}
             </select>

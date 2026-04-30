@@ -194,12 +194,12 @@ const UserFormPage = () => {
             </ChampFormulaire>
           )}
 
-          {/* Stockiste rattaché (délégué uniquement) */}
+          {/* Stockiste rattaché (revendeur uniquement) */}
           {roleSelectionne === 'delegue' && (
             <ChampFormulaire label="Stockiste rattaché" erreur={errors.stockiste_id?.message} obligatoire>
               <select
                 className={`champ-input ${errors.stockiste_id ? 'border-medical-critique' : ''}`}
-                {...register('stockiste_id', { required: 'Un délégué doit être rattaché à un stockiste' })}
+                {...register('stockiste_id', { required: 'Un revendeur doit être rattaché à un stockiste' })}
               >
                 <option value="">— Choisir un stockiste —</option>
                 {stockistes.map((s) => (
@@ -208,7 +208,7 @@ const UserFormPage = () => {
                   </option>
                 ))}
               </select>
-              <p className="text-xs text-texte-secondaire mt-1">Le délégué recevra 15% de la commission du stockiste</p>
+              <p className="text-xs text-texte-secondaire mt-1">Le revendeur recevra 15% de la commission du stockiste</p>
             </ChampFormulaire>
           )}
 

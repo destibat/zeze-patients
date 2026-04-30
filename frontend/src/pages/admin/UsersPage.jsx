@@ -127,7 +127,7 @@ const ModalResetDonnees = ({ onFermer, onSucces }) => {
 
         <div className="bg-red-50 border border-red-200 rounded-bouton p-3 text-sm text-red-800 space-y-1">
           <p className="font-semibold">Tables qui seront vidées :</p>
-          <p>patients · consultations · ordonnances · factures · rendez-vous · ventes délégués · stocks délégués · mouvements stock · quantités en stock (stockistes)</p>
+          <p>patients · consultations · ordonnances · factures · rendez-vous · ventes revendeurs · stocks revendeurs · mouvements stock · quantités en stock (stockistes)</p>
           <p className="font-semibold mt-2">Conservés :</p>
           <p>utilisateurs · liste des produits · paramètres</p>
         </div>

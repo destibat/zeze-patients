@@ -360,7 +360,7 @@ const LigneTotal = ({ label, montant, couleur = 'text-texte-principal', petit = 
   </div>
 );
 
-// Vue gains simplifiée pour le délégué — uniquement ses propres 15%
+// Vue gains simplifiée pour le revendeur — uniquement ses propres 15%
 const VueGainsDelegue = ({ totalEncaisse, tauxDelegue = 15 }) => {
   if (totalEncaisse <= 0) return null;
   const gainDelegue = Math.round(totalEncaisse * tauxDelegue / 100);
@@ -402,7 +402,7 @@ const VueGains = ({ factures, ventesDirectes = [], parametres, estAdmin }) => {
     parCreateur[cId].encaisseOrdonnance += f.montant_paye;
   });
 
-  // Fusionner les ventes directes des délégués (mouvements_delegue)
+  // Fusionner les ventes directes des revendeurs (mouvements_delegue)
   ventesDirectes.forEach(({ delegue, ventes_total, gain_delegue, commission_stockiste }) => {
     const cId = delegue.id;
     if (!parCreateur[cId]) {
@@ -428,7 +428,7 @@ const VueGains = ({ factures, ventesDirectes = [], parametres, estAdmin }) => {
     parCreateur[cId].gainStockisteDirect += commission_stockiste;
   });
 
-  // Regrouper délégués sous leurs stockistes
+  // Regrouper revendeurs sous leurs stockistes
   const stockistes = {};
   Object.values(parCreateur).forEach(({ createur, encaisse, encaisseOrdonnance, encaisseDirect, gainDelegateDirect, gainStockisteDirect }) => {
     if (createur.role === 'stockiste' || createur.role === 'administrateur') {
@@ -489,7 +489,7 @@ const VueGains = ({ factures, ventesDirectes = [], parametres, estAdmin }) => {
           <p className="text-xs font-semibold text-texte-secondaire uppercase tracking-wide">Résumé global</p>
           <div className="divide-y divide-bordure">
             <LigneTotal label="Total encaissé (tous stockistes)" montant={totalEncaisseGlobal} couleur="text-texte-principal" />
-            <LigneTotal label="Total commissions versées aux stockistes et délégués" montant={totalCommissionsGlobal} couleur="text-blue-600" />
+            <LigneTotal label="Total commissions versées aux stockistes et revendeurs" montant={totalCommissionsGlobal} couleur="text-blue-600" />
             <LigneTotal label="Montant dû à MAPA ZEZEPAGNON (maison mère)" montant={totalMapaGlobal} couleur="text-zeze-vert" />
           </div>
         </div>
@@ -517,7 +517,7 @@ const VueGains = ({ factures, ventesDirectes = [], parametres, estAdmin }) => {
                   </span>
                 </p>
                 <p className="text-xs text-texte-secondaire mt-0.5">
-                  Total vendu (lui + délégués) : {formatMontant(totalVenteStockiste)}
+                  Total vendu (lui + revendeurs) : {formatMontant(totalVenteStockiste)}
                 </p>
               </div>
             </div>
@@ -535,7 +535,7 @@ const VueGains = ({ factures, ventesDirectes = [], parametres, estAdmin }) => {
                 <div key={d.createur.id}>
                   <div className="py-1">
                     <p className="text-xs font-medium text-texte-principal">
-                      Délégué : {d.createur.prenom} {d.createur.nom}
+                      Revendeur : {d.createur.prenom} {d.createur.nom}
                       <span className="ml-1 text-texte-secondaire font-normal">— {formatMontant(d.encaisse)} vendus</span>
                     </p>
                     {d.encaisseDirect > 0 && (
@@ -547,7 +547,7 @@ const VueGains = ({ factures, ventesDirectes = [], parametres, estAdmin }) => {
                     )}
                     <div className="pl-3 mt-0.5 space-y-0.5">
                       <div className="flex justify-between text-xs">
-                        <span className="text-texte-secondaire">Part délégué ({tauxDelegue}%)</span>
+                        <span className="text-texte-secondaire">Part revendeur ({tauxDelegue}%)</span>
                         <span className="font-semibold text-orange-600">{formatMontant(d.gainDelegue)}</span>
                       </div>
                       <div className="flex justify-between text-xs">
@@ -564,7 +564,7 @@ const VueGains = ({ factures, ventesDirectes = [], parametres, estAdmin }) => {
               </div>
               {delegues.length > 0 && (
                 <div className="flex items-center justify-between py-1.5">
-                  <p className="text-xs font-semibold text-orange-700">Total délégués</p>
+                  <p className="text-xs font-semibold text-orange-700">Total revendeurs</p>
                   <p className="text-sm font-bold text-orange-600">{formatMontant(gainDeleguesTotal)}</p>
                 </div>
               )}
@@ -589,7 +589,7 @@ const MODE_PAIEMENT_DELEGUE = {
   cheque:       'Chèque',
 };
 
-// ── Vue validation ventes délégués ────────────────────────────────────────────
+// ── Vue validation ventes revendeurs ────────────────────────────────────────────
 const VueValidationDelegues = () => {
   const { data: ventes = [], isLoading } = useVentesEnAttente(true);
   const valider = useValiderVente();
@@ -608,7 +608,7 @@ const VueValidationDelegues = () => {
   };
 
   const handleRefuser = async (id) => {
-    if (!window.confirm('Refuser cette vente ? Le stock du délégué sera restauré.')) return;
+    if (!window.confirm('Refuser cette vente ? Le stock du revendeur sera restauré.')) return;
     setErreur('');
     try {
       await refuser.mutateAsync(id);
@@ -626,7 +626,7 @@ const VueValidationDelegues = () => {
       <div className="carte text-center py-12 text-texte-secondaire">
         <CheckCircle size={32} className="mx-auto mb-3 text-zeze-vert opacity-60" />
         <p className="font-medium text-texte-principal">Aucune vente en attente</p>
-        <p className="text-sm mt-1">Toutes les ventes de vos délégués ont été traitées.</p>
+        <p className="text-sm mt-1">Toutes les ventes de vos revendeurs ont été traitées.</p>
       </div>
     );
   }
@@ -635,7 +635,7 @@ const VueValidationDelegues = () => {
     <div className="space-y-3">
       {erreur && <div className="bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-2 rounded-carte">{erreur}</div>}
       <p className="text-sm text-texte-secondaire">
-        {ventes.length} vente{ventes.length > 1 ? 's' : ''} en attente de validation — enregistrez le mode de paiement reçu par le délégué.
+        {ventes.length} vente{ventes.length > 1 ? 's' : ''} en attente de validation — enregistrez le mode de paiement reçu par le revendeur.
       </p>
       {ventes.map((v) => {
         const lignes = parseLignes(v.lignes);
@@ -780,7 +780,7 @@ const FacturationPage = () => {
             onClick={() => setVue('delegues')}
             className={`flex items-center gap-2 px-4 py-2 text-sm transition-colors ${vue === 'delegues' ? 'bg-yellow-500 text-white font-medium' : 'text-texte-secondaire hover:bg-fond-secondaire'}`}
           >
-            <ShoppingBag size={14} /> Ventes délégués
+            <ShoppingBag size={14} /> Ventes revendeurs
             {ventesAttente.length > 0 && (
               <span className={`text-xs px-1.5 py-0.5 rounded-full font-bold ${vue === 'delegues' ? 'bg-white text-yellow-600' : 'bg-yellow-100 text-yellow-700'}`}>
                 {ventesAttente.length}
@@ -808,7 +808,7 @@ const FacturationPage = () => {
         </div>
         {estStockisteOuAdmin && totalVentesDirectes > 0 && (
           <div className="carte text-center border-l-4 border-l-orange-400">
-            <p className="text-xs text-texte-secondaire uppercase tracking-wide mb-1">Ventes directes délégués</p>
+            <p className="text-xs text-texte-secondaire uppercase tracking-wide mb-1">Ventes directes revendeurs</p>
             <p className="text-xl font-titres font-bold text-orange-600">{formatMontant(totalVentesDirectes)}</p>
             <p className="text-xs text-texte-secondaire mt-0.5">Hors ordonnance</p>
           </div>
