@@ -37,8 +37,8 @@ const { sequelize, User, StockDelegue, MouvementDelegue, FactureAchat } = requir
       const fa = await FactureAchat.destroy({ where: { delegue_id: user.id }, transaction: t });
       console.log('Factures achat supprimées :', fa);
 
-      const md = await MouvementDelegue.destroy({ where: { delegue_id: user.id, type: 'achat' }, transaction: t });
-      console.log('Mouvements achat supprimés :', md);
+      const md = await MouvementDelegue.destroy({ where: { delegue_id: user.id }, transaction: t });
+      console.log('Mouvements (achats + ventes) supprimés :', md);
 
       const sd = await StockDelegue.destroy({ where: { delegue_id: user.id }, transaction: t });
       console.log('Stock supprimé :', sd, 'ligne(s)');
