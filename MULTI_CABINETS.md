@@ -126,11 +126,11 @@ vers un `cabinet_id` unique sans perte.
 
 ## État d'avancement
 
-- [ ] Étape 1 — Réseau Docker partagé
-- [ ] Étape 2 — docker-compose.nginx.yml
-- [ ] Étape 3 — Modifier docker-compose.prod.yml
-- [ ] Étape 4 — nginx.conf mis à jour
-- [ ] Étape 5 — SSL cisse + alice
-- [ ] Étape 6 — docker-compose.cisse.yml + docker-compose.alice.yml
-- [ ] Étape 7 — Démarrage des stacks
-- [ ] Étape 8 — Comptes admin initiaux
+- [x] Étape 1 — Réseau Docker partagé
+- [x] Étape 2 — docker-compose.nginx.yml
+- [x] Étape 3 — Modifier docker-compose.prod.yml
+- [x] Étape 4 — nginx.conf mis à jour (resolver Docker 127.0.0.11)
+- [x] Étape 5 — SSL cisse + alice
+- [x] Étape 6 — docker-compose.cisse.yml + docker-compose.alice.yml
+- [x] Étape 7 — Démarrage des stacks (10 conteneurs up)
+- [x] Étape 8 — Comptes admin initiaux (script creer-admin-cabinet.sh)
