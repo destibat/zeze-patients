@@ -63,8 +63,10 @@ services:
 volumes:
   db_data:
     name: zezepagnon_db_data
+    external: true
   uploads_data:
     name: zezepagnon_uploads_data
+    external: true
 
 networks:
   zeze_network:
