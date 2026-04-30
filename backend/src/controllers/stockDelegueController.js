@@ -1,6 +1,6 @@
 'use strict';
 
-const { StockDelegue, MouvementDelegue, FactureAchat, Produit, User, Exercice, sequelize } = require('../models');
+const { StockDelegue, MouvementDelegue, FactureAchat, Produit, StockMouvement, User, Exercice, sequelize } = require('../models');
 const { Op } = require('sequelize');
 
 // Récupère l'exercice ouvert ou lance une erreur métier
@@ -49,6 +49,12 @@ const acheter = async (req, res) => {
     return res.status(404).json({ message: 'Produit introuvable ou inactif' });
   }
 
+  if (produit.quantite_stock < quantite) {
+    return res.status(409).json({
+      message: `Stock cabinet insuffisant (disponible : ${produit.quantite_stock})`,
+    });
+  }
+
   const montant_total = produit.prix_unitaire * quantite;
   const today = new Date().toISOString().split('T')[0];
 
@@ -58,6 +64,26 @@ const acheter = async (req, res) => {
 
   const transaction = await sequelize.transaction();
   try {
+    // Décrémenter le stock cabinet (avec verrou pour éviter les sursouscriptions simultanées)
+    const produitLock = await Produit.findByPk(produit_id, { transaction, lock: true });
+    if (produitLock.quantite_stock < quantite) {
+      await transaction.rollback();
+      return res.status(409).json({
+        message: `Stock cabinet insuffisant (disponible : ${produitLock.quantite_stock})`,
+      });
+    }
+    const stockApres = produitLock.quantite_stock - quantite;
+    await produitLock.update({ quantite_stock: stockApres }, { transaction });
+
+    await StockMouvement.create({
+      produit_id,
+      type: 'sortie',
+      quantite: -quantite,
+      motif: `Transfert revendeur — ${req.utilisateur.prenom ?? ''} ${req.utilisateur.nom ?? ''}`.trim(),
+      user_id: req.utilisateur.id,
+      stock_apres: stockApres,
+    }, { transaction });
+
     const [item] = await StockDelegue.findOrCreate({
       where: { delegue_id: req.utilisateur.id, produit_id },
       defaults: { quantite: 0 },
