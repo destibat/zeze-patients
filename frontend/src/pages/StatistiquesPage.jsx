@@ -241,11 +241,11 @@ const ColonneExercice = ({ exercice, bilan, stats, isLoading }) => {
         <p className="text-xs font-semibold text-texte-secondaire uppercase tracking-wide mb-1">Financier</p>
         <KpiLigne label="CA total" valeur={isLoading ? '…' : b ? fmtMontant(b.ca_total) : '—'} emphasis />
         <KpiLigne label="Factures directes" valeur={isLoading ? '…' : b ? fmtMontant(b.ca_factures) : '—'} small />
-        <KpiLigne label="Ventes délégués" valeur={isLoading ? '…' : b ? fmtMontant(b.ca_delegues) : '—'} small />
+        <KpiLigne label="Ventes revendeurs" valeur={isLoading ? '…' : b ? fmtMontant(b.ca_delegues) : '—'} small />
         <div className="border-t border-bordure my-1" />
         <KpiLigne label="Commissions" valeur={isLoading ? '…' : commissions !== null ? fmtMontant(commissions) : '—'} />
         <KpiLigne label="Stockistes" valeur={isLoading ? '…' : b ? fmtMontant(b.commissions_stockistes) : '—'} small />
-        <KpiLigne label="Délégués" valeur={isLoading ? '…' : b ? fmtMontant(b.commissions_delegues) : '—'} small />
+        <KpiLigne label="Revendeurs" valeur={isLoading ? '…' : b ? fmtMontant(b.commissions_delegues) : '—'} small />
         <div className="border-t border-bordure my-1" />
         <KpiLigne label="Net MAPA" valeur={isLoading ? '…' : b ? fmtMontant(b.net_mapa) : '—'} emphasis green />
       </div>
@@ -255,7 +255,7 @@ const ColonneExercice = ({ exercice, bilan, stats, isLoading }) => {
         <p className="text-xs font-semibold text-texte-secondaire uppercase tracking-wide mb-1">Activité</p>
         <KpiLigne label="Consultations" valeur={isLoading ? '…' : stats?.total_consultations ?? '—'} />
         <KpiLigne label="Factures émises" valeur={isLoading ? '…' : b?.nb_factures ?? '—'} />
-        <KpiLigne label="Ventes délégués" valeur={isLoading ? '…' : b?.nb_ventes_delegues ?? '—'} />
+        <KpiLigne label="Ventes revendeurs" valeur={isLoading ? '…' : b?.nb_ventes_delegues ?? '—'} />
       </div>
 
       {/* Chart CA */}

@@ -25,7 +25,7 @@ const TopBar = ({ onOuvrirSidebar }) => {
     administrateur: 'Administrateur',
     stockiste: 'Stockiste',
     secretaire: 'Secrétaire',
-    delegue: 'Délégué',
+    delegue: 'Revendeur',
   };
 
   return (
