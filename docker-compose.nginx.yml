@@ -9,10 +9,8 @@ services:
       - "80:80"
       - "443:443"
     volumes:
-      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
-      - ./nginx/certs/patients:/etc/nginx/certs/patients:ro
-      - ./nginx/certs/cisse:/etc/nginx/certs/cisse:ro
-      - ./nginx/certs/alice:/etc/nginx/certs/alice:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./nginx/certs:/etc/nginx/certs:ro
     networks:
       - zeze_proxy
 
