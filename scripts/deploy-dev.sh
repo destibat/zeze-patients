@@ -46,7 +46,7 @@ echo ""
 
 echo "→ Migrations..."
 sleep 5
-sudo docker exec dev_backend npx sequelize db:migrate
+sudo docker exec dev_backend npx sequelize-cli db:migrate --migrations-path /database/migrations
 echo "✓ Migrations effectuées"
 echo ""
 
