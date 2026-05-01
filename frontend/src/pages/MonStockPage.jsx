@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { useMonStock, useAcheterStock, useVendreStock, useMesVentes } from '../hooks/useStockDelegue';
-import { useProduits } from '../hooks/useProduits';
-import { Package, ShoppingCart, ShoppingBag, Plus, X, Clock } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { useMonStock, useVendreStock, useMesVentes } from '../hooks/useStockDelegue';
+import { Package, ShoppingCart, ShoppingBag, Plus, X, Clock, ArrowRight } from 'lucide-react';
 import Button from '../components/ui/Button';
 import Alert from '../components/ui/Alert';
 
@@ -13,69 +13,22 @@ const parseLignes = (lignes) => {
   return Array.isArray(lignes) ? lignes : [];
 };
 
-// ── Formulaire d'achat ────────────────────────────────────────────────────────
-const FormulaireAchat = ({ produits, stock }) => {
-  const [produitId, setProduitId] = useState('');
-  const [quantite, setQuantite] = useState(1);
-  const [erreur, setErreur] = useState('');
-  const [succes, setSucces] = useState('');
-  const acheter = useAcheterStock();
-
-  const produitsCombo = [...produits].sort((a, b) => a.nom.localeCompare(b.nom));
-  const produitSelectionne = produitsCombo.find((p) => p.id === produitId);
-  const stockActuel = stock.find((s) => s.produit_id === produitId)?.quantite ?? 0;
-
-  const soumettre = async (e) => {
-    e.preventDefault();
-    if (!produitId) { setErreur('Sélectionnez un produit.'); return; }
-    if (quantite < 1) { setErreur('La quantité doit être ≥ 1.'); return; }
-    setErreur(''); setSucces('');
-    try {
-      await acheter.mutateAsync({ produit_id: produitId, quantite: Number(quantite) });
-      setSucces(`${quantite} unité(s) ajoutée(s) au stock.`);
-      setProduitId(''); setQuantite(1);
-    } catch (e) {
-      setErreur(e?.response?.data?.message || 'Erreur lors de l\'achat.');
-    }
-  };
-
+// ── Lien vers approvisionnements ──────────────────────────────────────────────
+const LienApprovisionner = () => {
+  const navigate = useNavigate();
   return (
-    <div className="carte space-y-4">
-      <h2 className="text-sm font-semibold text-texte-principal flex items-center gap-2">
-        <ShoppingCart size={16} className="text-zeze-vert" /> Acheter des produits (approvisionner mon stock)
-      </h2>
-      {erreur && <Alert type="erreur" message={erreur} />}
-      {succes && <Alert type="succes" message={succes} />}
-      <form onSubmit={soumettre} className="flex flex-col sm:flex-row gap-3 items-end">
-        <div className="flex-1">
-          <label className="block text-sm font-medium text-texte-principal mb-1">Produit</label>
-          <select value={produitId} onChange={(e) => setProduitId(e.target.value)} className="champ-input">
-            <option value="">Sélectionner un produit...</option>
-            {produitsCombo.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.nom} — {formatMontant(p.prix_unitaire)}
-                {stock.find((s) => s.produit_id === p.id) ? ` (stock: ${stock.find((s) => s.produit_id === p.id).quantite})` : ''}
-              </option>
-            ))}
-          </select>
-          {produitSelectionne && (
-            <p className="text-xs text-texte-secondaire mt-1">
-              Stock actuel : {stockActuel} · Coût : {formatMontant(produitSelectionne.prix_unitaire * quantite)}
-            </p>
-          )}
-        </div>
-        <div className="w-28">
-          <label className="block text-sm font-medium text-texte-principal mb-1">Quantité</label>
-          <input
-            type="number" min={1} value={quantite}
-            onChange={(e) => setQuantite(Math.max(1, parseInt(e.target.value) || 1))}
-            className="champ-input"
-          />
-        </div>
-        <Button type="submit" variante="primaire" icone={Plus} chargement={acheter.isPending}>
-          Ajouter au stock
-        </Button>
-      </form>
+    <div className="carte flex items-center justify-between gap-4 border-l-4 border-l-zeze-vert">
+      <div>
+        <p className="text-sm font-semibold text-texte-principal flex items-center gap-2">
+          <ShoppingCart size={15} className="text-zeze-vert" /> Approvisionner mon stock
+        </p>
+        <p className="text-xs text-texte-secondaire mt-0.5">
+          Passez une commande auprès de votre stockiste — elle sera livrée après validation.
+        </p>
+      </div>
+      <Button variante="primaire" onClick={() => navigate('/approvisionnements')}>
+        Commander
+      </Button>
     </div>
   );
 };
@@ -240,7 +193,6 @@ const FormulaireVente = ({ stock }) => {
 // ── Page principale ───────────────────────────────────────────────────────────
 const MonStockPage = () => {
   const { data: stock = [], isLoading } = useMonStock();
-  const { data: produits = [] } = useProduits({ actif: 'actif' });
   const { data: ventes = [] } = useMesVentes();
 
   return (
@@ -250,7 +202,7 @@ const MonStockPage = () => {
         <p className="text-sm text-texte-secondaire mt-1">Gérez votre stock personnel et vos ventes directes</p>
       </div>
 
-      <FormulaireAchat produits={produits} stock={stock} />
+      <LienApprovisionner />
       <FormulaireVente stock={stock} />
 
       {/* Stock disponible */}

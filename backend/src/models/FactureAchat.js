@@ -5,7 +5,8 @@ const { DataTypes } = require('sequelize');
 module.exports = (sequelize) => {
   const FactureAchat = sequelize.define('FactureAchat', {
     id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
-    mouvement_id: { type: DataTypes.UUID, allowNull: false },
+    mouvement_id: { type: DataTypes.UUID, allowNull: true },
+    commande_id:  { type: DataTypes.UUID, allowNull: true },
     delegue_id:   { type: DataTypes.UUID, allowNull: false },
     stockiste_id: { type: DataTypes.UUID, allowNull: false },
     montant_total: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
@@ -22,7 +23,8 @@ module.exports = (sequelize) => {
   });
 
   FactureAchat.associate = (models) => {
-    FactureAchat.belongsTo(models.MouvementDelegue, { foreignKey: 'mouvement_id', as: 'mouvement' });
+    FactureAchat.belongsTo(models.MouvementDelegue,        { foreignKey: 'mouvement_id', as: 'mouvement' });
+    FactureAchat.belongsTo(models.CommandeApprovisionnement, { foreignKey: 'commande_id',  as: 'commande' });
     FactureAchat.belongsTo(models.User, { foreignKey: 'delegue_id',   as: 'delegue' });
     FactureAchat.belongsTo(models.User, { foreignKey: 'stockiste_id', as: 'stockiste' });
   };

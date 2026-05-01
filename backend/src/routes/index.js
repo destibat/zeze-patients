@@ -26,6 +26,7 @@ router.get('/consultations', authentifier, asyncHandler(require('../controllers/
 router.use('/factures', require('./factureRoutes'));
 router.use('/stock-delegue', require('./stockDelegueRoutes'));
 router.use('/factures-achat', require('./factureAchatRoutes'));
+router.use('/commandes-appro', require('./commandeApproRoutes'));
 router.use('/parametres', require('./parametreRoutes'));
 router.use('/exercices', require('./exerciceRoutes'));
 router.get('/stats', authentifier, asyncHandler(obtenirStats));

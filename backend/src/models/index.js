@@ -26,8 +26,9 @@ const FichierPatient = require('./FichierPatient')(sequelize);
 const AnalyseNFS = require('./AnalyseNFS')(sequelize);
 const Exercice = require('./Exercice')(sequelize);
 const FactureAchat = require('./FactureAchat')(sequelize);
+const CommandeApprovisionnement = require('./CommandeApprovisionnement')(sequelize);
 
-const models = { User, RefreshToken, AuditLog, Patient, Produit, Consultation, Ordonnance, StockMouvement, RendezVous, Facture, ParametreCabinet, StockDelegue, MouvementDelegue, FichierPatient, AnalyseNFS, Exercice, FactureAchat };
+const models = { User, RefreshToken, AuditLog, Patient, Produit, Consultation, Ordonnance, StockMouvement, RendezVous, Facture, ParametreCabinet, StockDelegue, MouvementDelegue, FichierPatient, AnalyseNFS, Exercice, FactureAchat, CommandeApprovisionnement };
 
 // Initialisation des associations
 Object.values(models).forEach((model) => {

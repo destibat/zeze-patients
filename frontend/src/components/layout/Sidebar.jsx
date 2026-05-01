@@ -4,7 +4,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useAlertesStock } from '../../hooks/useStock';
 import {
   LayoutDashboard, Users, UserRound, Calendar, FileText,
-  Receipt, Package, BarChart3, Settings, X, Boxes, BookOpen,
+  Receipt, Package, BarChart3, Settings, X, Boxes, BookOpen, ShoppingCart,
 } from 'lucide-react';
 import logoMapa from '../../assets/logo-mapa.png';
 
@@ -16,6 +16,7 @@ const entresNav = [
   { cle: 'ordonnances', chemin: '/ordonnances', icone: FileText, roles: ['administrateur', 'stockiste', 'delegue'] },
   { cle: 'facturation', chemin: '/facturation', icone: Receipt, roles: ['administrateur', 'stockiste', 'secretaire', 'delegue'] },
   { cle: 'mon_stock', chemin: '/mon-stock', icone: Boxes, roles: ['delegue'] },
+  { cle: 'approvisionnements', chemin: '/approvisionnements', icone: ShoppingCart, roles: ['delegue', 'stockiste', 'administrateur'] },
   { cle: 'stock', chemin: '/stock', icone: Package, roles: ['administrateur', 'secretaire'] },
   { cle: 'statistiques', chemin: '/statistiques', icone: BarChart3, roles: ['administrateur'] },
   { cle: 'exercices', chemin: '/exercices', icone: BookOpen, roles: ['administrateur', 'stockiste'] },

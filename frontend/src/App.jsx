@@ -24,6 +24,7 @@ import ChangerMotDePassePage from './pages/ChangerMotDePassePage';
 import NotFoundPage from './pages/NotFoundPage';
 import ExercicesPage from './pages/ExercicesPage';
 import BilanExercicePage from './pages/BilanExercicePage';
+import ApprovisionnementsPage from './pages/ApprovisionnementsPage';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -106,6 +107,14 @@ const App = () => (
               element={
                 <ProtectedRoute roles={['delegue']}>
                   <MonStockPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="approvisionnements"
+              element={
+                <ProtectedRoute roles={['delegue', 'stockiste', 'administrateur']}>
+                  <ApprovisionnementsPage />
                 </ProtectedRoute>
               }
             />
