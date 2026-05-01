@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useProduits } from '../hooks/useProduits';
 import {
@@ -26,6 +26,14 @@ const BrouillonEditeur = ({ produits }) => {
   const supprimer   = useSupprimerBrouillon();
   const [notes, setNotes]   = useState('');
   const [erreur, setErreur] = useState('');
+  const [lignes, setLignes] = useState([]);
+
+  // Initialise les lignes locales depuis le serveur (une seule fois par brouillon)
+  useEffect(() => {
+    if (brouillon) {
+      setLignes(Array.isArray(brouillon.lignes) ? brouillon.lignes : []);
+    }
+  }, [brouillon?.id]);
 
   if (isLoading) return <div className="flex justify-center py-8"><div className="animate-spin rounded-full h-8 w-8 border-4 border-zeze-vert border-t-transparent" /></div>;
   if (isError) return (
@@ -36,33 +44,36 @@ const BrouillonEditeur = ({ produits }) => {
   );
   if (!brouillon) return null;
 
-  const lignes = Array.isArray(brouillon.lignes) ? brouillon.lignes : [];
   const produitsDejaDans = lignes.map((l) => l.produit_id);
   const total = lignes.reduce((s, l) => s + l.prix_unitaire * l.quantite, 0);
 
-  const ajouterProduit = (produit) => {
-    if (produitsDejaDans.includes(produit.id)) return;
-    const nouvelles = [...lignes, { produit_id: produit.id, nom_produit: produit.nom, quantite: 1, prix_unitaire: produit.prix_unitaire }];
+  const sauvegarder = (nouvelles) => {
+    setLignes(nouvelles); // mise à jour immédiate de l'UI
     mettreAJour.mutate(nouvelles, {
-      onError: (e) => setErreur(e?.response?.data?.message || 'Erreur lors de l\'ajout du produit'),
+      onError: (e) => {
+        setLignes(lignes); // rollback si erreur serveur
+        setErreur(e?.response?.data?.message || 'Erreur lors de la mise à jour');
+      },
     });
   };
 
-  const retirerLigne = (idx) => {
-    const nouvelles = lignes.filter((_, i) => i !== idx);
-    mettreAJour.mutate(nouvelles);
+  const ajouterProduit = (produit) => {
+    if (produitsDejaDans.includes(produit.id)) return;
+    sauvegarder([...lignes, { produit_id: produit.id, nom_produit: produit.nom, quantite: 1, prix_unitaire: produit.prix_unitaire }]);
   };
+
+  const retirerLigne = (idx) => sauvegarder(lignes.filter((_, i) => i !== idx));
 
   const modifierQte = (idx, val) => {
     const qte = Math.max(1, parseInt(val) || 1);
-    const nouvelles = lignes.map((l, i) => i === idx ? { ...l, quantite: qte } : l);
-    mettreAJour.mutate(nouvelles);
+    sauvegarder(lignes.map((l, i) => i === idx ? { ...l, quantite: qte } : l));
   };
 
   const handleEnvoyer = async () => {
     setErreur('');
     try {
       await envoyer.mutateAsync({ notes_revendeur: notes || null });
+      setLignes([]); // réinitialise l'état local après envoi
     } catch (e) {
       setErreur(e?.response?.data?.message || 'Erreur lors de l\'envoi');
     }
@@ -70,7 +81,7 @@ const BrouillonEditeur = ({ produits }) => {
 
   const handleSupprimer = async () => {
     if (!window.confirm('Supprimer ce brouillon ?')) return;
-    supprimer.mutate();
+    supprimer.mutate(undefined, { onSuccess: () => setLignes([]) });
   };
 
   return (
