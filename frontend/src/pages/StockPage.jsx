@@ -5,7 +5,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useMettreAJourSeuil } from '../hooks/useStock';
 import Alert from '../components/ui/Alert';
 import Button from '../components/ui/Button';
-import { Package, TrendingUp, TrendingDown, AlertTriangle, X, Plus, Minus, RefreshCw, Bell, BellOff } from 'lucide-react';
+import { Package, TrendingUp, TrendingDown, AlertTriangle, X, Plus, Minus, RefreshCw, Bell, BellOff, Pencil } from 'lucide-react';
 
 const useStock = () =>
   useQuery({ queryKey: ['stock'], queryFn: () => api.get('/stock').then((r) => r.data), refetchInterval: 60 * 1000 });
@@ -37,6 +37,140 @@ const categorieLabel = {
   sommeil: 'Sommeil',
   prevention: 'Prévention',
   autre: 'Autre',
+};
+
+const useCreerProduit = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data) => api.post('/produits', data).then((r) => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['stock'] }),
+  });
+};
+
+const useModifierProduit = (id) => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data) => api.put(`/produits/${id}`, data).then((r) => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['stock'] }),
+  });
+};
+
+const CATEGORIES = Object.entries(categorieLabel);
+
+const ProduitModal = ({ produit, onFermer }) => {
+  const estEdition = Boolean(produit);
+  const [form, setForm] = useState({
+    nom: produit?.nom || '',
+    categorie: produit?.categorie || 'antibiotique',
+    prix_unitaire: produit?.prix_unitaire ?? '',
+    seuil_alerte: produit?.seuil_alerte ?? '',
+    actif: produit?.actif ?? true,
+  });
+  const [erreur, setErreur] = useState('');
+  const creer = useCreerProduit();
+  const modifier = useModifierProduit(produit?.id);
+  const mutation = estEdition ? modifier : creer;
+
+  const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+
+  const soumettre = async () => {
+    setErreur('');
+    if (!form.nom.trim()) return setErreur('Le nom est requis');
+    if (!form.prix_unitaire || isNaN(Number(form.prix_unitaire)) || Number(form.prix_unitaire) <= 0)
+      return setErreur('Prix unitaire invalide');
+    try {
+      await mutation.mutateAsync({
+        nom: form.nom.trim().toUpperCase(),
+        categorie: form.categorie,
+        prix_unitaire: parseInt(form.prix_unitaire),
+        seuil_alerte: form.seuil_alerte === '' ? null : parseInt(form.seuil_alerte),
+        actif: form.actif,
+      });
+      onFermer();
+    } catch (e) {
+      setErreur(e?.response?.data?.message || 'Erreur');
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="bg-white rounded-carte shadow-xl w-full max-w-md">
+        <div className="flex items-center justify-between p-4 border-b border-bordure">
+          <h2 className="font-semibold text-texte-principal">
+            {estEdition ? 'Modifier le produit' : 'Nouveau produit'}
+          </h2>
+          <button onClick={onFermer} className="p-1 text-texte-secondaire hover:text-texte-principal">
+            <X size={20} />
+          </button>
+        </div>
+
+        <div className="p-4 space-y-3">
+          <div>
+            <label className="block text-xs font-medium text-texte-principal mb-1">Nom du produit *</label>
+            <input
+              type="text"
+              value={form.nom}
+              onChange={(e) => set('nom', e.target.value)}
+              placeholder="ex: ANTIBIOTIQUE GRAND FORMAT"
+              className="champ-input"
+            />
+          </div>
+
+          <div className="flex gap-3">
+            <div className="flex-1">
+              <label className="block text-xs font-medium text-texte-principal mb-1">Catégorie *</label>
+              <select value={form.categorie} onChange={(e) => set('categorie', e.target.value)} className="champ-input">
+                {CATEGORIES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+              </select>
+            </div>
+            <div className="flex-1">
+              <label className="block text-xs font-medium text-texte-principal mb-1">Prix unitaire (FCFA) *</label>
+              <input
+                type="number"
+                min={1}
+                value={form.prix_unitaire}
+                onChange={(e) => set('prix_unitaire', e.target.value)}
+                placeholder="ex: 40000"
+                className="champ-input"
+              />
+            </div>
+          </div>
+
+          <div className="flex gap-3 items-end">
+            <div className="flex-1">
+              <label className="block text-xs font-medium text-texte-principal mb-1">Seuil d'alerte stock</label>
+              <input
+                type="number"
+                min={0}
+                value={form.seuil_alerte}
+                onChange={(e) => set('seuil_alerte', e.target.value)}
+                placeholder="vide = pas d'alerte"
+                className="champ-input"
+              />
+            </div>
+            {estEdition && (
+              <div className="flex-1">
+                <label className="block text-xs font-medium text-texte-principal mb-1">Statut</label>
+                <select value={form.actif ? 'actif' : 'inactif'} onChange={(e) => set('actif', e.target.value === 'actif')} className="champ-input">
+                  <option value="actif">Actif</option>
+                  <option value="inactif">Inactif</option>
+                </select>
+              </div>
+            )}
+          </div>
+
+          {erreur && <Alert type="erreur" message={erreur} />}
+
+          <div className="flex gap-2 pt-1">
+            <Button variante="primaire" chargement={mutation.isPending} onClick={soumettre} className="flex-1">
+              {estEdition ? 'Enregistrer les modifications' : 'Créer le produit'}
+            </Button>
+            <Button variante="fantome" onClick={onFermer}>Annuler</Button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 };
 
 const MouvementModal = ({ produit, onFermer }) => {
@@ -250,7 +384,9 @@ const StockPage = () => {
   const { aLeRole } = useAuth();
   const { data: produits = [], isLoading } = useStock();
   const [produitSelectionne, setProduitSelectionne] = useState(null);
-  const [filtreCategorie, setFiltreCategorie] = useState('');
+  const [produitEdition, setProduitEdition]         = useState(null);
+  const [creationOuverte, setCreationOuverte]       = useState(false);
+  const [filtreCategorie, setFiltreCategorie]       = useState('');
 
   const peutGerer = aLeRole('administrateur', 'stockiste');
   const alertes = produits.filter(
@@ -272,14 +408,21 @@ const StockPage = () => {
             {alertes.length > 0 && ` · ${ruptures.length > 0 ? `${ruptures.length} rupture${ruptures.length > 1 ? 's' : ''}` : ''}${ruptures.length > 0 && basStock.length > 0 ? ', ' : ''}${basStock.length > 0 ? `${basStock.length} stock bas` : ''}`}
           </p>
         </div>
-        <select
-          value={filtreCategorie}
-          onChange={(e) => setFiltreCategorie(e.target.value)}
-          className="champ-input sm:w-48"
-        >
-          <option value="">Toutes catégories</option>
-          {Object.entries(categorieLabel).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-        </select>
+        <div className="flex gap-2 items-center">
+          <select
+            value={filtreCategorie}
+            onChange={(e) => setFiltreCategorie(e.target.value)}
+            className="champ-input sm:w-48"
+          >
+            <option value="">Toutes catégories</option>
+            {Object.entries(categorieLabel).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+          </select>
+          {peutGerer && (
+            <Button variante="primaire" icone={Plus} onClick={() => setCreationOuverte(true)}>
+              Nouveau produit
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Alertes rupture */}
@@ -335,7 +478,14 @@ const StockPage = () => {
                     <p className="text-sm font-semibold text-texte-principal leading-tight">{p.nom}</p>
                     <p className="text-xs text-texte-secondaire capitalize mt-0.5">{categorieLabel[p.categorie]}</p>
                   </div>
-                  <Package size={16} className={stockVide ? 'text-medical-critique' : stockBas ? 'text-orange-500' : 'text-zeze-vert'} />
+                  <div className="flex items-center gap-2">
+                    {peutGerer && (
+                      <button onClick={() => setProduitEdition(p)} className="text-texte-secondaire hover:text-zeze-vert" title="Modifier ce produit">
+                        <Pencil size={14} />
+                      </button>
+                    )}
+                    <Package size={16} className={stockVide ? 'text-medical-critique' : stockBas ? 'text-orange-500' : 'text-zeze-vert'} />
+                  </div>
                 </div>
 
                 <div className="flex items-center justify-between">
@@ -370,6 +520,14 @@ const StockPage = () => {
           produit={produitSelectionne}
           onFermer={() => setProduitSelectionne(null)}
         />
+      )}
+
+      {creationOuverte && (
+        <ProduitModal onFermer={() => setCreationOuverte(false)} />
+      )}
+
+      {produitEdition && (
+        <ProduitModal produit={produitEdition} onFermer={() => setProduitEdition(null)} />
       )}
     </div>
   );
