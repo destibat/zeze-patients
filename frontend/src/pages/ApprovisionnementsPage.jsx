@@ -20,7 +20,7 @@ const STATUT_CFG = {
 
 // ── Brouillon éditable (revendeur) ────────────────────────────────────────────
 const BrouillonEditeur = ({ produits }) => {
-  const { data: brouillon, isLoading } = useBrouillon();
+  const { data: brouillon, isLoading, isError, error } = useBrouillon();
   const mettreAJour = useMettreAJourLignes();
   const envoyer     = useEnvoyerCommande();
   const supprimer   = useSupprimerBrouillon();
@@ -28,6 +28,12 @@ const BrouillonEditeur = ({ produits }) => {
   const [erreur, setErreur] = useState('');
 
   if (isLoading) return <div className="flex justify-center py-8"><div className="animate-spin rounded-full h-8 w-8 border-4 border-zeze-vert border-t-transparent" /></div>;
+  if (isError) return (
+    <div className="carte border-orange-200 bg-orange-50">
+      <p className="text-sm font-semibold text-orange-800 mb-1">Impossible de charger le brouillon</p>
+      <p className="text-xs text-orange-700">{error?.response?.data?.message || 'Vérifiez qu\'un stockiste est bien associé à votre compte.'}</p>
+    </div>
+  );
   if (!brouillon) return null;
 
   const lignes = Array.isArray(brouillon.lignes) ? brouillon.lignes : [];
@@ -37,7 +43,9 @@ const BrouillonEditeur = ({ produits }) => {
   const ajouterProduit = (produit) => {
     if (produitsDejaDans.includes(produit.id)) return;
     const nouvelles = [...lignes, { produit_id: produit.id, nom_produit: produit.nom, quantite: 1, prix_unitaire: produit.prix_unitaire }];
-    mettreAJour.mutate(nouvelles);
+    mettreAJour.mutate(nouvelles, {
+      onError: (e) => setErreur(e?.response?.data?.message || 'Erreur lors de l\'ajout du produit'),
+    });
   };
 
   const retirerLigne = (idx) => {
@@ -91,7 +99,8 @@ const BrouillonEditeur = ({ produits }) => {
                 <button
                   key={p.id}
                   onClick={() => ajouterProduit(p)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs border border-zeze-vert text-zeze-vert rounded-bouton hover:bg-zeze-vert/10 transition-colors"
+                  disabled={mettreAJour.isPending}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs border border-zeze-vert text-zeze-vert rounded-bouton hover:bg-zeze-vert/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <Plus size={11} /> {p.nom} — {formatMontant(p.prix_unitaire)}
                 </button>
