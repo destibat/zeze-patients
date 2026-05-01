@@ -17,7 +17,7 @@ const entresNav = [
   { cle: 'facturation', chemin: '/facturation', icone: Receipt, roles: ['administrateur', 'stockiste', 'secretaire', 'delegue'] },
   { cle: 'mon_stock', chemin: '/mon-stock', icone: Boxes, roles: ['delegue'] },
   { cle: 'approvisionnements', chemin: '/approvisionnements', icone: ShoppingCart, roles: ['delegue', 'stockiste', 'administrateur'] },
-  { cle: 'stock', chemin: '/stock', icone: Package, roles: ['administrateur', 'secretaire'] },
+  { cle: 'stock', chemin: '/stock', icone: Package, roles: ['administrateur', 'stockiste', 'secretaire'] },
   { cle: 'statistiques', chemin: '/statistiques', icone: BarChart3, roles: ['administrateur'] },
   { cle: 'exercices', chemin: '/exercices', icone: BookOpen, roles: ['administrateur', 'stockiste'] },
   { cle: 'utilisateurs', chemin: '/admin/utilisateurs', icone: Users, roles: ['administrateur'] },
