@@ -42,3 +42,4 @@ backend/core
 backend/.env*
 !backend/.env.example.template
 .claude/settings.local.json
+.claude/settings.local.json
