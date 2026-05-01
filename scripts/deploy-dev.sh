@@ -50,6 +50,11 @@ sudo docker exec dev_backend npx sequelize-cli db:migrate --migrations-path /dat
 echo "✓ Migrations effectuées"
 echo ""
 
+echo "→ Seeds (données initiales)..."
+sudo docker exec dev_backend npx sequelize-cli db:seed:all --seeders-path /database/seeds
+echo "✓ Seeds effectués"
+echo ""
+
 echo "══════════════════════════════════════════════"
 echo "✓ dev.zezepagnon.solutions mis à jour"
 echo "══════════════════════════════════════════════"

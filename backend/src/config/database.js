@@ -13,6 +13,8 @@ const base = {
   dialect: 'mysql',
   timezone: '+00:00',
   logging: false,
+  seederStorage: 'sequelize',        // évite de re-exécuter les seeds déjà joués
+  seederStorageTableName: 'SequelizeData',
   define: {
     underscored: true,       // snake_case pour les colonnes
     timestamps: true,
