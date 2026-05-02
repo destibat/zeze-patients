@@ -71,9 +71,14 @@ const BrouillonEditeur = ({ produits }) => {
   };
 
   const handleEnvoyer = async () => {
+    if (lignes.length === 0) {
+      setErreur('Ajoutez au moins un produit avant d\'envoyer.');
+      return;
+    }
     setErreur('');
     setSucces(false);
     try {
+      await mettreAJour.mutateAsync(lignes); // garantit que le serveur a les dernières lignes
       await envoyer.mutateAsync({ notes_revendeur: notes || null });
       setLignes([]);
       setNotes('');
@@ -182,11 +187,10 @@ const BrouillonEditeur = ({ produits }) => {
               </div>
               <Button
                 variante="primaire" icone={Send}
-                chargement={envoyer.isPending}
-                disabled={mettreAJour.isPending || envoyer.isPending}
+                chargement={mettreAJour.isPending || envoyer.isPending}
                 onClick={handleEnvoyer}
               >
-                {mettreAJour.isPending ? 'Sauvegarde en cours…' : 'Envoyer la commande au stockiste'}
+                Envoyer la commande au stockiste
               </Button>
             </div>
           </>
