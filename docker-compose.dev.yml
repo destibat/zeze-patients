@@ -44,6 +44,7 @@ services:
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
       JWT_REFRESH_EXPIRES_IN: 7d
       FRONTEND_URL: ${FRONTEND_URL}
+      RATE_LIMIT_MAX: 500
     volumes:
       - uploads_dev:/app/uploads
     networks:

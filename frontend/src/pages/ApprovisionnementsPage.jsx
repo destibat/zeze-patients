@@ -78,7 +78,6 @@ const BrouillonEditeur = ({ produits }) => {
     setErreur('');
     setSucces(false);
     try {
-      await mettreAJour.mutateAsync(lignes); // garantit que le serveur a les dernières lignes
       await envoyer.mutateAsync({ notes_revendeur: notes || null });
       setLignes([]);
       setNotes('');
@@ -187,7 +186,8 @@ const BrouillonEditeur = ({ produits }) => {
               </div>
               <Button
                 variante="primaire" icone={Send}
-                chargement={mettreAJour.isPending || envoyer.isPending}
+                chargement={envoyer.isPending}
+                disabled={mettreAJour.isPending || envoyer.isPending}
                 onClick={handleEnvoyer}
               >
                 Envoyer la commande au stockiste
