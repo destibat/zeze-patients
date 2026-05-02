@@ -71,6 +71,7 @@ const BrouillonEditeur = ({ produits }) => {
   };
 
   const handleEnvoyer = async () => {
+    console.log('[DEBUG handleEnvoyer] lignes local:', JSON.stringify(lignes));
     if (lignes.length === 0) {
       setErreur('Ajoutez au moins un produit avant d\'envoyer.');
       return;

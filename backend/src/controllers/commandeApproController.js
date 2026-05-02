@@ -43,6 +43,8 @@ const obtenirBrouillon = async (req, res) => {
 // ── Revendeur : mettre à jour les lignes du brouillon ─────────────────────────
 const mettreAJourLignes = async (req, res) => {
   const { lignes = [] } = req.body;
+  console.log('[DEBUG mettreAJourLignes] body reçu:', JSON.stringify(req.body).slice(0, 200));
+  console.log('[DEBUG mettreAJourLignes] lignes.length:', lignes.length);
 
   const brouillon = await CommandeApprovisionnement.findOne({
     where: { revendeur_id: req.utilisateur.id, statut: 'brouillon' },
@@ -51,6 +53,7 @@ const mettreAJourLignes = async (req, res) => {
 
   const montant_total = lignes.reduce((s, l) => s + (l.prix_unitaire * l.quantite), 0);
   await brouillon.update({ lignes, montant_total });
+  console.log('[DEBUG mettreAJourLignes] après update, brouillon.lignes:', JSON.stringify(brouillon.lignes).slice(0, 200));
 
   res.json(brouillon);
 };
@@ -63,7 +66,10 @@ const envoyer = async (req, res) => {
   });
   if (!brouillon) return res.status(404).json({ message: 'Aucun brouillon en cours.' });
 
+  console.log('[DEBUG envoyer] brouillon.lignes type:', typeof brouillon.lignes);
+  console.log('[DEBUG envoyer] brouillon.lignes value:', JSON.stringify(brouillon.lignes).slice(0, 200));
   const lignes = Array.isArray(brouillon.lignes) ? brouillon.lignes : [];
+  console.log('[DEBUG envoyer] lignes.length:', lignes.length);
   if (lignes.length === 0) {
     return res.status(400).json({ message: 'Ajoutez au moins un produit avant d\'envoyer.' });
   }
