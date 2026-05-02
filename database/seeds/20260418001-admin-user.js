@@ -16,12 +16,11 @@ module.exports = {
       role: 'administrateur',
       actif: true,
       telephone: null,
-      // Forcera le changement de mot de passe à la première connexion
       doit_changer_mdp: true,
       derniere_connexion: null,
       created_at: new Date(),
       updated_at: new Date(),
-    }]);
+    }], { ignoreDuplicates: true });
   },
 
   async down(queryInterface) {
