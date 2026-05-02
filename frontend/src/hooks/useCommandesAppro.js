@@ -7,6 +7,7 @@ export const useCommandesAppro = () =>
   useQuery({
     queryKey: [CLE],
     queryFn: () => api.get('/commandes-appro').then((r) => r.data),
+    refetchInterval: 30 * 1000,
   });
 
 export const useBrouillon = (enabled = true) =>

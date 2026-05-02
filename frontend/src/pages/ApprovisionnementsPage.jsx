@@ -24,9 +24,10 @@ const BrouillonEditeur = ({ produits }) => {
   const mettreAJour = useMettreAJourLignes();
   const envoyer     = useEnvoyerCommande();
   const supprimer   = useSupprimerBrouillon();
-  const [notes, setNotes]   = useState('');
-  const [erreur, setErreur] = useState('');
-  const [lignes, setLignes] = useState([]);
+  const [notes, setNotes]     = useState('');
+  const [erreur, setErreur]   = useState('');
+  const [succes, setSucces]   = useState(false);
+  const [lignes, setLignes]   = useState([]);
 
   // Initialise les lignes locales depuis le serveur (une seule fois par brouillon)
   useEffect(() => {
@@ -71,9 +72,12 @@ const BrouillonEditeur = ({ produits }) => {
 
   const handleEnvoyer = async () => {
     setErreur('');
+    setSucces(false);
     try {
       await envoyer.mutateAsync({ notes_revendeur: notes || null });
-      setLignes([]); // réinitialise l'état local après envoi
+      setLignes([]);
+      setNotes('');
+      setSucces(true);
     } catch (e) {
       setErreur(e?.response?.data?.message || 'Erreur lors de l\'envoi');
     }
@@ -99,6 +103,7 @@ const BrouillonEditeur = ({ produits }) => {
         </div>
 
         {erreur && <Alert type="erreur" message={erreur} />}
+        {succes && <Alert type="succes" message="Commande envoyée au stockiste. Il la traitera prochainement." />}
 
         {/* Sélection des produits */}
         <div>
@@ -175,8 +180,13 @@ const BrouillonEditeur = ({ produits }) => {
                   className="champ-input text-sm" placeholder="ex: livraison urgente, appeler avant..."
                 />
               </div>
-              <Button variante="primaire" icone={Send} chargement={envoyer.isPending} onClick={handleEnvoyer}>
-                Envoyer la commande au stockiste
+              <Button
+                variante="primaire" icone={Send}
+                chargement={envoyer.isPending}
+                disabled={mettreAJour.isPending || envoyer.isPending}
+                onClick={handleEnvoyer}
+              >
+                {mettreAJour.isPending ? 'Sauvegarde en cours…' : 'Envoyer la commande au stockiste'}
               </Button>
             </div>
           </>
