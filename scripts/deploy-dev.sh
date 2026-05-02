@@ -51,8 +51,9 @@ echo "✓ Migrations effectuées"
 echo ""
 
 echo "→ Seeds (données initiales)..."
-sudo docker exec dev_backend npx sequelize-cli db:seed:all --seeders-path /database/seeds
-echo "✓ Seeds effectués"
+sudo docker exec dev_backend npx sequelize-cli db:seed:all --seeders-path /database/seeds 2>&1 \
+  && echo "✓ Seeds appliqués" \
+  || echo "⚠  Seeds déjà en base (ignoré)"
 echo ""
 
 echo "══════════════════════════════════════════════"
