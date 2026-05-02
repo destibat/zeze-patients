@@ -7,7 +7,18 @@ module.exports = (sequelize) => {
     id:            { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
     revendeur_id:  { type: DataTypes.UUID, allowNull: false },
     stockiste_id:  { type: DataTypes.UUID, allowNull: false },
-    lignes:        { type: DataTypes.JSON, allowNull: false, defaultValue: [] },
+    lignes: {
+      type: DataTypes.JSON,
+      allowNull: false,
+      defaultValue: [],
+      get() {
+        const raw = this.getDataValue('lignes');
+        if (typeof raw === 'string') {
+          try { return JSON.parse(raw); } catch (_) { return []; }
+        }
+        return Array.isArray(raw) ? raw : [];
+      },
+    },
     montant_total: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
     statut: {
       type: DataTypes.ENUM('brouillon', 'en_attente', 'validee', 'refusee'),
