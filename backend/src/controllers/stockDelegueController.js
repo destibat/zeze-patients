@@ -209,7 +209,7 @@ const obtenirStatsStock = async (req, res) => {
   const [achats, toutesVentes, ventesValidees, nbProduits] = await Promise.all([
     MouvementDelegue.findAll({
       where: { delegue_id: req.utilisateur.id, type: 'achat', date_mouvement: periode },
-      attributes: ['montant_total'], raw: true,
+      attributes: ['montant_total', 'gain_delegue'], raw: true,
     }),
     MouvementDelegue.findAll({
       where: { delegue_id: req.utilisateur.id, type: 'vente', date_mouvement: periode },
@@ -223,13 +223,14 @@ const obtenirStatsStock = async (req, res) => {
   ]);
 
   const ventesEnAttente = toutesVentes.filter((v) => v.statut === 'en_attente');
+  const gainAchatsMois  = achats.reduce((s, a) => s + (a.gain_delegue || 0), 0);
 
   res.json({
-    achats_mois:          achats.reduce((s, a) => s + (a.montant_total || 0), 0),
-    ventes_mois:          toutesVentes.reduce((s, v) => s + (v.montant_total || 0), 0),
-    gain_delegue_mois:    Math.round(ventesValidees.reduce((s, v) => s + (v.montant_total || 0), 0) * TAUX_DELEGUE),
-    nb_produits_stock:    nbProduits,
-    ventes_en_attente:    ventesEnAttente.length,
+    achats_mois:       achats.reduce((s, a) => s + (a.montant_total || 0), 0),
+    ventes_mois:       toutesVentes.reduce((s, v) => s + (v.montant_total || 0), 0),
+    gain_delegue_mois: Math.round(ventesValidees.reduce((s, v) => s + (v.montant_total || 0), 0) * TAUX_DELEGUE) + gainAchatsMois,
+    nb_produits_stock: nbProduits,
+    ventes_en_attente: ventesEnAttente.length,
   });
 };
 
@@ -253,29 +254,42 @@ const obtenirGainsDelegues = async (req, res) => {
   if (delegues.length === 0) return res.json([]);
 
   const ids = delegues.map((d) => d.id);
-  const ventes = await MouvementDelegue.findAll({
-    where: {
-      delegue_id: { [Op.in]: ids },
-      type: 'vente',
-      statut: 'valide',
-      date_mouvement: { [Op.between]: [debutMoisStr, today] },
-    },
-    attributes: ['delegue_id', 'montant_total'],
-    raw: true,
-  });
+  const periode = { [Op.between]: [debutMoisStr, today] };
+
+  const [ventes, achats] = await Promise.all([
+    MouvementDelegue.findAll({
+      where: { delegue_id: { [Op.in]: ids }, type: 'vente', statut: 'valide', date_mouvement: periode },
+      attributes: ['delegue_id', 'montant_total'],
+      raw: true,
+    }),
+    MouvementDelegue.findAll({
+      where: { delegue_id: { [Op.in]: ids }, type: 'achat', date_mouvement: periode },
+      attributes: ['delegue_id', 'montant_total', 'gain_delegue', 'commission_stockiste'],
+      raw: true,
+    }),
+  ]);
 
   const resultat = delegues.map((d) => {
-    const ventesD = ventes.filter((v) => v.delegue_id === d.id);
-    const ventes_mois              = ventesD.reduce((s, v) => s + (v.montant_total || 0), 0);
+    const ventesD  = ventes.filter((v) => v.delegue_id === d.id);
+    const achatsD  = achats.filter((a) => a.delegue_id === d.id);
     const tauxTotal = parseFloat(d.stockiste?.commission_rate ?? 25);
-    const gain_delegue_mois        = Math.round(ventes_mois * 15 / 100);
-    const commission_stockiste_mois = Math.round(ventes_mois * (tauxTotal - 15) / 100);
-    const part_mapa_mois           = ventes_mois - gain_delegue_mois - commission_stockiste_mois;
+
+    const ventes_mois  = ventesD.reduce((s, v) => s + (v.montant_total || 0), 0);
+    const achats_mois  = achatsD.reduce((s, a) => s + (a.montant_total || 0), 0);
+
+    const gain_delegue_vente         = Math.round(ventes_mois * 15 / 100);
+    const commission_stockiste_vente  = Math.round(ventes_mois * (tauxTotal - 15) / 100);
+    const gain_delegue_achat         = achatsD.reduce((s, a) => s + (a.gain_delegue || 0), 0);
+    const commission_stockiste_achat  = achatsD.reduce((s, a) => s + (a.commission_stockiste || 0), 0);
+
+    const gain_delegue_mois         = gain_delegue_vente + gain_delegue_achat;
+    const commission_stockiste_mois  = commission_stockiste_vente + commission_stockiste_achat;
+    const part_mapa_mois            = (ventes_mois + achats_mois) - gain_delegue_mois - commission_stockiste_mois;
 
     return {
       delegue: { id: d.id, nom: d.nom, prenom: d.prenom },
       taux_commission: tauxTotal,
-      ventes_mois,
+      ventes_mois: ventes_mois + achats_mois, // CA total pour l'affichage
       gain_delegue_mois,
       commission_stockiste_mois,
       part_mapa_mois,

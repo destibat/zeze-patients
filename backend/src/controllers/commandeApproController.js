@@ -125,6 +125,10 @@ const valider = async (req, res) => {
   const lignes = Array.isArray(commande.lignes) ? commande.lignes : [];
   const today  = new Date().toISOString().split('T')[0];
 
+  // Taux de commission du stockiste pour calculer la répartition
+  const stockisteUser = await User.findByPk(commande.stockiste_id, { attributes: ['commission_rate'] });
+  const tauxTotal = parseFloat(stockisteUser?.commission_rate ?? 25) / 100;
+
   const transaction = await sequelize.transaction();
   try {
     // Vérifier et décrémenter le stock cabinet pour chaque ligne
@@ -161,16 +165,17 @@ const valider = async (req, res) => {
       });
       await item.increment('quantite', { by: ligne.quantite, transaction });
 
-      // Mouvement délégué (pour les stats achats_mois)
+      // Mouvement délégué avec gains calculés
+      const montant_ligne = ligne.prix_unitaire * ligne.quantite;
       await MouvementDelegue.create({
-        delegue_id:          commande.revendeur_id,
-        type:                'achat',
-        produit_id:          ligne.produit_id,
-        quantite:            ligne.quantite,
-        montant_total:       ligne.prix_unitaire * ligne.quantite,
-        commission_stockiste: 0,
-        gain_delegue:        0,
-        date_mouvement:      today,
+        delegue_id:           commande.revendeur_id,
+        type:                 'achat',
+        produit_id:           ligne.produit_id,
+        quantite:             ligne.quantite,
+        montant_total:        montant_ligne,
+        gain_delegue:         Math.round(montant_ligne * 0.15),
+        commission_stockiste: Math.round(montant_ligne * (tauxTotal - 0.15)),
+        date_mouvement:       today,
       }, { transaction });
     }
 
