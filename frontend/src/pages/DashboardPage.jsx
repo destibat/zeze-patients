@@ -494,14 +494,16 @@ const DashboardStandard = ({ utilisateur }) => {
                 sous={`Directs : ${fmt(r.ca_direct)}  ·  Revendeurs : ${fmt(caDelegueMois)}`}
               />
               <CarteKPI
-                titre="Vos gains totaux"
+                titre={r.taux_direct != null ? 'Vos gains totaux' : 'Gains des stockistes'}
                 valeur={fmt(gainsTotaux)}
                 icone={TrendingUp}
                 couleur="bg-zeze-or"
-                sous={`Directs (${r.taux_direct}%) : ${fmt(r.gains_directs)}  ·  Reversés (${r.taux_indirect}%) : ${fmt(gainsIndirectsMois)}`}
+                sous={r.taux_direct != null
+                  ? `Directs (${r.taux_direct}%) : ${fmt(r.gains_directs)}  ·  Reversés (${r.taux_indirect}%) : ${fmt(gainsIndirectsMois)}`
+                  : `Consultations : ${fmt(r.gains_directs)}  ·  Via revendeurs : ${fmt(gainsIndirectsMois)}`}
               />
               <CarteKPI
-                titre={`Part versée à MAPA (${r.taux_mapa}%)`}
+                titre={r.taux_mapa != null ? `Part versée à MAPA (${r.taux_mapa}%)` : 'Part versée à MAPA'}
                 valeur={fmt(mapaTotal)}
                 icone={ShoppingBag}
                 couleur="bg-zeze-vert"
@@ -533,11 +535,11 @@ const DashboardStandard = ({ utilisateur }) => {
                     <td className="px-4 py-2.5 text-right font-mono text-xs text-texte-secondaire">{fmt(r.ca_direct)}</td>
                     <td className="px-4 py-2.5 text-right font-mono text-xs text-zeze-vert font-semibold hidden sm:table-cell">
                       {fmt(r.part_mapa_direct)}
-                      <span className="text-texte-secondaire font-normal"> ({r.taux_mapa}%)</span>
+                      {r.taux_mapa != null && <span className="text-texte-secondaire font-normal"> ({r.taux_mapa}%)</span>}
                     </td>
                     <td className="px-4 py-2.5 text-right font-mono text-xs text-zeze-or font-semibold">
                       {fmt(r.gains_directs)}
-                      <span className="text-texte-secondaire font-normal"> ({r.taux_direct}%)</span>
+                      {r.taux_direct != null && <span className="text-texte-secondaire font-normal"> ({r.taux_direct}%)</span>}
                     </td>
                   </tr>
 
@@ -554,16 +556,20 @@ const DashboardStandard = ({ utilisateur }) => {
                         <p className="font-medium text-texte-principal text-xs">
                           {g.delegue.prenom} {g.delegue.nom}
                         </p>
-                        <p className="text-xs text-texte-secondaire">Commission reversée (revendeur 15% · vous {r.taux_indirect}%)</p>
+                        <p className="text-xs text-texte-secondaire">
+                          {r.taux_indirect != null
+                            ? `Commission reversée (revendeur 15% · vous ${r.taux_indirect}%)`
+                            : `Commission reversée (revendeur 15% · stockiste ${g.taux_commission - 15}%)`}
+                        </p>
                       </td>
                       <td className="px-4 py-2.5 text-right font-mono text-xs text-texte-secondaire">{fmt(g.ventes_mois)}</td>
                       <td className="px-4 py-2.5 text-right font-mono text-xs text-zeze-vert font-semibold hidden sm:table-cell">
                         {fmt(g.part_mapa_mois)}
-                        <span className="text-texte-secondaire font-normal"> ({r.taux_mapa}%)</span>
+                        {r.taux_mapa != null && <span className="text-texte-secondaire font-normal"> ({r.taux_mapa}%)</span>}
                       </td>
                       <td className="px-4 py-2.5 text-right font-mono text-xs text-zeze-or font-semibold">
                         {fmt(g.commission_stockiste_mois)}
-                        <span className="text-texte-secondaire font-normal"> ({r.taux_indirect}%)</span>
+                        {r.taux_indirect != null && <span className="text-texte-secondaire font-normal"> ({r.taux_indirect}%)</span>}
                       </td>
                     </tr>
                   ))}

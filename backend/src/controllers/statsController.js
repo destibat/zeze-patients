@@ -66,20 +66,40 @@ const obtenirStats = async (req, res) => {
     caMois += ventesDirectes.reduce((s, v) => s + (v.montant_total || 0), 0);
   }
 
-  // Pour les stockistes : retourner leur taux de commission et la répartition des ventes directes
+  // Pour les stockistes et l'admin : répartition financière du mois
   let repartition = null;
   if (req.utilisateur.role === 'stockiste') {
     const user = await User.findByPk(userId, { attributes: ['commission_rate'] });
     const tauxTotal = parseFloat(user?.commission_rate ?? 25);
-    const tauxMapa  = 100 - tauxTotal; // ex : 75%
+    const tauxMapa  = 100 - tauxTotal;
     repartition = {
-      taux_total:        tauxTotal,  // 25% — part totale du stockiste sur MAPA
-      taux_direct:       tauxTotal,  // 25% si stockiste vend lui-même
-      taux_indirect:     tauxTotal - 15, // 10% si vente par délégué
-      taux_mapa:         tauxMapa,   // 75%
+      taux_total:        tauxTotal,
+      taux_direct:       tauxTotal,
+      taux_indirect:     tauxTotal - 15,
+      taux_mapa:         tauxMapa,
       ca_direct:         caDirectMois,
       gains_directs:     Math.round(caDirectMois * tauxTotal / 100),
       part_mapa_direct:  Math.round(caDirectMois * tauxMapa / 100),
+    };
+  } else if (estAdmin) {
+    // Agrège les gains de tous les stockistes sur leurs consultations directes
+    const rows = await sequelize.query(
+      `SELECT
+         COALESCE(SUM(f.montant_paye * COALESCE(u.commission_rate, 0) / 100), 0) AS gains,
+         COALESCE(SUM(f.montant_paye * (100 - COALESCE(u.commission_rate, 0)) / 100), 0) AS mapa
+       FROM factures f
+       LEFT JOIN users u ON f.created_by = u.id AND u.role = 'stockiste'
+       WHERE f.date_facture >= :debut AND f.statut <> 'annulee'`,
+      { replacements: { debut: debutMois }, type: sequelize.QueryTypes.SELECT }
+    );
+    repartition = {
+      taux_total:        null,
+      taux_direct:       null,
+      taux_indirect:     null,
+      taux_mapa:         null,
+      ca_direct:         caDirectMois,
+      gains_directs:     Math.round(rows[0]?.gains || 0),
+      part_mapa_direct:  Math.round(rows[0]?.mapa || 0),
     };
   }
 
