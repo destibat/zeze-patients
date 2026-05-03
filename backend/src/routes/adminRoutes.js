@@ -22,8 +22,6 @@ router.post('/reset', asyncHandler(async (req, res) => {
       'factures_achat',
       'commandes_approvisionnement',
       'mouvements_delegue',
-      'stock_delegue',
-      'stock_mouvements',
       'factures',
       'ordonnances',
       'rendez_vous',
@@ -34,7 +32,8 @@ router.post('/reset', asyncHandler(async (req, res) => {
       await sequelize.query(`TRUNCATE TABLE \`${table}\``, { transaction: t });
     }
 
-    await sequelize.query('UPDATE produits SET quantite_stock = 0', { transaction: t });
+    // Remet le stock à 20 pour tous les produits actifs
+    await sequelize.query('UPDATE produits SET quantite_stock = 20 WHERE actif = 1', { transaction: t });
 
     await sequelize.query('SET FOREIGN_KEY_CHECKS = 1', { transaction: t });
   });
@@ -44,12 +43,11 @@ router.post('/reset', asyncHandler(async (req, res) => {
     message: 'Remise à zéro complète effectuée.',
     tables_videes: [
       'consultations', 'rendez_vous', 'ordonnances', 'factures',
-      'factures_achat', 'commandes_approvisionnement',
-      'mouvements_delegue', 'stock_delegue', 'stock_mouvements',
+      'factures_achat', 'commandes_approvisionnement', 'mouvements_delegue',
       'exercices', 'analyses_nfs', 'fichiers_patient', 'audit_logs',
     ],
-    reinitialise: ['produits.quantite_stock → 0'],
-    conserve: ['users', 'patients', 'produits (catalogue)', 'parametres_cabinet'],
+    reinitialise: ['produits actifs : quantite_stock → 20'],
+    conserve: ['users', 'patients', 'produits (catalogue)', 'stock_delegue', 'stock_mouvements', 'parametres_cabinet'],
   });
 }));
 

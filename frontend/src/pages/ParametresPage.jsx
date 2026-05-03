@@ -174,7 +174,7 @@ const ZoneDangereuse = () => {
         <AlertTriangle size={16} /> Zone dangereuse
       </h2>
 
-      {succes && <Alert type="succes" message="Remise à zéro complète effectuée. Consultations, ordonnances, factures, commissions, exercices supprimés. Stock remis à 0." />}
+      {succes && <Alert type="succes" message="Remise à zéro effectuée. Stock produits actifs remis à 20 unités." />}
       {erreur && <Alert type="erreur" message={erreur} />}
 
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -214,10 +214,10 @@ const ZoneDangereuse = () => {
                 <li>Consultations et rendez-vous</li>
                 <li>Ordonnances et factures de vente</li>
                 <li>Factures d'achat et commandes d'approvisionnement</li>
-                <li>Mouvements, commissions et stock délégués</li>
+                <li>Mouvements et commissions délégués</li>
                 <li>Exercices financiers</li>
                 <li>Analyses NFS et fichiers patients</li>
-                <li>Stock global remis à 0</li>
+                <li>Stock global → remis à 20 unités par produit actif</li>
               </ul>
             </div>
 

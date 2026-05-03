@@ -471,7 +471,7 @@ const DashboardStandard = ({ utilisateur }) => {
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           <CarteKPI
             titre="Ventes exercice"
-            valeur={exerciceData ? formatMontant(exerciceData.ca_accumule) : '…'}
+            valeur={exerciceData?.exercice ? formatMontant(exerciceData.ca_accumule ?? 0) : '—'}
             icone={TrendingUp}
             couleur="bg-slate-600"
             sous="CA cumulé depuis l'ouverture"
