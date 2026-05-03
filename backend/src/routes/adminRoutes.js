@@ -10,12 +10,15 @@ const router = express.Router();
 router.use(authentifier, autoriser('administrateur'));
 
 // POST /api/admin/reset
-// Supprime toutes les données transactionnelles sans toucher aux utilisateurs ni aux patients.
+// Remet tout à zéro. Conserve uniquement : users, patients, produits (catalogue), parametres_cabinet.
 router.post('/reset', asyncHandler(async (req, res) => {
   await sequelize.transaction(async (t) => {
     await sequelize.query('SET FOREIGN_KEY_CHECKS = 0', { transaction: t });
 
     const tables = [
+      'audit_logs',
+      'fichiers_patient',
+      'analyses_nfs',
       'factures_achat',
       'commandes_approvisionnement',
       'mouvements_delegue',
@@ -23,6 +26,9 @@ router.post('/reset', asyncHandler(async (req, res) => {
       'stock_mouvements',
       'factures',
       'ordonnances',
+      'rendez_vous',
+      'consultations',
+      'exercices',
     ];
     for (const table of tables) {
       await sequelize.query(`TRUNCATE TABLE \`${table}\``, { transaction: t });
@@ -35,10 +41,15 @@ router.post('/reset', asyncHandler(async (req, res) => {
 
   res.json({
     ok: true,
-    message: 'Remise à zéro effectuée.',
-    tables_videes: ['ordonnances', 'factures', 'factures_achat', 'commandes_approvisionnement', 'mouvements_delegue', 'stock_delegue', 'stock_mouvements'],
+    message: 'Remise à zéro complète effectuée.',
+    tables_videes: [
+      'consultations', 'rendez_vous', 'ordonnances', 'factures',
+      'factures_achat', 'commandes_approvisionnement',
+      'mouvements_delegue', 'stock_delegue', 'stock_mouvements',
+      'exercices', 'analyses_nfs', 'fichiers_patient', 'audit_logs',
+    ],
     reinitialise: ['produits.quantite_stock → 0'],
-    conserve: ['users', 'patients', 'consultations', 'rendez_vous', 'produits (catalogue)', 'parametres_cabinet'],
+    conserve: ['users', 'patients', 'produits (catalogue)', 'parametres_cabinet'],
   });
 }));
 

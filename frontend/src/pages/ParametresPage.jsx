@@ -174,16 +174,16 @@ const ZoneDangereuse = () => {
         <AlertTriangle size={16} /> Zone dangereuse
       </h2>
 
-      {succes && <Alert type="succes" message="Remise à zéro effectuée. Ordonnances, factures, achats et commissions supprimés. Stock remis à 0." />}
+      {succes && <Alert type="succes" message="Remise à zéro complète effectuée. Consultations, ordonnances, factures, commissions, exercices supprimés. Stock remis à 0." />}
       {erreur && <Alert type="erreur" message={erreur} />}
 
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <p className="text-sm font-medium text-texte-principal">Remettre les données à zéro</p>
           <p className="text-xs text-texte-secondaire mt-0.5">
-            Supprime toutes les ordonnances, factures, achats et commissions. Remet le stock à 0.
+            Supprime toutes les données de test. Remet le stock à 0.
             <br />
-            <span className="font-medium text-texte-principal">Conservé :</span> utilisateurs, patients, consultations, rendez-vous, catalogue produits.
+            <span className="font-medium text-texte-principal">Conservé :</span> utilisateurs, patients, catalogue produits.
           </p>
         </div>
         <Button
@@ -211,11 +211,13 @@ const ZoneDangereuse = () => {
             <div className="bg-red-50 border border-red-200 rounded-bouton p-3 text-xs text-red-700 space-y-1">
               <p className="font-semibold">Seront supprimés :</p>
               <ul className="list-disc list-inside space-y-0.5">
-                <li>Toutes les ordonnances</li>
-                <li>Toutes les factures de vente et d'achat</li>
-                <li>Toutes les commandes d'approvisionnement</li>
-                <li>Tous les mouvements et commissions délégués</li>
-                <li>Tout le stock délégués + stock global remis à 0</li>
+                <li>Consultations et rendez-vous</li>
+                <li>Ordonnances et factures de vente</li>
+                <li>Factures d'achat et commandes d'approvisionnement</li>
+                <li>Mouvements, commissions et stock délégués</li>
+                <li>Exercices financiers</li>
+                <li>Analyses NFS et fichiers patients</li>
+                <li>Stock global remis à 0</li>
               </ul>
             </div>
 
