@@ -47,6 +47,36 @@ export const useSupprimerBrouillon = () => {
   });
 };
 
+export const useCommandeApproParId = (id) =>
+  useQuery({
+    queryKey: [CLE, id],
+    queryFn: () => api.get(`/commandes-appro/${id}`).then((r) => r.data),
+    enabled: !!id,
+  });
+
+export const useMettreAJourLignesParId = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, lignes }) => api.put(`/commandes-appro/${id}/lignes`, { lignes }).then((r) => r.data),
+    onSuccess: (_, { id }) => {
+      qc.invalidateQueries({ queryKey: [CLE, id] });
+      qc.invalidateQueries({ queryKey: [CLE] });
+    },
+  });
+};
+
+export const useEnvoyerCommandeParId = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, notes_revendeur }) =>
+      api.post(`/commandes-appro/${id}/envoyer`, { notes_revendeur }).then((r) => r.data),
+    onSuccess: (_, { id }) => {
+      qc.invalidateQueries({ queryKey: [CLE, id] });
+      qc.invalidateQueries({ queryKey: [CLE] });
+    },
+  });
+};
+
 export const useValiderCommande = () => {
   const qc = useQueryClient();
   return useMutation({

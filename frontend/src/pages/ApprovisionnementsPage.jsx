@@ -4,6 +4,7 @@ import { useProduits } from '../hooks/useProduits';
 import {
   useBrouillon, useCommandesAppro, useMettreAJourLignes,
   useEnvoyerCommande, useSupprimerBrouillon, useValiderCommande, useRefuserCommande,
+  useMettreAJourLignesParId, useEnvoyerCommandeParId,
 } from '../hooks/useCommandesAppro';
 import { useMarquerEnvoye, useMarquerPaye } from '../hooks/useFacturesAchat';
 import Button from '../components/ui/Button';
@@ -212,6 +213,118 @@ const PAIEMENT_CFG = {
   paye:       { label: 'Paiement confirmé', couleur: 'bg-green-50 text-green-700' },
 };
 
+// ── Brouillon auto-généré depuis une ordonnance ───────────────────────────────
+const CarteBrouillonAuto = ({ commande }) => {
+  const mettreAJour = useMettreAJourLignesParId();
+  const envoyer     = useEnvoyerCommandeParId();
+  const [lignes, setLignes]   = useState(Array.isArray(commande.lignes) ? commande.lignes : []);
+  const [notes, setNotes]     = useState('');
+  const [erreur, setErreur]   = useState('');
+  const [succes, setSucces]   = useState(false);
+
+  const total = lignes.reduce((s, l) => s + l.prix_unitaire * l.quantite, 0);
+
+  const sauvegarder = (nouvelles) => {
+    setLignes(nouvelles);
+    mettreAJour.mutate({ id: commande.id, lignes: nouvelles }, {
+      onError: (e) => {
+        setLignes(lignes);
+        setErreur(e?.response?.data?.message || 'Erreur lors de la mise à jour');
+      },
+    });
+  };
+
+  const modifierQte = (idx, val) => {
+    const qte = Math.max(1, parseInt(val) || 1);
+    sauvegarder(lignes.map((l, i) => i === idx ? { ...l, quantite: qte } : l));
+  };
+
+  const retirerLigne = (idx) => sauvegarder(lignes.filter((_, i) => i !== idx));
+
+  const handleEnvoyer = async () => {
+    if (lignes.length === 0) { setErreur('La commande est vide.'); return; }
+    setErreur('');
+    try {
+      await envoyer.mutateAsync({ id: commande.id, notes_revendeur: notes || null });
+      setSucces(true);
+    } catch (e) {
+      setErreur(e?.response?.data?.message || 'Erreur lors de l\'envoi');
+    }
+  };
+
+  if (succes) return null;
+
+  return (
+    <div className="carte border-l-4 border-l-blue-400 space-y-3">
+      <div className="flex items-start justify-between">
+        <div>
+          <p className="text-sm font-semibold text-texte-principal flex items-center gap-2">
+            <Package size={14} className="text-blue-500" /> Réapprovisionnement requis
+          </p>
+          <p className="text-xs text-texte-secondaire mt-0.5">
+            Produits manquants lors de la création d'ordonnance · à envoyer au stockiste
+          </p>
+        </div>
+        <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium">Brouillon</span>
+      </div>
+
+      {erreur && <Alert type="erreur" message={erreur} />}
+
+      <div className="border border-bordure rounded-carte overflow-hidden">
+        <table className="w-full text-sm">
+          <thead className="bg-fond-secondaire">
+            <tr>
+              <th className="text-left px-3 py-2 text-xs font-semibold text-texte-secondaire">Produit</th>
+              <th className="text-center px-2 py-2 text-xs font-semibold text-texte-secondaire w-24">Quantité</th>
+              <th className="text-right px-2 py-2 text-xs font-semibold text-texte-secondaire hidden sm:table-cell">Prix unit.</th>
+              <th className="text-right px-2 py-2 text-xs font-semibold text-texte-secondaire">Sous-total</th>
+              <th className="w-8" />
+            </tr>
+          </thead>
+          <tbody>
+            {lignes.map((l, idx) => (
+              <tr key={idx} className="border-t border-bordure">
+                <td className="px-3 py-2 text-xs font-medium text-texte-principal">{l.nom_produit}</td>
+                <td className="px-2 py-2 text-center">
+                  <input
+                    type="number" min={1} value={l.quantite}
+                    onChange={(e) => modifierQte(idx, e.target.value)}
+                    className="w-16 text-center text-xs border border-bordure rounded px-1 py-0.5"
+                  />
+                </td>
+                <td className="px-2 py-2 text-right text-xs font-mono text-texte-secondaire hidden sm:table-cell">{formatMontant(l.prix_unitaire)}</td>
+                <td className="px-2 py-2 text-right text-xs font-mono font-semibold">{formatMontant(l.prix_unitaire * l.quantite)}</td>
+                <td className="px-1 py-2 text-center">
+                  <button onClick={() => retirerLigne(idx)} className="text-texte-secondaire hover:text-medical-critique">
+                    <X size={14} />
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+          <tfoot className="bg-fond-secondaire border-t-2 border-bordure">
+            <tr>
+              <td colSpan={3} className="px-3 py-2 text-xs font-bold text-texte-secondaire text-right">TOTAL</td>
+              <td className="px-2 py-2 text-right text-sm font-bold text-texte-principal font-mono">{formatMontant(total)}</td>
+              <td />
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+
+      <div className="space-y-2">
+        <input
+          type="text" value={notes} onChange={(e) => setNotes(e.target.value)}
+          className="champ-input text-sm" placeholder="Note pour le stockiste (optionnel)"
+        />
+        <Button variante="primaire" icone={Send} chargement={envoyer.isPending} onClick={handleEnvoyer}>
+          Confirmer et envoyer au stockiste
+        </Button>
+      </div>
+    </div>
+  );
+};
+
 // ── Carte commande (historique) ───────────────────────────────────────────────
 const CarteCommande = ({ commande, estStockiste, estDelegue }) => {
   const cfg  = STATUT_CFG[commande.statut] || STATUT_CFG.en_attente;
@@ -394,6 +507,7 @@ const ApprovisionnementsPage = () => {
   const { data: produits = [] } = useProduits({ actif: 'actif' });
   const { data: commandes = [], isLoading } = useCommandesAppro();
 
+  const brouillonsAuto     = commandes.filter((c) => c.statut === 'brouillon' && c.ordonnance_id);
   const commandesEnAttente = commandes.filter((c) => c.statut === 'en_attente');
   const historique         = commandes.filter((c) => ['validee', 'refusee'].includes(c.statut));
 
@@ -408,6 +522,22 @@ const ApprovisionnementsPage = () => {
 
       {/* Brouillon éditable — revendeur uniquement */}
       {estDelegue && <BrouillonEditeur produits={produits} />}
+
+      {/* Brouillons auto-générés depuis ordonnances — revendeur uniquement */}
+      {estDelegue && brouillonsAuto.length > 0 && (
+        <div className="space-y-3">
+          <h2 className="text-sm font-semibold text-texte-principal flex items-center gap-2">
+            <Package size={14} className="text-blue-500" />
+            À envoyer au stockiste
+            <span className="bg-blue-100 text-blue-800 text-xs px-1.5 py-0.5 rounded-full font-bold">
+              {brouillonsAuto.length}
+            </span>
+          </h2>
+          {brouillonsAuto.map((c) => (
+            <CarteBrouillonAuto key={c.id} commande={c} />
+          ))}
+        </div>
+      )}
 
       {isLoading && (
         <div className="flex justify-center py-12">

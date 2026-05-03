@@ -23,7 +23,7 @@ const obtenirBrouillon = async (req, res) => {
   }
 
   let brouillon = await CommandeApprovisionnement.findOne({
-    where: { revendeur_id, statut: 'brouillon' },
+    where: { revendeur_id, statut: 'brouillon', ordonnance_id: null },
     include: includeParties,
   });
 
@@ -45,7 +45,7 @@ const mettreAJourLignes = async (req, res) => {
   const { lignes = [] } = req.body;
 
   const brouillon = await CommandeApprovisionnement.findOne({
-    where: { revendeur_id: req.utilisateur.id, statut: 'brouillon' },
+    where: { revendeur_id: req.utilisateur.id, statut: 'brouillon', ordonnance_id: null },
   });
   if (!brouillon) return res.status(404).json({ message: 'Aucun brouillon en cours.' });
 
@@ -58,7 +58,7 @@ const mettreAJourLignes = async (req, res) => {
 // ── Revendeur : envoyer la commande au stockiste ──────────────────────────────
 const envoyer = async (req, res) => {
   const brouillon = await CommandeApprovisionnement.findOne({
-    where: { revendeur_id: req.utilisateur.id, statut: 'brouillon' },
+    where: { revendeur_id: req.utilisateur.id, statut: 'brouillon', ordonnance_id: null },
     include: includeParties,
   });
   if (!brouillon) return res.status(404).json({ message: 'Aucun brouillon en cours.' });
@@ -80,7 +80,7 @@ const envoyer = async (req, res) => {
 // ── Revendeur : supprimer son brouillon ───────────────────────────────────────
 const supprimerBrouillon = async (req, res) => {
   const brouillon = await CommandeApprovisionnement.findOne({
-    where: { revendeur_id: req.utilisateur.id, statut: 'brouillon' },
+    where: { revendeur_id: req.utilisateur.id, statut: 'brouillon', ordonnance_id: null },
   });
   if (!brouillon) return res.status(404).json({ message: 'Aucun brouillon à supprimer.' });
 
@@ -226,4 +226,51 @@ const refuser = async (req, res) => {
   res.json(commande);
 };
 
-module.exports = { obtenirBrouillon, mettreAJourLignes, envoyer, supprimerBrouillon, lister, valider, refuser };
+// ── Obtenir une commande par son ID (revendeur concerné ou stockiste/admin) ────
+const obtenirParId = async (req, res) => {
+  const commande = await CommandeApprovisionnement.findByPk(req.params.id, { include: includeParties });
+  if (!commande) return res.status(404).json({ message: 'Commande introuvable.' });
+
+  const { id, role } = req.utilisateur;
+  if (role === 'delegue' && commande.revendeur_id !== id) return res.status(403).json({ message: 'Accès refusé.' });
+  if (role === 'stockiste' && commande.stockiste_id !== id) return res.status(403).json({ message: 'Accès refusé.' });
+
+  res.json(commande);
+};
+
+// ── Revendeur : modifier les lignes d'un brouillon auto-généré par ID ─────────
+const mettreAJourLignesParId = async (req, res) => {
+  const { lignes = [] } = req.body;
+  const commande = await CommandeApprovisionnement.findByPk(req.params.id);
+  if (!commande) return res.status(404).json({ message: 'Commande introuvable.' });
+  if (commande.revendeur_id !== req.utilisateur.id) return res.status(403).json({ message: 'Accès refusé.' });
+  if (commande.statut !== 'brouillon') return res.status(409).json({ message: 'Seul un brouillon peut être modifié.' });
+
+  const montant_total = lignes.reduce((s, l) => s + (l.prix_unitaire * l.quantite), 0);
+  await commande.update({ lignes, montant_total });
+  res.json(commande);
+};
+
+// ── Revendeur : envoyer un brouillon auto-généré par ID ───────────────────────
+const envoyerParId = async (req, res) => {
+  const commande = await CommandeApprovisionnement.findByPk(req.params.id, { include: includeParties });
+  if (!commande) return res.status(404).json({ message: 'Commande introuvable.' });
+  if (commande.revendeur_id !== req.utilisateur.id) return res.status(403).json({ message: 'Accès refusé.' });
+  if (commande.statut !== 'brouillon') return res.status(409).json({ message: 'Cette commande a déjà été envoyée.' });
+
+  const lignes = Array.isArray(commande.lignes) ? commande.lignes : [];
+  if (lignes.length === 0) return res.status(400).json({ message: 'La commande est vide.' });
+
+  await commande.update({
+    statut:          'en_attente',
+    date_commande:   new Date().toISOString().split('T')[0],
+    notes_revendeur: req.body.notes_revendeur || null,
+  });
+  res.json(commande);
+};
+
+module.exports = {
+  obtenirBrouillon, mettreAJourLignes, envoyer, supprimerBrouillon,
+  lister, valider, refuser,
+  obtenirParId, mettreAJourLignesParId, envoyerParId,
+};

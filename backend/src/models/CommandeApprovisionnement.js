@@ -29,6 +29,7 @@ module.exports = (sequelize) => {
     notes_stockiste: { type: DataTypes.STRING(500), allowNull: true },
     date_commande:   { type: DataTypes.DATEONLY, allowNull: true },
     date_validation: { type: DataTypes.DATEONLY, allowNull: true },
+    ordonnance_id:   { type: DataTypes.UUID, allowNull: true },
   }, {
     tableName: 'commandes_approvisionnement',
     underscored: true,
@@ -38,6 +39,7 @@ module.exports = (sequelize) => {
     CommandeApprovisionnement.belongsTo(models.User, { foreignKey: 'revendeur_id', as: 'revendeur' });
     CommandeApprovisionnement.belongsTo(models.User, { foreignKey: 'stockiste_id', as: 'stockiste' });
     CommandeApprovisionnement.hasOne(models.FactureAchat, { foreignKey: 'commande_id', as: 'facture' });
+    CommandeApprovisionnement.belongsTo(models.Ordonnance, { foreignKey: 'ordonnance_id', as: 'ordonnance' });
   };
 
   return CommandeApprovisionnement;

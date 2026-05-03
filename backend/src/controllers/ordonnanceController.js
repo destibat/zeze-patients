@@ -1,6 +1,6 @@
 'use strict';
 
-const { Ordonnance, Consultation, Patient, User, StockDelegue, Facture, Produit, sequelize } = require('../models');
+const { Ordonnance, Consultation, Patient, User, StockDelegue, Facture, Produit, CommandeApprovisionnement, sequelize } = require('../models');
 const { genererNumeroOrdonnance } = require('../services/numeroOrdonnanceService');
 const { getPosologie } = require('../services/posologieService');
 const pdfService = require('../services/pdfService');
@@ -50,20 +50,8 @@ const creer = async (req, res) => {
   const transaction = await sequelize.transaction();
 
   try {
-    if (req.utilisateur.role === 'delegue') {
-      for (const ligne of lignes.filter((l) => l.source === 'stock')) {
-        const item = await StockDelegue.findOne({
-          where: { delegue_id: req.utilisateur.id, produit_id: ligne.produit_id },
-          transaction,
-          lock: true,
-        });
-        if (!item || item.quantite < ligne.quantite) {
-          await transaction.rollback();
-          return res.status(422).json({ message: `Stock insuffisant pour ${ligne.nom_produit}` });
-        }
-        await item.decrement('quantite', { by: ligne.quantite, transaction });
-      }
-    } else if (['stockiste', 'administrateur'].includes(req.utilisateur.role)) {
+    // Vérification stock stockiste/admin avant création
+    if (['stockiste', 'administrateur'].includes(req.utilisateur.role)) {
       for (const ligne of lignes.filter((l) => l.produit_id)) {
         const produit = await Produit.findByPk(ligne.produit_id, { transaction, lock: true });
         if (!produit || produit.quantite_stock < ligne.quantite) {
@@ -96,8 +84,44 @@ const creer = async (req, res) => {
       statut: 'brouillon',
     }, { transaction });
 
+    // Délégué : décrément stock dispo + commande appro auto pour les manquants
+    let commandeApproId = null;
+    if (req.utilisateur.role === 'delegue') {
+      const manquants = [];
+      for (const ligne of lignes.filter((l) => l.produit_id)) {
+        const item = await StockDelegue.findOne({
+          where: { delegue_id: req.utilisateur.id, produit_id: ligne.produit_id },
+          transaction,
+          lock: true,
+        });
+        const dispo = item?.quantite ?? 0;
+        if (dispo >= ligne.quantite) {
+          await item.decrement('quantite', { by: ligne.quantite, transaction });
+        } else {
+          if (dispo > 0) await item.decrement('quantite', { by: dispo, transaction });
+          manquants.push({ ...ligne, quantite: ligne.quantite - dispo });
+        }
+      }
+
+      if (manquants.length > 0) {
+        const delegue = await User.findByPk(req.utilisateur.id, { attributes: ['stockiste_id'], transaction });
+        if (delegue?.stockiste_id) {
+          const montantManquants = manquants.reduce((s, l) => s + l.prix_unitaire * l.quantite, 0);
+          const commande = await CommandeApprovisionnement.create({
+            revendeur_id:  req.utilisateur.id,
+            stockiste_id:  delegue.stockiste_id,
+            ordonnance_id: ordonnance.id,
+            lignes:        manquants,
+            montant_total: montantManquants,
+            statut:        'brouillon',
+          }, { transaction });
+          commandeApproId = commande.id;
+        }
+      }
+    }
+
     await transaction.commit();
-    res.status(201).json(ordonnance);
+    res.status(201).json({ ...ordonnance.toJSON(), commande_appro_id: commandeApproId });
   } catch (e) {
     await transaction.rollback();
     throw e;
