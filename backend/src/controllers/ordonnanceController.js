@@ -1,6 +1,6 @@
 'use strict';
 
-const { Ordonnance, Consultation, Patient, User, StockDelegue, Facture, sequelize } = require('../models');
+const { Ordonnance, Consultation, Patient, User, StockDelegue, Facture, Produit, sequelize } = require('../models');
 const { genererNumeroOrdonnance } = require('../services/numeroOrdonnanceService');
 const { getPosologie } = require('../services/posologieService');
 const pdfService = require('../services/pdfService');
@@ -62,6 +62,15 @@ const creer = async (req, res) => {
           return res.status(422).json({ message: `Stock insuffisant pour ${ligne.nom_produit}` });
         }
         await item.decrement('quantite', { by: ligne.quantite, transaction });
+      }
+    } else if (['stockiste', 'administrateur'].includes(req.utilisateur.role)) {
+      for (const ligne of lignes.filter((l) => l.source === 'stock')) {
+        const produit = await Produit.findByPk(ligne.produit_id, { transaction, lock: true });
+        if (!produit || produit.quantite_stock < ligne.quantite) {
+          await transaction.rollback();
+          return res.status(422).json({ message: `Stock insuffisant pour ${ligne.nom_produit}` });
+        }
+        await produit.decrement('quantite_stock', { by: ligne.quantite, transaction });
       }
     }
 
