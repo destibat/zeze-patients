@@ -69,15 +69,14 @@ const obtenirStats = async (req, res) => {
 
   // Pour les stockistes et l'admin : inclure les factures d'achat (commandes appro) dans le CA
   if (['stockiste', 'administrateur'].includes(req.utilisateur.role)) {
-    const facturesAchat = await FactureAchat.findAll({
-      where: {
-        createdAt: { [Op.gte]: debutMoisStr },
-        ...(estAdmin ? {} : { stockiste_id: userId }),
-      },
-      attributes: ['montant_total'],
-      raw: true,
-    });
-    caMois += facturesAchat.reduce((s, f) => s + (f.montant_total || 0), 0);
+    const filtreStockiste = estAdmin ? '' : 'AND stockiste_id = :stockisteId';
+    const rowsFA = await sequelize.query(
+      `SELECT COALESCE(SUM(montant_total), 0) AS total
+       FROM factures_achat
+       WHERE created_at >= :debut ${filtreStockiste}`,
+      { replacements: { debut: debutMoisStr, stockisteId: userId }, type: sequelize.QueryTypes.SELECT }
+    );
+    caMois += parseInt(rowsFA[0]?.total || 0);
   }
 
   // Pour les stockistes et l'admin : répartition financière du mois
