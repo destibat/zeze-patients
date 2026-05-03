@@ -214,7 +214,7 @@ const ZoneDangereuse = () => {
                 <li>Consultations et rendez-vous</li>
                 <li>Ordonnances et factures de vente</li>
                 <li>Factures d'achat et commandes d'approvisionnement</li>
-                <li>Mouvements et commissions délégués</li>
+                <li>Mouvements, commissions et stock délégués → 0</li>
                 <li>Exercices financiers</li>
                 <li>Analyses NFS et fichiers patients</li>
                 <li>Stock global → remis à 20 unités par produit actif</li>

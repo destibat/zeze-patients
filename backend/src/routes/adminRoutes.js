@@ -22,6 +22,7 @@ router.post('/reset', asyncHandler(async (req, res) => {
       'factures_achat',
       'commandes_approvisionnement',
       'mouvements_delegue',
+      'stock_delegue',
       'factures',
       'ordonnances',
       'rendez_vous',
@@ -46,8 +47,8 @@ router.post('/reset', asyncHandler(async (req, res) => {
       'factures_achat', 'commandes_approvisionnement', 'mouvements_delegue',
       'exercices', 'analyses_nfs', 'fichiers_patient', 'audit_logs',
     ],
-    reinitialise: ['produits actifs : quantite_stock → 20'],
-    conserve: ['users', 'patients', 'produits (catalogue)', 'stock_delegue', 'stock_mouvements', 'parametres_cabinet'],
+    reinitialise: ['produits actifs : quantite_stock → 20', 'stock_delegue → vidé'],
+    conserve: ['users', 'patients', 'produits (catalogue)', 'stock_mouvements', 'parametres_cabinet'],
   });
 }));
 
