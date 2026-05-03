@@ -170,6 +170,7 @@ const valider = async (req, res) => {
       await MouvementDelegue.create({
         delegue_id:           commande.revendeur_id,
         type:                 'achat',
+        statut:               'valide',
         produit_id:           ligne.produit_id,
         quantite:             ligne.quantite,
         montant_total:        montant_ligne,

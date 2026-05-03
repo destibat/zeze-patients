@@ -64,7 +64,7 @@ const creer = async (req, res) => {
         await item.decrement('quantite', { by: ligne.quantite, transaction });
       }
     } else if (['stockiste', 'administrateur'].includes(req.utilisateur.role)) {
-      for (const ligne of lignes.filter((l) => l.source === 'stock')) {
+      for (const ligne of lignes.filter((l) => l.produit_id)) {
         const produit = await Produit.findByPk(ligne.produit_id, { transaction, lock: true });
         if (!produit || produit.quantite_stock < ligne.quantite) {
           await transaction.rollback();

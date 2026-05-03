@@ -11,7 +11,7 @@ module.exports = (sequelize) => {
     stockiste_id: { type: DataTypes.UUID, allowNull: false },
     montant_total: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
     statut_paiement: {
-      type: DataTypes.ENUM('en_attente', 'paye'),
+      type: DataTypes.ENUM('en_attente', 'envoye', 'paye'),
       allowNull: false,
       defaultValue: 'en_attente',
     },

@@ -5,9 +5,10 @@ import {
   useBrouillon, useCommandesAppro, useMettreAJourLignes,
   useEnvoyerCommande, useSupprimerBrouillon, useValiderCommande, useRefuserCommande,
 } from '../hooks/useCommandesAppro';
+import { useMarquerEnvoye, useMarquerPaye } from '../hooks/useFacturesAchat';
 import Button from '../components/ui/Button';
 import Alert from '../components/ui/Alert';
-import { ShoppingCart, Plus, X, Send, Check, Package, Clock, CheckCircle, XCircle, Trash2 } from 'lucide-react';
+import { ShoppingCart, Plus, X, Send, Check, Package, Clock, CheckCircle, XCircle, Trash2, Banknote } from 'lucide-react';
 
 const formatMontant = (n) => new Intl.NumberFormat('fr-FR').format(n || 0) + ' FCFA';
 
@@ -205,16 +206,25 @@ const BrouillonEditeur = ({ produits }) => {
   );
 };
 
+const PAIEMENT_CFG = {
+  en_attente: { label: 'En attente de paiement', couleur: 'bg-yellow-50 text-yellow-700' },
+  envoye:     { label: 'Paiement envoyé — en attente de confirmation', couleur: 'bg-blue-50 text-blue-700' },
+  paye:       { label: 'Paiement confirmé', couleur: 'bg-green-50 text-green-700' },
+};
+
 // ── Carte commande (historique) ───────────────────────────────────────────────
-const CarteCommande = ({ commande, estStockiste }) => {
+const CarteCommande = ({ commande, estStockiste, estDelegue }) => {
   const cfg  = STATUT_CFG[commande.statut] || STATUT_CFG.en_attente;
   const Icone = cfg.icone;
   const lignes = Array.isArray(commande.lignes) ? commande.lignes : [];
-  const valider = useValiderCommande();
-  const refuser = useRefuserCommande();
-  const [notes, setNotes]   = useState('');
-  const [erreur, setErreur] = useState('');
-  const [ouverte, setOuverte] = useState(commande.statut === 'en_attente');
+  const valider       = useValiderCommande();
+  const refuser       = useRefuserCommande();
+  const marquerEnvoye = useMarquerEnvoye();
+  const marquerPaye   = useMarquerPaye();
+  const [notes, setNotes]         = useState('');
+  const [modePaiement, setMode]   = useState('especes');
+  const [erreur, setErreur]       = useState('');
+  const [ouverte, setOuverte]     = useState(commande.statut === 'en_attente');
 
   const handleValider = async () => {
     setErreur('');
@@ -287,18 +297,11 @@ const CarteCommande = ({ commande, estStockiste }) => {
             </table>
           </div>
 
-          {/* Infos paiement si validée */}
-          {commande.statut === 'validee' && commande.facture && (
-            <div className={`text-xs px-3 py-2 rounded-bouton ${commande.facture.statut_paiement === 'paye' ? 'bg-green-50 text-green-700' : 'bg-yellow-50 text-yellow-700'}`}>
-              Facture : {commande.facture.statut_paiement === 'paye' ? 'Payée' : 'En attente de paiement'}
-            </div>
-          )}
-
           {commande.notes_stockiste && (
             <p className="text-xs text-texte-secondaire italic">Note stockiste : {commande.notes_stockiste}</p>
           )}
 
-          {/* Actions stockiste */}
+          {/* Actions stockiste : valider/refuser */}
           {estStockiste && commande.statut === 'en_attente' && (
             <div className="space-y-2 pt-1 border-t border-bordure">
               <div>
@@ -318,6 +321,64 @@ const CarteCommande = ({ commande, estStockiste }) => {
               </div>
             </div>
           )}
+
+          {/* Statut paiement + actions */}
+          {commande.statut === 'validee' && commande.facture && (() => {
+            const sp = commande.facture.statut_paiement;
+            const cfgP = PAIEMENT_CFG[sp] || PAIEMENT_CFG.en_attente;
+            return (
+              <div className="pt-2 border-t border-bordure space-y-2">
+                <div className={`text-xs px-3 py-2 rounded-bouton ${cfgP.couleur}`}>
+                  {cfgP.label}
+                </div>
+
+                {/* Revendeur : envoyer le paiement */}
+                {estDelegue && sp === 'en_attente' && (
+                  <div className="space-y-1">
+                    <select
+                      value={modePaiement}
+                      onChange={(e) => setMode(e.target.value)}
+                      className="champ-input text-sm"
+                    >
+                      <option value="especes">Espèces</option>
+                      <option value="mobile_money">Mobile Money</option>
+                      <option value="virement">Virement</option>
+                    </select>
+                    <Button
+                      variante="primaire" icone={Banknote}
+                      chargement={marquerEnvoye.isPending}
+                      onClick={async () => {
+                        try {
+                          await marquerEnvoye.mutateAsync({ id: commande.facture.id, mode_paiement: modePaiement });
+                        } catch (e) {
+                          setErreur(e?.response?.data?.message || 'Erreur');
+                        }
+                      }}
+                    >
+                      Marquer paiement envoyé
+                    </Button>
+                  </div>
+                )}
+
+                {/* Stockiste : confirmer réception */}
+                {estStockiste && sp === 'envoye' && (
+                  <Button
+                    variante="primaire" icone={Check}
+                    chargement={marquerPaye.isPending}
+                    onClick={async () => {
+                      try {
+                        await marquerPaye.mutateAsync({ id: commande.facture.id });
+                      } catch (e) {
+                        setErreur(e?.response?.data?.message || 'Erreur');
+                      }
+                    }}
+                  >
+                    Confirmer réception du paiement
+                  </Button>
+                )}
+              </div>
+            );
+          })()}
         </div>
       )}
     </div>
@@ -365,7 +426,7 @@ const ApprovisionnementsPage = () => {
             </span>
           </h2>
           {commandesEnAttente.map((c) => (
-            <CarteCommande key={c.id} commande={c} estStockiste={estStockiste} />
+            <CarteCommande key={c.id} commande={c} estStockiste={estStockiste} estDelegue={estDelegue} />
           ))}
         </div>
       )}
@@ -377,7 +438,7 @@ const ApprovisionnementsPage = () => {
             <CheckCircle size={14} className="text-texte-secondaire" /> Historique
           </h2>
           {historique.map((c) => (
-            <CarteCommande key={c.id} commande={c} estStockiste={estStockiste} />
+            <CarteCommande key={c.id} commande={c} estStockiste={estStockiste} estDelegue={estDelegue} />
           ))}
         </div>
       )}
