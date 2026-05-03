@@ -50,15 +50,14 @@ const creer = async (req, res) => {
   const transaction = await sequelize.transaction();
 
   try {
-    // Vérification stock stockiste/admin avant création
+    // Stockiste/admin : décrémenter le stock disponible (sans bloquer si insuffisant)
     if (['stockiste', 'administrateur'].includes(req.utilisateur.role)) {
       for (const ligne of lignes.filter((l) => l.produit_id)) {
         const produit = await Produit.findByPk(ligne.produit_id, { transaction, lock: true });
-        if (!produit || produit.quantite_stock < ligne.quantite) {
-          await transaction.rollback();
-          return res.status(422).json({ message: `Stock insuffisant pour ${ligne.nom_produit}` });
+        if (produit && produit.quantite_stock > 0) {
+          const aDecrementer = Math.min(produit.quantite_stock, ligne.quantite);
+          await produit.decrement('quantite_stock', { by: aDecrementer, transaction });
         }
-        await produit.decrement('quantite_stock', { by: ligne.quantite, transaction });
       }
     }
 
