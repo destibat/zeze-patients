@@ -31,6 +31,7 @@ router.use('/parametres', require('./parametreRoutes'));
 router.use('/exercices', require('./exerciceRoutes'));
 router.get('/stats', authentifier, asyncHandler(obtenirStats));
 router.get('/stats/detaillees', authentifier, asyncHandler(obtenirStatsDetaillees));
+router.use('/admin', require('./adminRoutes'));
 
 // Routes de développement — jamais chargées en production
 if (process.env.NODE_ENV === 'development') {

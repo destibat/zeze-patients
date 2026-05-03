@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '../services/api';
 import Alert from '../components/ui/Alert';
 import Button from '../components/ui/Button';
-import { User, Lock, Building2, Save, Percent, Eye, EyeOff, Store, Pencil, X, Check, ImageUp, FileImage, Upload } from 'lucide-react';
+import { User, Lock, Building2, Save, Percent, Eye, EyeOff, Store, Pencil, X, Check, ImageUp, FileImage, Upload, AlertTriangle, RotateCcw } from 'lucide-react';
 
 const Section = ({ titre, icone: Icone, children }) => (
   <div className="carte space-y-4">
@@ -140,6 +140,122 @@ const SectionImagesOrdonnance = () => {
         Envoyer les images
       </Button>
     </Section>
+  );
+};
+
+const ZoneDangereuse = () => {
+  const qc = useQueryClient();
+  const [confirmation, setConfirmation] = useState('');
+  const [ouvert, setOuvert]             = useState(false);
+  const [succes, setSucces]             = useState(false);
+  const [erreur, setErreur]             = useState('');
+  const [chargement, setChargement]     = useState(false);
+
+  const handleReset = async () => {
+    if (confirmation !== 'RESET') return;
+    setChargement(true);
+    setErreur('');
+    try {
+      await api.post('/admin/reset');
+      qc.invalidateQueries();
+      setSucces(true);
+      setOuvert(false);
+      setConfirmation('');
+    } catch (e) {
+      setErreur(e?.response?.data?.message || 'Erreur lors de la remise à zéro');
+    } finally {
+      setChargement(false);
+    }
+  };
+
+  return (
+    <div className="carte border border-red-200 bg-red-50 space-y-4">
+      <h2 className="text-base font-titres font-semibold text-red-700 flex items-center gap-2">
+        <AlertTriangle size={16} /> Zone dangereuse
+      </h2>
+
+      {succes && <Alert type="succes" message="Remise à zéro effectuée. Ordonnances, factures, achats et commissions supprimés. Stock remis à 0." />}
+      {erreur && <Alert type="erreur" message={erreur} />}
+
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <p className="text-sm font-medium text-texte-principal">Remettre les données à zéro</p>
+          <p className="text-xs text-texte-secondaire mt-0.5">
+            Supprime toutes les ordonnances, factures, achats et commissions. Remet le stock à 0.
+            <br />
+            <span className="font-medium text-texte-principal">Conservé :</span> utilisateurs, patients, consultations, rendez-vous, catalogue produits.
+          </p>
+        </div>
+        <Button
+          variante="danger"
+          icone={RotateCcw}
+          onClick={() => { setOuvert(true); setSucces(false); }}
+        >
+          Remettre à zéro
+        </Button>
+      </div>
+
+      {ouvert && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
+          <div className="bg-fond-principal rounded-carte shadow-xl w-full max-w-md space-y-4 p-6">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
+                <AlertTriangle size={20} className="text-red-600" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-texte-principal">Confirmer la remise à zéro</h3>
+                <p className="text-xs text-texte-secondaire">Cette action est irréversible.</p>
+              </div>
+            </div>
+
+            <div className="bg-red-50 border border-red-200 rounded-bouton p-3 text-xs text-red-700 space-y-1">
+              <p className="font-semibold">Seront supprimés :</p>
+              <ul className="list-disc list-inside space-y-0.5">
+                <li>Toutes les ordonnances</li>
+                <li>Toutes les factures de vente et d'achat</li>
+                <li>Toutes les commandes d'approvisionnement</li>
+                <li>Tous les mouvements et commissions délégués</li>
+                <li>Tout le stock délégués + stock global remis à 0</li>
+              </ul>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-texte-principal mb-1">
+                Tapez <span className="font-mono font-bold text-red-600">RESET</span> pour confirmer
+              </label>
+              <input
+                type="text"
+                value={confirmation}
+                onChange={(e) => setConfirmation(e.target.value)}
+                className="champ-input font-mono"
+                placeholder="RESET"
+                autoFocus
+              />
+            </div>
+
+            <div className="flex gap-2 justify-end">
+              <Button
+                variante="fantome"
+                icone={X}
+                onClick={() => { setOuvert(false); setConfirmation(''); }}
+                disabled={chargement}
+              >
+                Annuler
+              </Button>
+              <Button
+                variante="danger"
+                icone={RotateCcw}
+                onClick={handleReset}
+                chargement={chargement}
+                disabled={confirmation !== 'RESET' || chargement}
+              >
+                Remettre à zéro
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
   );
 };
 
@@ -429,6 +545,9 @@ const ParametresPage = () => {
       {['administrateur', 'stockiste'].includes(utilisateur?.role) && (
         <SectionImagesOrdonnance />
       )}
+
+      {/* Zone dangereuse — admin uniquement */}
+      {estAdmin && <ZoneDangereuse />}
 
       {/* Informations cabinet */}
       <Section titre="Cabinet ZEZEPAGNON" icone={Building2}>
