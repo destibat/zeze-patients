@@ -422,6 +422,16 @@ const DashboardStandard = ({ utilisateur }) => {
   const { data: gainsDelegues = [] } = useGainsDelegues(estStockisteOuAdmin);
   const { data: ventesAttente = [] } = useVentesEnAttente(estStockisteOuAdmin);
   const nbVentesAttente = ventesAttente.length;
+  const { data: exerciceData } = useExerciceActuel();
+
+  // Calculs de répartition (levés ici pour être réutilisés dans plusieurs sections)
+  const r = stats?.repartition;
+  const caDelegueMois      = gainsDelegues.reduce((s, g) => s + g.ventes_mois, 0);
+  const gainsIndirectsMois = gainsDelegues.reduce((s, g) => s + g.commission_stockiste_mois, 0);
+  const gainsDelegueMois   = gainsDelegues.reduce((s, g) => s + g.gain_delegue_mois, 0);
+  const mapaDelegueMois    = gainsDelegues.reduce((s, g) => s + g.part_mapa_mois, 0);
+  const gainsTotaux        = r ? (r.gains_directs + gainsIndirectsMois) : 0;
+  const mapaTotal          = r ? (r.part_mapa_direct + mapaDelegueMois) : 0;
 
   const val = (v) => (isLoading ? '…' : v ?? '—');
   const rdvActifs = rdvs.filter((r) => r.statut !== 'annule');
@@ -456,6 +466,40 @@ const DashboardStandard = ({ utilisateur }) => {
         />
       </div>
 
+      {/* KPI financiers (stockiste / admin) */}
+      {estStockisteOuAdmin && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          <CarteKPI
+            titre="Ventes exercice"
+            valeur={exerciceData ? formatMontant(exerciceData.ca_accumule) : '…'}
+            icone={TrendingUp}
+            couleur="bg-slate-600"
+            sous="CA cumulé depuis l'ouverture"
+          />
+          <CarteKPI
+            titre="Commission stockiste"
+            valeur={isLoading ? '…' : formatMontant(gainsTotaux)}
+            icone={TrendingUp}
+            couleur="bg-zeze-or"
+            sous="Gains directs + via revendeurs ce mois"
+          />
+          <CarteKPI
+            titre="Commissions revendeurs"
+            valeur={isLoading ? '…' : formatMontant(gainsDelegueMois)}
+            icone={ShoppingBag}
+            couleur="bg-blue-600"
+            sous="Part versée aux délégués ce mois"
+          />
+          <CarteKPI
+            titre="Net à verser MAPA"
+            valeur={isLoading ? '…' : formatMontant(mapaTotal)}
+            icone={Package}
+            couleur="bg-zeze-vert"
+            sous="Part MAPA (directs + revendeurs)"
+          />
+        </div>
+      )}
+
       {/* Widget exercice comptable */}
       {estStockisteOuAdmin && <WidgetExercice />}
 
@@ -463,20 +507,9 @@ const DashboardStandard = ({ utilisateur }) => {
       {['administrateur', 'secretaire'].includes(utilisateur?.role) && <WidgetAlertesStock />}
 
       {/* Répartition financière — stockiste uniquement */}
-      {estStockisteOuAdmin && !isLoading && stats?.repartition && (() => {
-        const r = stats.repartition;
+      {estStockisteOuAdmin && !isLoading && r && (() => {
         const fmt = (n) => new Intl.NumberFormat('fr-FR').format(Math.round(n || 0)) + ' FCFA';
-
-        // Agrégats ventes revendeurs
-        const caDelegueMois        = gainsDelegues.reduce((s, g) => s + g.ventes_mois, 0);
-        const gainsIndirectsMois   = gainsDelegues.reduce((s, g) => s + g.commission_stockiste_mois, 0);
-        const gainsDelegueMois     = gainsDelegues.reduce((s, g) => s + g.gain_delegue_mois, 0);
-        const mapaDelegueMois      = gainsDelegues.reduce((s, g) => s + g.part_mapa_mois, 0);
-
-        // Totaux combinés
-        const caTotal       = r.ca_direct + caDelegueMois;
-        const gainsTotaux   = r.gains_directs + gainsIndirectsMois;
-        const mapaTotal     = r.part_mapa_direct + mapaDelegueMois;
+        const caTotal = r.ca_direct + caDelegueMois;
 
         return (
           <div className="space-y-4">

@@ -11,6 +11,7 @@ const obtenirStats = async (req, res) => {
   const debutMois = new Date();
   debutMois.setDate(1);
   debutMois.setHours(0, 0, 0, 0);
+  const debutMoisStr = debutMois.toISOString().split('T')[0];
 
   const debutJour = new Date(); debutJour.setHours(0, 0, 0, 0);
   const finJour   = new Date(); finJour.setHours(23, 59, 59, 999);
@@ -70,7 +71,7 @@ const obtenirStats = async (req, res) => {
   if (['stockiste', 'administrateur'].includes(req.utilisateur.role)) {
     const facturesAchat = await FactureAchat.findAll({
       where: {
-        createdAt: { [Op.gte]: debutMois },
+        createdAt: { [Op.gte]: debutMoisStr },
         ...(estAdmin ? {} : { stockiste_id: userId }),
       },
       attributes: ['montant_total'],
@@ -91,7 +92,7 @@ const obtenirStats = async (req, res) => {
        FROM mouvements_delegue md
        JOIN users u ON md.delegue_id = u.id AND u.stockiste_id = :userId
        WHERE md.type = 'achat' AND md.statut = 'valide' AND md.date_mouvement >= :debut`,
-      { replacements: { userId, debut: debutMois }, type: sequelize.QueryTypes.SELECT }
+      { replacements: { userId, debut: debutMoisStr }, type: sequelize.QueryTypes.SELECT }
     );
     const gainsApproMois = Math.round(rowsApproStockiste[0]?.gains || 0);
     const gainsConsultMois = Math.round(caDirectMois * tauxTotal / 100);
@@ -114,15 +115,15 @@ const obtenirStats = async (req, res) => {
          FROM factures f
          LEFT JOIN users u ON f.created_by = u.id AND u.role = 'stockiste'
          WHERE f.date_facture >= :debut AND f.statut <> 'annulee'`,
-        { replacements: { debut: debutMois }, type: sequelize.QueryTypes.SELECT }
+        { replacements: { debut: debutMoisStr }, type: sequelize.QueryTypes.SELECT }
       ),
       sequelize.query(
         `SELECT
            COALESCE(SUM(commission_stockiste), 0) AS gains,
            COALESCE(SUM(gain_delegue), 0) AS gains_delegue
-         FROM mouvements_delegues
+         FROM mouvements_delegue
          WHERE type = 'achat' AND statut = 'valide' AND date_mouvement >= :debut`,
-        { replacements: { debut: debutMois }, type: sequelize.QueryTypes.SELECT }
+        { replacements: { debut: debutMoisStr }, type: sequelize.QueryTypes.SELECT }
       ),
     ]);
     repartition = {
