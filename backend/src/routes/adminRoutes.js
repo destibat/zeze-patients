@@ -16,6 +16,7 @@ router.post('/reset', asyncHandler(async (req, res) => {
     await sequelize.query('SET FOREIGN_KEY_CHECKS = 0', { transaction: t });
 
     const tables = [
+      'prets_emprunts',
       'audit_logs',
       'fichiers_patient',
       'analyses_nfs',
