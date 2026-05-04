@@ -11,9 +11,11 @@
     "ordonnances": "Prescriptions",
     "facturation": "Billing",
     "mon_stock": "My Stock",
+    "approvisionnements": "Supply Orders",
     "stock": "Stock",
     "statistiques": "Statistics",
     "exercices": "MAPA Exercises",
+    "prets_emprunts": "Loans & Borrowings",
     "utilisateurs": "Users",
     "parametres": "Settings"
   },

@@ -11,9 +11,11 @@
     "ordonnances": "Ordonnances",
     "facturation": "Facturation",
     "mon_stock": "Mon Stock",
+    "approvisionnements": "Approvisionnements",
     "stock": "Stock",
     "statistiques": "Statistiques",
     "exercices": "Exercices MAPA",
+    "prets_emprunts": "Prêts et Emprunts",
     "utilisateurs": "Utilisateurs",
     "parametres": "Paramètres"
   },

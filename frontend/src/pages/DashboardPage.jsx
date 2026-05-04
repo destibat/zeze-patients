@@ -5,10 +5,11 @@ import api from '../services/api';
 import { useStatsStockDelegue, useGainsDelegues, useVentesEnAttente } from '../hooks/useStockDelegue';
 import { useExerciceActuel, useBilanExercice } from '../hooks/useExercices';
 import { useAlertesStock } from '../hooks/useStock';
+import { useStatsPretEmprunts } from '../hooks/usePretEmprunts';
 import {
   Users, Stethoscope, Calendar, TrendingUp, Bell,
   Clock, CheckCircle, AlertCircle, Phone,
-  ShoppingCart, ShoppingBag, Package, BookOpen, AlertTriangle,
+  ShoppingCart, ShoppingBag, Package, BookOpen, AlertTriangle, ArrowRightLeft,
 } from 'lucide-react';
 
 const toDateInput = (d) => d.toISOString().split('T')[0];
@@ -353,6 +354,55 @@ const DashboardDelegue = ({ utilisateur }) => {
   );
 };
 
+// ── Widget prêts et emprunts (admin + stockiste) ─────────────────────────────
+const WidgetPretsEmprunts = () => {
+  const navigate = useNavigate();
+  const { data: stats, isLoading } = useStatsPretEmprunts();
+
+  if (isLoading || !stats) return null;
+
+  const nbPrets    = stats.prets_en_cours    ?? 0;
+  const nbEmprunts = stats.emprunts_en_cours ?? 0;
+  const total      = nbPrets + nbEmprunts;
+
+  if (total === 0) return null;
+
+  const alerte = total > 5;
+
+  return (
+    <button
+      onClick={() => navigate('/prets-emprunts')}
+      className={`w-full text-left rounded-carte px-4 py-3 flex items-center justify-between transition-colors ${
+        alerte
+          ? 'bg-orange-50 border border-orange-300 hover:bg-orange-100'
+          : 'bg-blue-50 border border-blue-200 hover:bg-blue-100'
+      }`}
+    >
+      <div className="flex items-center gap-3">
+        <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
+          alerte ? 'bg-orange-100' : 'bg-blue-100'
+        }`}>
+          <ArrowRightLeft size={15} className={alerte ? 'text-orange-700' : 'text-blue-600'} />
+        </div>
+        <div>
+          <p className={`text-sm font-semibold ${alerte ? 'text-orange-800' : 'text-blue-800'}`}>
+            {total} prêt{total > 1 ? 's/emprunt' : '/emprunt'}{total > 1 ? 's' : ''} en cours
+            {alerte && <span className="ml-2 text-xs font-normal">(attention : volume élevé)</span>}
+          </p>
+          <p className={`text-xs ${alerte ? 'text-orange-700' : 'text-blue-700'}`}>
+            {nbPrets > 0 && `${nbPrets} prêt${nbPrets > 1 ? 's' : ''} accordé${nbPrets > 1 ? 's' : ''}`}
+            {nbPrets > 0 && nbEmprunts > 0 && ' · '}
+            {nbEmprunts > 0 && `${nbEmprunts} emprunt${nbEmprunts > 1 ? 's' : ''} en cours`}
+          </p>
+        </div>
+      </div>
+      <span className={`text-xs font-semibold ${alerte ? 'text-orange-700' : 'text-blue-700'}`}>
+        Gérer →
+      </span>
+    </button>
+  );
+};
+
 // ── Widget alertes stock (admin + stockiste) ──────────────────────────────────
 const WidgetAlertesStock = () => {
   const navigate = useNavigate();
@@ -422,6 +472,16 @@ const DashboardStandard = ({ utilisateur }) => {
   const { data: gainsDelegues = [] } = useGainsDelegues(estStockisteOuAdmin);
   const { data: ventesAttente = [] } = useVentesEnAttente(estStockisteOuAdmin);
   const nbVentesAttente = ventesAttente.length;
+  const { data: exerciceData } = useExerciceActuel();
+
+  // Calculs de répartition (levés ici pour être réutilisés dans plusieurs sections)
+  const r = stats?.repartition;
+  const caDelegueMois      = gainsDelegues.reduce((s, g) => s + g.ventes_mois, 0);
+  const gainsIndirectsMois = gainsDelegues.reduce((s, g) => s + g.commission_stockiste_mois, 0);
+  const gainsDelegueMois   = gainsDelegues.reduce((s, g) => s + g.gain_delegue_mois, 0);
+  const mapaDelegueMois    = gainsDelegues.reduce((s, g) => s + g.part_mapa_mois, 0);
+  const gainsTotaux        = r ? (r.gains_directs + gainsIndirectsMois) : 0;
+  const mapaTotal          = r ? (r.part_mapa_direct + mapaDelegueMois) : 0;
 
   const val = (v) => (isLoading ? '…' : v ?? '—');
   const rdvActifs = rdvs.filter((r) => r.statut !== 'annule');
@@ -456,27 +516,53 @@ const DashboardStandard = ({ utilisateur }) => {
         />
       </div>
 
+      {/* KPI financiers (stockiste / admin) */}
+      {estStockisteOuAdmin && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          <CarteKPI
+            titre="Ventes exercice"
+            valeur={exerciceData?.exercice ? formatMontant(exerciceData.ca_accumule ?? 0) : '—'}
+            icone={TrendingUp}
+            couleur="bg-slate-600"
+            sous="CA cumulé depuis l'ouverture"
+          />
+          <CarteKPI
+            titre="Commission stockiste"
+            valeur={isLoading ? '…' : formatMontant(gainsTotaux)}
+            icone={TrendingUp}
+            couleur="bg-zeze-or"
+            sous="Gains directs + via revendeurs ce mois"
+          />
+          <CarteKPI
+            titre="Commissions revendeurs"
+            valeur={isLoading ? '…' : formatMontant(gainsDelegueMois)}
+            icone={ShoppingBag}
+            couleur="bg-blue-600"
+            sous="Part versée aux délégués ce mois"
+          />
+          <CarteKPI
+            titre="Net à verser MAPA"
+            valeur={isLoading ? '…' : formatMontant(mapaTotal)}
+            icone={Package}
+            couleur="bg-zeze-vert"
+            sous="Part MAPA (directs + revendeurs)"
+          />
+        </div>
+      )}
+
       {/* Widget exercice comptable */}
       {estStockisteOuAdmin && <WidgetExercice />}
+
+      {/* Widget prêts et emprunts en cours */}
+      {estStockisteOuAdmin && <WidgetPretsEmprunts />}
 
       {/* Alertes stock — admin et secrétaire uniquement (accès à /stock) */}
       {['administrateur', 'secretaire'].includes(utilisateur?.role) && <WidgetAlertesStock />}
 
       {/* Répartition financière — stockiste uniquement */}
-      {estStockisteOuAdmin && !isLoading && stats?.repartition && (() => {
-        const r = stats.repartition;
+      {estStockisteOuAdmin && !isLoading && r && (() => {
         const fmt = (n) => new Intl.NumberFormat('fr-FR').format(Math.round(n || 0)) + ' FCFA';
-
-        // Agrégats ventes revendeurs
-        const caDelegueMois        = gainsDelegues.reduce((s, g) => s + g.ventes_mois, 0);
-        const gainsIndirectsMois   = gainsDelegues.reduce((s, g) => s + g.commission_stockiste_mois, 0);
-        const gainsDelegueMois     = gainsDelegues.reduce((s, g) => s + g.gain_delegue_mois, 0);
-        const mapaDelegueMois      = gainsDelegues.reduce((s, g) => s + g.part_mapa_mois, 0);
-
-        // Totaux combinés
-        const caTotal       = r.ca_direct + caDelegueMois;
-        const gainsTotaux   = r.gains_directs + gainsIndirectsMois;
-        const mapaTotal     = r.part_mapa_direct + mapaDelegueMois;
+        const caTotal = r.ca_direct + caDelegueMois;
 
         return (
           <div className="space-y-4">
@@ -494,14 +580,16 @@ const DashboardStandard = ({ utilisateur }) => {
                 sous={`Directs : ${fmt(r.ca_direct)}  ·  Revendeurs : ${fmt(caDelegueMois)}`}
               />
               <CarteKPI
-                titre="Vos gains totaux"
+                titre={r.taux_direct != null ? 'Vos gains totaux' : 'Gains des stockistes'}
                 valeur={fmt(gainsTotaux)}
                 icone={TrendingUp}
                 couleur="bg-zeze-or"
-                sous={`Directs (${r.taux_direct}%) : ${fmt(r.gains_directs)}  ·  Reversés (${r.taux_indirect}%) : ${fmt(gainsIndirectsMois)}`}
+                sous={r.taux_direct != null
+                  ? `Directs (${r.taux_direct}%) : ${fmt(r.gains_directs)}  ·  Reversés (${r.taux_indirect}%) : ${fmt(gainsIndirectsMois)}`
+                  : `Consultations : ${fmt(r.gains_directs)}  ·  Via revendeurs : ${fmt(gainsIndirectsMois)}`}
               />
               <CarteKPI
-                titre={`Part versée à MAPA (${r.taux_mapa}%)`}
+                titre={r.taux_mapa != null ? `Part versée à MAPA (${r.taux_mapa}%)` : 'Part versée à MAPA'}
                 valeur={fmt(mapaTotal)}
                 icone={ShoppingBag}
                 couleur="bg-zeze-vert"
@@ -533,11 +621,11 @@ const DashboardStandard = ({ utilisateur }) => {
                     <td className="px-4 py-2.5 text-right font-mono text-xs text-texte-secondaire">{fmt(r.ca_direct)}</td>
                     <td className="px-4 py-2.5 text-right font-mono text-xs text-zeze-vert font-semibold hidden sm:table-cell">
                       {fmt(r.part_mapa_direct)}
-                      <span className="text-texte-secondaire font-normal"> ({r.taux_mapa}%)</span>
+                      {r.taux_mapa != null && <span className="text-texte-secondaire font-normal"> ({r.taux_mapa}%)</span>}
                     </td>
                     <td className="px-4 py-2.5 text-right font-mono text-xs text-zeze-or font-semibold">
                       {fmt(r.gains_directs)}
-                      <span className="text-texte-secondaire font-normal"> ({r.taux_direct}%)</span>
+                      {r.taux_direct != null && <span className="text-texte-secondaire font-normal"> ({r.taux_direct}%)</span>}
                     </td>
                   </tr>
 
@@ -554,16 +642,20 @@ const DashboardStandard = ({ utilisateur }) => {
                         <p className="font-medium text-texte-principal text-xs">
                           {g.delegue.prenom} {g.delegue.nom}
                         </p>
-                        <p className="text-xs text-texte-secondaire">Commission reversée (revendeur 15% · vous {r.taux_indirect}%)</p>
+                        <p className="text-xs text-texte-secondaire">
+                          {r.taux_indirect != null
+                            ? `Commission reversée (revendeur 15% · vous ${r.taux_indirect}%)`
+                            : `Commission reversée (revendeur 15% · stockiste ${g.taux_commission - 15}%)`}
+                        </p>
                       </td>
                       <td className="px-4 py-2.5 text-right font-mono text-xs text-texte-secondaire">{fmt(g.ventes_mois)}</td>
                       <td className="px-4 py-2.5 text-right font-mono text-xs text-zeze-vert font-semibold hidden sm:table-cell">
                         {fmt(g.part_mapa_mois)}
-                        <span className="text-texte-secondaire font-normal"> ({r.taux_mapa}%)</span>
+                        {r.taux_mapa != null && <span className="text-texte-secondaire font-normal"> ({r.taux_mapa}%)</span>}
                       </td>
                       <td className="px-4 py-2.5 text-right font-mono text-xs text-zeze-or font-semibold">
                         {fmt(g.commission_stockiste_mois)}
-                        <span className="text-texte-secondaire font-normal"> ({r.taux_indirect}%)</span>
+                        {r.taux_indirect != null && <span className="text-texte-secondaire font-normal"> ({r.taux_indirect}%)</span>}
                       </td>
                     </tr>
                   ))}
