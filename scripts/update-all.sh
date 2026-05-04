@@ -1,5 +1,5 @@
 #!/bin/bash
-# Met à jour tous les cabinets avec le dernier code (git pull + rebuild)
+# Met à jour tous les cabinets avec le dernier code (git pull + rebuild + migrations)
 #
 # Usage : sudo bash scripts/update-all.sh
 
@@ -7,6 +7,8 @@ set -e
 
 WORKDIR=$(cd "$(dirname "$0")/.." && pwd)
 cd "$WORKDIR"
+
+MIGRATE="npx sequelize-cli db:migrate --migrations-path /database/migrations"
 
 echo ""
 echo "══════════════════════════════════════════════"
@@ -25,10 +27,13 @@ for compose_file in docker-compose.*.yml; do
   case "$slug" in
     nginx) continue ;;
     prod)
-      echo "→ Mise à jour : patients"
+      container="zezepagnon_backend"
+      echo "→ Mise à jour : patients (prod)"
       docker compose -f "$compose_file" build frontend backend
       docker compose -f "$compose_file" up -d --no-deps frontend backend
-      echo "✓ patients mis à jour"
+      sleep 5
+      docker exec "$container" $MIGRATE
+      echo "✓ patients mis à jour et migré"
       echo ""
       ;;
     *)
@@ -37,10 +42,13 @@ for compose_file in docker-compose.*.yml; do
         echo ""
         continue
       fi
+      container="${slug}_backend"
       echo "→ Mise à jour : $slug"
       docker compose -f "$compose_file" --env-file ".env.$slug" build frontend backend
       docker compose -f "$compose_file" --env-file ".env.$slug" up -d --no-deps frontend backend
-      echo "✓ $slug mis à jour"
+      sleep 5
+      docker exec "$container" $MIGRATE
+      echo "✓ $slug mis à jour et migré"
       echo ""
       ;;
   esac
