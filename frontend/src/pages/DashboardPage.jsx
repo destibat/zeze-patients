@@ -5,10 +5,11 @@ import api from '../services/api';
 import { useStatsStockDelegue, useGainsDelegues, useVentesEnAttente } from '../hooks/useStockDelegue';
 import { useExerciceActuel, useBilanExercice } from '../hooks/useExercices';
 import { useAlertesStock } from '../hooks/useStock';
+import { useStatsPretEmprunts } from '../hooks/usePretEmprunts';
 import {
   Users, Stethoscope, Calendar, TrendingUp, Bell,
   Clock, CheckCircle, AlertCircle, Phone,
-  ShoppingCart, ShoppingBag, Package, BookOpen, AlertTriangle,
+  ShoppingCart, ShoppingBag, Package, BookOpen, AlertTriangle, ArrowRightLeft,
 } from 'lucide-react';
 
 const toDateInput = (d) => d.toISOString().split('T')[0];
@@ -353,6 +354,55 @@ const DashboardDelegue = ({ utilisateur }) => {
   );
 };
 
+// ── Widget prêts et emprunts (admin + stockiste) ─────────────────────────────
+const WidgetPretsEmprunts = () => {
+  const navigate = useNavigate();
+  const { data: stats, isLoading } = useStatsPretEmprunts();
+
+  if (isLoading || !stats) return null;
+
+  const nbPrets    = stats.prets_en_cours    ?? 0;
+  const nbEmprunts = stats.emprunts_en_cours ?? 0;
+  const total      = nbPrets + nbEmprunts;
+
+  if (total === 0) return null;
+
+  const alerte = total > 5;
+
+  return (
+    <button
+      onClick={() => navigate('/prets-emprunts')}
+      className={`w-full text-left rounded-carte px-4 py-3 flex items-center justify-between transition-colors ${
+        alerte
+          ? 'bg-orange-50 border border-orange-300 hover:bg-orange-100'
+          : 'bg-blue-50 border border-blue-200 hover:bg-blue-100'
+      }`}
+    >
+      <div className="flex items-center gap-3">
+        <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
+          alerte ? 'bg-orange-100' : 'bg-blue-100'
+        }`}>
+          <ArrowRightLeft size={15} className={alerte ? 'text-orange-700' : 'text-blue-600'} />
+        </div>
+        <div>
+          <p className={`text-sm font-semibold ${alerte ? 'text-orange-800' : 'text-blue-800'}`}>
+            {total} prêt{total > 1 ? 's/emprunt' : '/emprunt'}{total > 1 ? 's' : ''} en cours
+            {alerte && <span className="ml-2 text-xs font-normal">(attention : volume élevé)</span>}
+          </p>
+          <p className={`text-xs ${alerte ? 'text-orange-700' : 'text-blue-700'}`}>
+            {nbPrets > 0 && `${nbPrets} prêt${nbPrets > 1 ? 's' : ''} accordé${nbPrets > 1 ? 's' : ''}`}
+            {nbPrets > 0 && nbEmprunts > 0 && ' · '}
+            {nbEmprunts > 0 && `${nbEmprunts} emprunt${nbEmprunts > 1 ? 's' : ''} en cours`}
+          </p>
+        </div>
+      </div>
+      <span className={`text-xs font-semibold ${alerte ? 'text-orange-700' : 'text-blue-700'}`}>
+        Gérer →
+      </span>
+    </button>
+  );
+};
+
 // ── Widget alertes stock (admin + stockiste) ──────────────────────────────────
 const WidgetAlertesStock = () => {
   const navigate = useNavigate();
@@ -502,6 +552,9 @@ const DashboardStandard = ({ utilisateur }) => {
 
       {/* Widget exercice comptable */}
       {estStockisteOuAdmin && <WidgetExercice />}
+
+      {/* Widget prêts et emprunts en cours */}
+      {estStockisteOuAdmin && <WidgetPretsEmprunts />}
 
       {/* Alertes stock — admin et secrétaire uniquement (accès à /stock) */}
       {['administrateur', 'secretaire'].includes(utilisateur?.role) && <WidgetAlertesStock />}
