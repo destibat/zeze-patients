@@ -467,8 +467,8 @@ const PretsEmpruntsPage = () => {
   const { utilisateur } = useAuth();
   const estAdmin = utilisateur?.role === 'administrateur';
 
-  const [filtres, setFiltres] = useState({ type: '', statut: 'en_cours', partenaire: '', date_debut: '', date_fin: '' });
-  const [filtreSaisi, setFiltreSaisi] = useState({ ...filtres });
+  const [filtres, setFiltres] = useState({ type: '', statut: '', partenaire: '', date_debut: '', date_fin: '' });
+  const [filtreSaisi, setFiltreSaisi] = useState({ type: '', statut: '', partenaire: '', date_debut: '', date_fin: '' });
   const [modalCreer, setModalCreer]   = useState(null); // null | 'pret' | 'emprunt'
 
   const { data: stats } = useStatsPretEmprunts();
@@ -509,7 +509,7 @@ const PretsEmpruntsPage = () => {
       {/* Compteurs */}
       <div className="grid grid-cols-2 gap-4">
         <div
-          onClick={() => { setFiltres((f) => ({ ...f, type: 'pret', statut: 'en_cours' })); setFiltreSaisi({ ...filtres, type: 'pret', statut: 'en_cours' }); }}
+          onClick={() => { const f = { type: 'pret', statut: '', partenaire: '', date_debut: '', date_fin: '' }; setFiltres(f); setFiltreSaisi(f); }}
           className={`carte cursor-pointer hover:shadow-md transition-shadow border-l-4 ${pretsEnCours > 5 ? 'border-l-orange-400' : 'border-l-red-400'}`}
         >
           <div className="flex items-center justify-between">
@@ -522,7 +522,7 @@ const PretsEmpruntsPage = () => {
           {pretsEnCours > 5 && <p className="text-xs text-orange-600 mt-1">Plusieurs prêts en attente de retour</p>}
         </div>
         <div
-          onClick={() => { setFiltres((f) => ({ ...f, type: 'emprunt', statut: 'en_cours' })); setFiltreSaisi({ ...filtres, type: 'emprunt', statut: 'en_cours' }); }}
+          onClick={() => { const f = { type: 'emprunt', statut: '', partenaire: '', date_debut: '', date_fin: '' }; setFiltres(f); setFiltreSaisi(f); }}
           className={`carte cursor-pointer hover:shadow-md transition-shadow border-l-4 ${empruntsEnCours > 5 ? 'border-l-orange-400' : 'border-l-green-400'}`}
         >
           <div className="flex items-center justify-between">
