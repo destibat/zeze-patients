@@ -7,7 +7,7 @@
 set -e
 
 PROD_DIR=$(cd "$(dirname "$0")/.." && pwd)
-DEV_DIR="${PROD_DIR}/../zeze_patients_dev"
+DEV_DIR="${PROD_DIR}/../zezepagnon_dev"
 
 if [ ! -d "$DEV_DIR" ]; then
   echo "Répertoire dev introuvable : $DEV_DIR"
