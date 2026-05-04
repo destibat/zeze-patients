@@ -413,12 +413,47 @@ const LignePret = ({ pret, estAdmin }) => {
       {detail && (
         <tr className="border-t border-bordure bg-fond-secondaire/30">
           <td colSpan={8} className="px-4 py-3">
-            <div className="text-xs text-texte-secondaire space-y-1">
-              {estAdmin && pret.stockiste && (
-                <p>Stockiste : <span className="font-medium text-texte-principal">{pret.stockiste.prenom} {pret.stockiste.nom}</span></p>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-6 gap-y-2 text-xs">
+              <div>
+                <p className="text-texte-secondaire">Produit</p>
+                <p className="font-medium text-texte-principal">{pret.produit?.nom ?? '—'}</p>
+              </div>
+              <div>
+                <p className="text-texte-secondaire">Quantité totale</p>
+                <p className="font-medium text-texte-principal">{pret.quantite}</p>
+              </div>
+              <div>
+                <p className="text-texte-secondaire">Déjà rendu</p>
+                <p className="font-medium text-blue-700">{pret.quantite_rendue}</p>
+              </div>
+              <div>
+                <p className="text-texte-secondaire">Reste à rendre</p>
+                <p className={`font-medium ${pret.quantite - pret.quantite_rendue > 0 ? 'text-orange-600' : 'text-green-600'}`}>
+                  {pret.quantite - pret.quantite_rendue}
+                </p>
+              </div>
+              <div>
+                <p className="text-texte-secondaire">Date du {pret.type === 'pret' ? 'prêt' : 'emprunt'}</p>
+                <p className="font-medium text-texte-principal">{fmtDate(pret.date_pret)}</p>
+              </div>
+              {pret.date_retour && (
+                <div>
+                  <p className="text-texte-secondaire">Date de retour</p>
+                  <p className="font-medium text-texte-principal">{fmtDate(pret.date_retour)}</p>
+                </div>
               )}
-              {pret.note && <p>Note : <span className="italic text-texte-principal">{pret.note}</span></p>}
-              {!pret.note && !estAdmin && <p className="italic">Aucune note.</p>}
+              {estAdmin && pret.stockiste && (
+                <div>
+                  <p className="text-texte-secondaire">Stockiste</p>
+                  <p className="font-medium text-texte-principal">{pret.stockiste.prenom} {pret.stockiste.nom}</p>
+                </div>
+              )}
+              <div className="col-span-2 sm:col-span-4">
+                <p className="text-texte-secondaire">Note</p>
+                <p className={pret.note ? 'italic text-texte-principal' : 'italic text-texte-secondaire opacity-60'}>
+                  {pret.note || 'Aucune note.'}
+                </p>
+              </div>
             </div>
           </td>
         </tr>
