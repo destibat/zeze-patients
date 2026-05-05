@@ -117,7 +117,7 @@ const obtenirStats = async (req, res) => {
         taux_direct:      tauxTotal,
         taux_indirect:    null,
         taux_mapa:        tauxMapa,
-        ca_direct:        caDirectExercice + caApproExercice,
+        ca_direct:        caDirectExercice,
         gains_directs:    Math.round(caDirectExercice * tauxTotal / 100),
         part_mapa_direct: Math.round(caDirectExercice * tauxMapa / 100),
       };

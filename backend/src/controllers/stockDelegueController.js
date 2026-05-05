@@ -1,6 +1,6 @@
 'use strict';
 
-const { StockDelegue, MouvementDelegue, FactureAchat, Produit, StockMouvement, User, Exercice, sequelize } = require('../models');
+const { StockDelegue, MouvementDelegue, Facture, FactureAchat, Produit, StockMouvement, User, Exercice, sequelize } = require('../models');
 const { Op } = require('sequelize');
 
 // Récupère l'exercice ouvert ou lance une erreur métier
@@ -236,6 +236,8 @@ const obtenirStatsStock = async (req, res) => {
 };
 
 // Gains des délégués — admin et stockiste : voit gain délégué, part stockiste ET part MAPA (scope = exercice en cours)
+// Deux canaux de vente : (1) MouvementDelegue type='vente' validé (vente directe depuis stock perso)
+//                        (2) Facture créée par le délégué via ordonnance (vente au cabinet)
 const obtenirGainsDelegues = async (req, res) => {
   const estAdmin = req.utilisateur.role === 'administrateur';
 
@@ -255,46 +257,42 @@ const obtenirGainsDelegues = async (req, res) => {
 
   const ids = delegues.map((d) => d.id);
 
-  const [ventes, achats] = await Promise.all([
+  const [ventesStock, facturesOrd] = await Promise.all([
     MouvementDelegue.findAll({
       where: { delegue_id: { [Op.in]: ids }, type: 'vente', statut: 'valide', exercice_id: exercice.id },
       attributes: ['delegue_id', 'montant_total'],
       raw: true,
     }),
-    MouvementDelegue.findAll({
+    Facture.findAll({
       where: {
-        delegue_id: { [Op.in]: ids },
-        type: 'achat',
-        date_mouvement: { [Op.gte]: exercice.date_ouverture },
+        created_by: { [Op.in]: ids },
+        statut: { [Op.ne]: 'annulee' },
+        date_facture: { [Op.gte]: exercice.date_ouverture },
       },
-      attributes: ['delegue_id', 'montant_total', 'gain_delegue', 'commission_stockiste'],
+      attributes: ['created_by', 'montant_total'],
       raw: true,
     }),
   ]);
 
   const resultat = delegues.map((d) => {
-    const ventesD   = ventes.filter((v) => v.delegue_id === d.id);
-    const achatsD   = achats.filter((a) => a.delegue_id === d.id);
-    const tauxTotal  = parseFloat(d.stockiste?.commission_rate ?? 25);
-    const tauxDelegue = parseFloat(d.commission_rate ?? 15);
+    const ventesStockD  = ventesStock.filter((v) => v.delegue_id === d.id);
+    const facturesD     = facturesOrd.filter((f) => f.created_by === d.id);
+    const tauxTotal     = parseFloat(d.stockiste?.commission_rate ?? 25);
+    const tauxDelegue   = parseFloat(d.commission_rate ?? 15);
 
-    const ventes_mois = ventesD.reduce((s, v) => s + (v.montant_total || 0), 0);
-    const achats_mois = achatsD.reduce((s, a) => s + (a.montant_total || 0), 0);
+    const ca_stock       = ventesStockD.reduce((s, v) => s + (v.montant_total || 0), 0);
+    const ca_ordonnances = facturesD.reduce((s, f) => s + (f.montant_total || 0), 0);
+    const ca_total       = ca_stock + ca_ordonnances;
 
-    const gain_delegue_vente         = Math.round(ventes_mois * tauxDelegue / 100);
-    const commission_stockiste_vente  = Math.round(ventes_mois * (tauxTotal - tauxDelegue) / 100);
-    const gain_delegue_achat         = achatsD.reduce((s, a) => s + (a.gain_delegue || 0), 0);
-    const commission_stockiste_achat  = achatsD.reduce((s, a) => s + (a.commission_stockiste || 0), 0);
-
-    const gain_delegue_mois         = gain_delegue_vente + gain_delegue_achat;
-    const commission_stockiste_mois  = commission_stockiste_vente + commission_stockiste_achat;
-    const part_mapa_mois            = (ventes_mois + achats_mois) - gain_delegue_mois - commission_stockiste_mois;
+    const gain_delegue_mois         = Math.round(ca_total * tauxDelegue / 100);
+    const commission_stockiste_mois  = Math.round(ca_total * (tauxTotal - tauxDelegue) / 100);
+    const part_mapa_mois            = ca_total - gain_delegue_mois - commission_stockiste_mois;
 
     return {
       delegue: { id: d.id, nom: d.nom, prenom: d.prenom },
       taux_commission: tauxTotal,
       taux_delegue:    tauxDelegue,
-      ventes_mois: ventes_mois + achats_mois,
+      ventes_mois: ca_total,
       gain_delegue_mois,
       commission_stockiste_mois,
       part_mapa_mois,
