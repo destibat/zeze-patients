@@ -1,6 +1,6 @@
 'use strict';
 
-const { Patient, Consultation, Ordonnance, Facture, FactureAchat, RendezVous, MouvementDelegue, User, sequelize } = require('../models');
+const { Patient, Consultation, Ordonnance, Facture, FactureAchat, RendezVous, MouvementDelegue, User, Exercice, sequelize } = require('../models');
 const { Op } = require('sequelize');
 
 const obtenirStats = async (req, res) => {
@@ -72,73 +72,86 @@ const obtenirStats = async (req, res) => {
     caMois += ventesDirectes.reduce((s, v) => s + (v.montant_total || 0), 0);
   }
 
-  // Pour les stockistes et l'admin : inclure les factures d'achat (commandes appro) dans le CA
-  if (['stockiste', 'administrateur'].includes(req.utilisateur.role)) {
+  // Pour les stockistes et l'admin : KPI CA mois + répartition scope exercice
+  let repartition = null;
+  if (req.utilisateur.role === 'stockiste' || estAdmin) {
+    const exercice = await Exercice.findOne({
+      where: { statut: { [Op.in]: ['ouvert', 'rouvert'] } },
+      attributes: ['id', 'date_ouverture'],
+    });
+    const dateExercice = exercice?.date_ouverture ?? debutMoisStr;
     const filtreStockiste = estAdmin ? '' : 'AND stockiste_id = :stockisteId';
-    const rowsFA = await sequelize.query(
-      `SELECT COALESCE(SUM(montant_total), 0) AS total
-       FROM factures_achat
-       WHERE created_at >= :debut ${filtreStockiste}`,
+
+    // FactureAchat ce mois → ajout au KPI CA mois
+    const rowsFAMois = await sequelize.query(
+      `SELECT COALESCE(SUM(montant_total), 0) AS total FROM factures_achat WHERE created_at >= :debut ${filtreStockiste}`,
       { replacements: { debut: debutMoisStr, stockisteId: userId }, type: sequelize.QueryTypes.SELECT }
     );
-    caMois += parseInt(rowsFA[0]?.total || 0);
-  }
+    caMois += parseInt(rowsFAMois[0]?.total || 0);
 
-  // Pour les stockistes et l'admin : répartition financière du mois
-  let repartition = null;
-  if (req.utilisateur.role === 'stockiste') {
-    const user = await User.findByPk(userId, { attributes: ['commission_rate'] });
-    const tauxTotal = parseFloat(user?.commission_rate ?? 25);
-    const tauxMapa  = 100 - tauxTotal;
-    // Gains sur commandes appro (via délégués rattachés à ce stockiste)
-    const rowsApproStockiste = await sequelize.query(
-      `SELECT COALESCE(SUM(md.commission_stockiste), 0) AS gains
-       FROM mouvements_delegue md
-       JOIN users u ON md.delegue_id = u.id AND u.stockiste_id = :userId
-       WHERE md.type = 'vente' AND md.statut = 'valide' AND md.date_mouvement >= :debut`,
-      { replacements: { userId, debut: debutMoisStr }, type: sequelize.QueryTypes.SELECT }
-    );
-    const gainsApproMois = Math.round(rowsApproStockiste[0]?.gains || 0);
-    const gainsConsultMois = Math.round(caDirectMois * tauxTotal / 100);
-    repartition = {
-      taux_total:        tauxTotal,
-      taux_direct:       tauxTotal,
-      taux_indirect:     null,
-      taux_mapa:         tauxMapa,
-      ca_direct:         caMois,
-      gains_directs:     gainsConsultMois + gainsApproMois,
-      part_mapa_direct:  Math.round(caDirectMois * tauxMapa / 100),
-    };
-  } else if (estAdmin) {
-    // Agrège gains consultation (via factures) + gains appro (via mouvements délégués)
-    const [rowsConsult, rowsAppro] = await Promise.all([
+    // Données exercice pour la répartition
+    const [facturesExercice, rowsFAExercice] = await Promise.all([
+      Facture.findAll({
+        where: {
+          statut: { [Op.ne]: 'annulee' },
+          date_facture: { [Op.gte]: dateExercice },
+          ...(estAdmin ? {} : { created_by: userId }),
+        },
+        attributes: ['montant_paye'],
+        raw: true,
+      }),
       sequelize.query(
-        `SELECT
-           COALESCE(SUM(f.montant_paye * COALESCE(u.commission_rate, 0) / 100), 0) AS gains,
-           COALESCE(SUM(f.montant_paye * (100 - COALESCE(u.commission_rate, 0)) / 100), 0) AS mapa
-         FROM factures f
-         LEFT JOIN users u ON f.created_by = u.id AND u.role = 'stockiste'
-         WHERE f.date_facture >= :debut AND f.statut <> 'annulee'`,
-        { replacements: { debut: debutMoisStr }, type: sequelize.QueryTypes.SELECT }
-      ),
-      sequelize.query(
-        `SELECT
-           COALESCE(SUM(commission_stockiste), 0) AS gains,
-           COALESCE(SUM(gain_delegue), 0) AS gains_delegue
-         FROM mouvements_delegue
-         WHERE type = 'vente' AND statut = 'valide' AND date_mouvement >= :debut`,
-        { replacements: { debut: debutMoisStr }, type: sequelize.QueryTypes.SELECT }
+        `SELECT COALESCE(SUM(montant_total), 0) AS total FROM factures_achat WHERE created_at >= :debut ${filtreStockiste}`,
+        { replacements: { debut: dateExercice, stockisteId: userId }, type: sequelize.QueryTypes.SELECT }
       ),
     ]);
-    repartition = {
-      taux_total:        null,
-      taux_direct:       null,
-      taux_indirect:     null,
-      taux_mapa:         null,
-      ca_direct:         caMois,
-      gains_directs:     Math.round((rowsConsult[0]?.gains || 0) + (rowsAppro[0]?.gains || 0)),
-      part_mapa_direct:  Math.round(rowsConsult[0]?.mapa || 0),
-    };
+    const caDirectExercice = facturesExercice.reduce((s, f) => s + (f.montant_paye || 0), 0);
+    const caApproExercice  = parseInt(rowsFAExercice[0]?.total || 0);
+
+    if (req.utilisateur.role === 'stockiste') {
+      const user = await User.findByPk(userId, { attributes: ['commission_rate'] });
+      const tauxTotal = parseFloat(user?.commission_rate ?? 25);
+      const tauxMapa  = 100 - tauxTotal;
+      repartition = {
+        taux_total:       tauxTotal,
+        taux_direct:      tauxTotal,
+        taux_indirect:    null,
+        taux_mapa:        tauxMapa,
+        ca_direct:        caDirectExercice + caApproExercice,
+        gains_directs:    Math.round(caDirectExercice * tauxTotal / 100),
+        part_mapa_direct: Math.round(caDirectExercice * tauxMapa / 100),
+      };
+    } else {
+      // Admin — agrège gains via factures + mouvements délégués (scope exercice)
+      const [rowsConsult, rowsAppro] = await Promise.all([
+        sequelize.query(
+          `SELECT
+             COALESCE(SUM(f.montant_paye * COALESCE(u.commission_rate, 0) / 100), 0) AS gains,
+             COALESCE(SUM(f.montant_paye * (100 - COALESCE(u.commission_rate, 0)) / 100), 0) AS mapa
+           FROM factures f
+           LEFT JOIN users u ON f.created_by = u.id AND u.role = 'stockiste'
+           WHERE f.date_facture >= :debut AND f.statut <> 'annulee'`,
+          { replacements: { debut: dateExercice }, type: sequelize.QueryTypes.SELECT }
+        ),
+        sequelize.query(
+          `SELECT
+             COALESCE(SUM(commission_stockiste), 0) AS gains,
+             COALESCE(SUM(gain_delegue), 0) AS gains_delegue
+           FROM mouvements_delegue
+           WHERE type = 'vente' AND statut = 'valide' AND date_mouvement >= :debut`,
+          { replacements: { debut: dateExercice }, type: sequelize.QueryTypes.SELECT }
+        ),
+      ]);
+      repartition = {
+        taux_total:        null,
+        taux_direct:       null,
+        taux_indirect:     null,
+        taux_mapa:         null,
+        ca_direct:         caDirectExercice + caApproExercice,
+        gains_directs:     Math.round((rowsConsult[0]?.gains || 0) + (rowsAppro[0]?.gains || 0)),
+        part_mapa_direct:  Math.round(rowsConsult[0]?.mapa || 0),
+      };
+    }
   }
 
   res.json({

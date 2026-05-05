@@ -567,13 +567,13 @@ const DashboardStandard = ({ utilisateur }) => {
         return (
           <div className="space-y-4">
             <h2 className="text-sm font-semibold text-texte-secondaire uppercase tracking-wide">
-              Répartition financière du mois
+              Répartition financière — exercice en cours
             </h2>
 
             {/* KPI synthèse globale */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <CarteKPI
-                titre="CA total du mois"
+                titre="CA exercice en cours"
                 valeur={fmt(caTotal)}
                 icone={TrendingUp}
                 couleur="bg-slate-500"
@@ -633,7 +633,7 @@ const DashboardStandard = ({ utilisateur }) => {
                   {gainsDelegues.length === 0 ? (
                     <tr>
                       <td colSpan={4} className="px-4 py-3 text-xs text-texte-secondaire italic text-center">
-                        Aucune vente revendeur ce mois
+                        Aucune vente revendeur sur cet exercice
                       </td>
                     </tr>
                   ) : gainsDelegues.map((g) => (
@@ -673,7 +673,7 @@ const DashboardStandard = ({ utilisateur }) => {
               {gainsDelegues.length > 0 && (
                 <div className="px-4 py-2 border-t border-bordure bg-blue-50">
                   <p className="text-xs text-blue-700">
-                    Gains revendeurs ce mois : <strong>{fmt(gainsDelegueMois)}</strong> — versés directement aux revendeurs, non inclus dans vos gains.
+                    Gains revendeurs (exercice) : <strong>{fmt(gainsDelegueMois)}</strong> — versés directement aux revendeurs, non inclus dans vos gains.
                   </p>
                 </div>
               )}

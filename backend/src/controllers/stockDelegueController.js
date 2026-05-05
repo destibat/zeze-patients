@@ -7,7 +7,7 @@ const { Op } = require('sequelize');
 const getExerciceOuvert = async () => {
   const exercice = await Exercice.findOne({
     where: { statut: { [Op.in]: ['ouvert', 'rouvert'] } },
-    attributes: ['id', 'numero'],
+    attributes: ['id', 'numero', 'date_ouverture'],
   });
   return exercice;
 };
@@ -195,26 +195,29 @@ const listerMesVentes = async (req, res) => {
 
 // Stats délégué — ventes_mois = toutes les ventes, gain = uniquement les ventes validées
 const obtenirStatsStock = async (req, res) => {
-  const debutMois = new Date();
-  debutMois.setDate(1); debutMois.setHours(0, 0, 0, 0);
-  const debutMoisStr = debutMois.toISOString().split('T')[0];
-  const today = new Date().toISOString().split('T')[0];
-  const periode = { [Op.between]: [debutMoisStr, today] };
+  const exercice = await getExerciceOuvert();
+  const dateOuverture = exercice?.date_ouverture;
 
   const delegueUser = await User.findByPk(req.utilisateur.id, { attributes: ['commission_rate'] });
   const tauxDelegue = parseFloat(delegueUser?.commission_rate ?? 15) / 100;
 
+  const whereAchat = { delegue_id: req.utilisateur.id, type: 'achat' };
+  if (dateOuverture) whereAchat.date_mouvement = { [Op.gte]: dateOuverture };
+
+  const whereVente = { delegue_id: req.utilisateur.id, type: 'vente' };
+  if (exercice) whereVente.exercice_id = exercice.id;
+
   const [achats, toutesVentes, ventesValidees, nbProduits] = await Promise.all([
     MouvementDelegue.findAll({
-      where: { delegue_id: req.utilisateur.id, type: 'achat', date_mouvement: periode },
+      where: whereAchat,
       attributes: ['montant_total', 'gain_delegue'], raw: true,
     }),
     MouvementDelegue.findAll({
-      where: { delegue_id: req.utilisateur.id, type: 'vente', date_mouvement: periode },
+      where: whereVente,
       attributes: ['montant_total', 'statut'], raw: true,
     }),
     MouvementDelegue.findAll({
-      where: { delegue_id: req.utilisateur.id, type: 'vente', statut: 'valide', date_mouvement: periode },
+      where: { ...whereVente, statut: 'valide' },
       attributes: ['montant_total'], raw: true,
     }),
     StockDelegue.count({ where: { delegue_id: req.utilisateur.id } }),
@@ -232,13 +235,12 @@ const obtenirStatsStock = async (req, res) => {
   });
 };
 
-// Gains des délégués — admin et stockiste : voit gain délégué, part stockiste ET part MAPA
+// Gains des délégués — admin et stockiste : voit gain délégué, part stockiste ET part MAPA (scope = exercice en cours)
 const obtenirGainsDelegues = async (req, res) => {
   const estAdmin = req.utilisateur.role === 'administrateur';
-  const debutMois = new Date();
-  debutMois.setDate(1); debutMois.setHours(0, 0, 0, 0);
-  const debutMoisStr = debutMois.toISOString().split('T')[0];
-  const today = new Date().toISOString().split('T')[0];
+
+  const exercice = await getExerciceOuvert();
+  if (!exercice) return res.json([]);
 
   const whereDelegue = { role: 'delegue', actif: true };
   if (!estAdmin) whereDelegue.stockiste_id = req.utilisateur.id;
@@ -252,16 +254,19 @@ const obtenirGainsDelegues = async (req, res) => {
   if (delegues.length === 0) return res.json([]);
 
   const ids = delegues.map((d) => d.id);
-  const periode = { [Op.between]: [debutMoisStr, today] };
 
   const [ventes, achats] = await Promise.all([
     MouvementDelegue.findAll({
-      where: { delegue_id: { [Op.in]: ids }, type: 'vente', statut: 'valide', date_mouvement: periode },
+      where: { delegue_id: { [Op.in]: ids }, type: 'vente', statut: 'valide', exercice_id: exercice.id },
       attributes: ['delegue_id', 'montant_total'],
       raw: true,
     }),
     MouvementDelegue.findAll({
-      where: { delegue_id: { [Op.in]: ids }, type: 'achat', date_mouvement: periode },
+      where: {
+        delegue_id: { [Op.in]: ids },
+        type: 'achat',
+        date_mouvement: { [Op.gte]: exercice.date_ouverture },
+      },
       attributes: ['delegue_id', 'montant_total', 'gain_delegue', 'commission_stockiste'],
       raw: true,
     }),
