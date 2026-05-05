@@ -106,7 +106,7 @@ const creerDepuisOrdonnance = async (req, res) => {
     numero,
     patient_id: ordonnance.patient_id,
     ordonnance_id: ordonnanceId,
-    created_by: req.utilisateur.id,
+    created_by: ordonnance.medecin_id,
     date_facture: new Date().toISOString().split('T')[0],
     montant_total: ordonnance.montant_total,
     montant_paye: paye,

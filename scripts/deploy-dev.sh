@@ -55,6 +55,7 @@ sudo docker exec dev_backend npx sequelize-cli db:seed:all --seeders-path /datab
 echo "✓ Seeds vérifiés"
 echo ""
 
+
 echo "══════════════════════════════════════════════"
 echo "✓ dev.zezepagnon.solutions mis à jour"
 echo "══════════════════════════════════════════════"
