@@ -12,17 +12,15 @@ const getExerciceOuvert = async () => {
   return exercice;
 };
 
-// Taux délégué fixe : 15% du montant total de la vente
-const TAUX_DELEGUE = 0.15;
-
-// Récupère le taux commission du stockiste parrain du délégué
-const getTauxStockiste = async (delegueId) => {
+// Récupère les taux du délégué (son propre taux) et de son stockiste parrain
+const getTaux = async (delegueId) => {
   const delegue = await User.findByPk(delegueId, {
-    attributes: ['stockiste_id'],
+    attributes: ['commission_rate', 'stockiste_id'],
     include: [{ model: User, as: 'stockiste', attributes: ['commission_rate'] }],
   });
-  const tauxTotal = parseFloat(delegue?.stockiste?.commission_rate ?? 25) / 100;
-  return tauxTotal; // ex: 0.25 si commission_rate = 25
+  const tauxStockiste = parseFloat(delegue?.stockiste?.commission_rate ?? 25) / 100;
+  const tauxDelegue   = parseFloat(delegue?.commission_rate ?? 15) / 100;
+  return { tauxStockiste, tauxDelegue };
 };
 
 const listerMonStock = async (req, res) => {
@@ -138,10 +136,7 @@ const vendre = async (req, res) => {
     });
   }
 
-  // Taux dynamique selon commission_rate du stockiste parrain
-  const tauxTotal = await getTauxStockiste(req.utilisateur.id);
-  // MAPA garde (1 - tauxTotal), stockiste+délégué partagent tauxTotal
-  // Délégué = 15% fixe, Stockiste = (tauxTotal - 15%)
+  const { tauxStockiste, tauxDelegue } = await getTaux(req.utilisateur.id);
   const today = new Date().toISOString().split('T')[0];
   const transaction = await sequelize.transaction();
 
@@ -160,8 +155,8 @@ const vendre = async (req, res) => {
     }
 
     const montant_total = lignes.reduce((s, l) => s + l.prix_unitaire * l.quantite, 0);
-    const gain_delegue        = Math.round(montant_total * TAUX_DELEGUE);
-    const commission_stockiste = Math.round(montant_total * (tauxTotal - TAUX_DELEGUE));
+    const gain_delegue        = Math.round(montant_total * tauxDelegue);
+    const commission_stockiste = Math.round(montant_total * (tauxStockiste - tauxDelegue));
     // part_mapa = montant_total - gain_delegue - commission_stockiste
 
     const mouvement = await MouvementDelegue.create({
@@ -206,6 +201,9 @@ const obtenirStatsStock = async (req, res) => {
   const today = new Date().toISOString().split('T')[0];
   const periode = { [Op.between]: [debutMoisStr, today] };
 
+  const delegueUser = await User.findByPk(req.utilisateur.id, { attributes: ['commission_rate'] });
+  const tauxDelegue = parseFloat(delegueUser?.commission_rate ?? 15) / 100;
+
   const [achats, toutesVentes, ventesValidees, nbProduits] = await Promise.all([
     MouvementDelegue.findAll({
       where: { delegue_id: req.utilisateur.id, type: 'achat', date_mouvement: periode },
@@ -228,7 +226,7 @@ const obtenirStatsStock = async (req, res) => {
   res.json({
     achats_mois:       achats.reduce((s, a) => s + (a.montant_total || 0), 0),
     ventes_mois:       toutesVentes.reduce((s, v) => s + (v.montant_total || 0), 0),
-    gain_delegue_mois: Math.round(ventesValidees.reduce((s, v) => s + (v.montant_total || 0), 0) * TAUX_DELEGUE) + gainAchatsMois,
+    gain_delegue_mois: Math.round(ventesValidees.reduce((s, v) => s + (v.montant_total || 0), 0) * tauxDelegue) + gainAchatsMois,
     nb_produits_stock: nbProduits,
     ventes_en_attente: ventesEnAttente.length,
   });
@@ -247,7 +245,7 @@ const obtenirGainsDelegues = async (req, res) => {
 
   const delegues = await User.findAll({
     where: whereDelegue,
-    attributes: ['id', 'nom', 'prenom'],
+    attributes: ['id', 'nom', 'prenom', 'commission_rate'],
     include: [{ model: User, as: 'stockiste', attributes: ['commission_rate'] }],
   });
 
@@ -270,15 +268,16 @@ const obtenirGainsDelegues = async (req, res) => {
   ]);
 
   const resultat = delegues.map((d) => {
-    const ventesD  = ventes.filter((v) => v.delegue_id === d.id);
-    const achatsD  = achats.filter((a) => a.delegue_id === d.id);
-    const tauxTotal = parseFloat(d.stockiste?.commission_rate ?? 25);
+    const ventesD   = ventes.filter((v) => v.delegue_id === d.id);
+    const achatsD   = achats.filter((a) => a.delegue_id === d.id);
+    const tauxTotal  = parseFloat(d.stockiste?.commission_rate ?? 25);
+    const tauxDelegue = parseFloat(d.commission_rate ?? 15);
 
-    const ventes_mois  = ventesD.reduce((s, v) => s + (v.montant_total || 0), 0);
-    const achats_mois  = achatsD.reduce((s, a) => s + (a.montant_total || 0), 0);
+    const ventes_mois = ventesD.reduce((s, v) => s + (v.montant_total || 0), 0);
+    const achats_mois = achatsD.reduce((s, a) => s + (a.montant_total || 0), 0);
 
-    const gain_delegue_vente         = Math.round(ventes_mois * 15 / 100);
-    const commission_stockiste_vente  = Math.round(ventes_mois * (tauxTotal - 15) / 100);
+    const gain_delegue_vente         = Math.round(ventes_mois * tauxDelegue / 100);
+    const commission_stockiste_vente  = Math.round(ventes_mois * (tauxTotal - tauxDelegue) / 100);
     const gain_delegue_achat         = achatsD.reduce((s, a) => s + (a.gain_delegue || 0), 0);
     const commission_stockiste_achat  = achatsD.reduce((s, a) => s + (a.commission_stockiste || 0), 0);
 
@@ -289,7 +288,8 @@ const obtenirGainsDelegues = async (req, res) => {
     return {
       delegue: { id: d.id, nom: d.nom, prenom: d.prenom },
       taux_commission: tauxTotal,
-      ventes_mois: ventes_mois + achats_mois, // CA total pour l'affichage
+      taux_delegue:    tauxDelegue,
+      ventes_mois: ventes_mois + achats_mois,
       gain_delegue_mois,
       commission_stockiste_mois,
       part_mapa_mois,
@@ -389,7 +389,7 @@ const ventesDirectesDelegues = async (req, res) => {
 
   const delegues = await User.findAll({
     where: whereDelegue,
-    attributes: ['id', 'nom', 'prenom', 'stockiste_id'],
+    attributes: ['id', 'nom', 'prenom', 'stockiste_id', 'commission_rate'],
     include: [{ model: User, as: 'stockiste', attributes: ['id', 'nom', 'prenom', 'commission_rate'] }],
   });
 
@@ -410,10 +410,11 @@ const ventesDirectesDelegues = async (req, res) => {
     .map((d) => {
       const ventesD = ventes.filter((v) => v.delegue_id === d.id);
       if (ventesD.length === 0) return null;
-      const tauxTotal = parseFloat(d.stockiste?.commission_rate ?? 25);
+      const tauxTotal   = parseFloat(d.stockiste?.commission_rate ?? 25);
+      const tauxDelegue = parseFloat(d.commission_rate ?? 15);
       const ventes_total = ventesD.reduce((s, v) => s + (v.montant_total || 0), 0);
-      const gain_delegue = Math.round(ventes_total * 15 / 100);
-      const commission_stockiste = Math.round(ventes_total * (tauxTotal - 15) / 100);
+      const gain_delegue = Math.round(ventes_total * tauxDelegue / 100);
+      const commission_stockiste = Math.round(ventes_total * (tauxTotal - tauxDelegue) / 100);
       return {
         delegue: {
           id: d.id,

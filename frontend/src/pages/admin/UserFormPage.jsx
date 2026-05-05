@@ -208,7 +208,26 @@ const UserFormPage = () => {
                   </option>
                 ))}
               </select>
-              <p className="text-xs text-texte-secondaire mt-1">Le revendeur recevra 15% de la commission du stockiste</p>
+            </ChampFormulaire>
+          )}
+
+          {/* Taux de commission (revendeur uniquement) */}
+          {roleSelectionne === 'delegue' && (
+            <ChampFormulaire label="Taux de commission (%)" erreur={errors.commission_rate?.message} obligatoire>
+              <input
+                type="number"
+                min={0}
+                max={100}
+                step={0.5}
+                className={`champ-input ${errors.commission_rate ? 'border-medical-critique' : ''}`}
+                placeholder="15"
+                {...register('commission_rate', {
+                  required: t('commun.requis'),
+                  min: { value: 0, message: 'Minimum 0%' },
+                  max: { value: 100, message: 'Maximum 100%' },
+                })}
+              />
+              <p className="text-xs text-texte-secondaire mt-1">Taux de commission individuel négocié avec ce revendeur (défaut : 15%)</p>
             </ChampFormulaire>
           )}
 

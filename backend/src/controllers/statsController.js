@@ -34,7 +34,7 @@ const obtenirStats = async (req, res) => {
       Consultation.count({ where: { date_consultation: { [Op.gte]: debutMois } } }),
       Facture.findAll({
         where: whereFacturesMois,
-        attributes: ['montant_paye'],
+        attributes: ['montant_paye', 'montant_total'],
         raw: true,
       }),
       RendezVous.count({
@@ -46,14 +46,19 @@ const obtenirStats = async (req, res) => {
       Facture.count({ where: whereRelances }),
     ]);
 
-  const caDirectMois = facturesMois.reduce((sum, f) => sum + (f.montant_paye || 0), 0);
+  const caEncaisseMois = facturesMois.reduce((sum, f) => sum + (f.montant_paye || 0), 0);
+  const caFactureMois  = facturesMois.reduce((sum, f) => sum + (f.montant_total || 0), 0);
+  let caDirectMois = caEncaisseMois;
   let caMois = caDirectMois;
   let gainsOrdonnancesMois = 0;
 
-  // Pour les délégués, ajouter les ventes directes validées au CA du mois
-  // et calculer les gains sur les ordonnances (15% des factures encaissées)
+  // Pour les délégués : CA = montant facturé (pas encaissé) + ventes stock directes validées
   if (req.utilisateur.role === 'delegue') {
-    gainsOrdonnancesMois = Math.round(caDirectMois * 15 / 100);
+    const delegueUser = await User.findByPk(userId, { attributes: ['commission_rate'] });
+    const tauxDelegue = parseFloat(delegueUser?.commission_rate ?? 15);
+    caDirectMois = caFactureMois;
+    caMois = caDirectMois;
+    gainsOrdonnancesMois = Math.round(caDirectMois * tauxDelegue / 100);
     const ventesDirectes = await MouvementDelegue.findAll({
       where: {
         delegue_id: userId,
@@ -90,7 +95,7 @@ const obtenirStats = async (req, res) => {
       `SELECT COALESCE(SUM(md.commission_stockiste), 0) AS gains
        FROM mouvements_delegue md
        JOIN users u ON md.delegue_id = u.id AND u.stockiste_id = :userId
-       WHERE md.type = 'achat' AND md.statut = 'valide' AND md.date_mouvement >= :debut`,
+       WHERE md.type = 'vente' AND md.statut = 'valide' AND md.date_mouvement >= :debut`,
       { replacements: { userId, debut: debutMoisStr }, type: sequelize.QueryTypes.SELECT }
     );
     const gainsApproMois = Math.round(rowsApproStockiste[0]?.gains || 0);
@@ -98,7 +103,7 @@ const obtenirStats = async (req, res) => {
     repartition = {
       taux_total:        tauxTotal,
       taux_direct:       tauxTotal,
-      taux_indirect:     tauxTotal - 15,
+      taux_indirect:     null,
       taux_mapa:         tauxMapa,
       ca_direct:         caMois,
       gains_directs:     gainsConsultMois + gainsApproMois,
@@ -121,7 +126,7 @@ const obtenirStats = async (req, res) => {
            COALESCE(SUM(commission_stockiste), 0) AS gains,
            COALESCE(SUM(gain_delegue), 0) AS gains_delegue
          FROM mouvements_delegue
-         WHERE type = 'achat' AND statut = 'valide' AND date_mouvement >= :debut`,
+         WHERE type = 'vente' AND statut = 'valide' AND date_mouvement >= :debut`,
         { replacements: { debut: debutMoisStr }, type: sequelize.QueryTypes.SELECT }
       ),
     ]);

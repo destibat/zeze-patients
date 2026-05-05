@@ -263,7 +263,7 @@ const DashboardDelegue = ({ utilisateur }) => {
             onClick={() => navigate('/mon-stock')}
           />
           <CarteKPI
-            titre="Mes gains totaux (15%)"
+            titre="Mes gains totaux"
             valeur={isLoading || stockLoading ? '…' : formatMontant((stats?.gains_ordonnances_mois ?? 0) + (stockStats?.gain_delegue_mois ?? 0))}
             icone={TrendingUp}
             couleur="bg-emerald-600"
@@ -585,7 +585,7 @@ const DashboardStandard = ({ utilisateur }) => {
                 icone={TrendingUp}
                 couleur="bg-zeze-or"
                 sous={r.taux_direct != null
-                  ? `Directs (${r.taux_direct}%) : ${fmt(r.gains_directs)}  ·  Reversés (${r.taux_indirect}%) : ${fmt(gainsIndirectsMois)}`
+                  ? `Directs (${r.taux_direct}%) : ${fmt(r.gains_directs)}  ·  Reversés : ${fmt(gainsIndirectsMois)}`
                   : `Consultations : ${fmt(r.gains_directs)}  ·  Via revendeurs : ${fmt(gainsIndirectsMois)}`}
               />
               <CarteKPI
@@ -643,9 +643,7 @@ const DashboardStandard = ({ utilisateur }) => {
                           {g.delegue.prenom} {g.delegue.nom}
                         </p>
                         <p className="text-xs text-texte-secondaire">
-                          {r.taux_indirect != null
-                            ? `Commission reversée (revendeur 15% · vous ${r.taux_indirect}%)`
-                            : `Commission reversée (revendeur 15% · stockiste ${g.taux_commission - 15}%)`}
+                          `Commission reversée (revendeur ${g.taux_delegue ?? 15}% · stockiste ${g.taux_commission - (g.taux_delegue ?? 15)}%)`
                         </p>
                       </td>
                       <td className="px-4 py-2.5 text-right font-mono text-xs text-texte-secondaire">{fmt(g.ventes_mois)}</td>
@@ -655,7 +653,7 @@ const DashboardStandard = ({ utilisateur }) => {
                       </td>
                       <td className="px-4 py-2.5 text-right font-mono text-xs text-zeze-or font-semibold">
                         {fmt(g.commission_stockiste_mois)}
-                        {r.taux_indirect != null && <span className="text-texte-secondaire font-normal"> ({r.taux_indirect}%)</span>}
+                        
                       </td>
                     </tr>
                   ))}
@@ -675,7 +673,7 @@ const DashboardStandard = ({ utilisateur }) => {
               {gainsDelegues.length > 0 && (
                 <div className="px-4 py-2 border-t border-bordure bg-blue-50">
                   <p className="text-xs text-blue-700">
-                    Gains revendeurs (15%) ce mois : <strong>{fmt(gainsDelegueMois)}</strong> — versés directement aux revendeurs, non inclus dans vos gains.
+                    Gains revendeurs ce mois : <strong>{fmt(gainsDelegueMois)}</strong> — versés directement aux revendeurs, non inclus dans vos gains.
                   </p>
                 </div>
               )}
