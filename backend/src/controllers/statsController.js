@@ -90,23 +90,28 @@ const obtenirStats = async (req, res) => {
     caMois += parseInt(rowsFAMois[0]?.total || 0);
 
     // Données exercice pour la répartition
-    const [facturesExercice, rowsFAExercice] = await Promise.all([
-      Facture.findAll({
-        where: {
-          statut: { [Op.ne]: 'annulee' },
-          date_facture: { [Op.gte]: dateExercice },
-          ...(estAdmin ? {} : { created_by: userId }),
-        },
-        attributes: ['montant_paye'],
-        raw: true,
-      }),
-      sequelize.query(
-        `SELECT COALESCE(SUM(montant_total), 0) AS total FROM factures_achat WHERE created_at >= :debut ${filtreStockiste}`,
-        { replacements: { debut: dateExercice, stockisteId: userId }, type: sequelize.QueryTypes.SELECT }
-      ),
-    ]);
+    // Admin : exclure les Factures des délégués (comptées séparément via gainsDelegues)
+    // Stockiste : ses propres Factures directes uniquement
+    let delegueIdsArr = [];
+    if (estAdmin) {
+      const delegueUsers = await User.findAll({ where: { role: 'delegue' }, attributes: ['id'] });
+      delegueIdsArr = delegueUsers.map((u) => u.id);
+    }
+
+    const filtreFacturesDirectes = {
+      statut: { [Op.ne]: 'annulee' },
+      date_facture: { [Op.gte]: dateExercice },
+      ...(estAdmin
+        ? (delegueIdsArr.length > 0 ? { created_by: { [Op.notIn]: delegueIdsArr } } : {})
+        : { created_by: userId }),
+    };
+
+    const facturesExercice = await Facture.findAll({
+      where: filtreFacturesDirectes,
+      attributes: ['montant_paye'],
+      raw: true,
+    });
     const caDirectExercice = facturesExercice.reduce((s, f) => s + (f.montant_paye || 0), 0);
-    const caApproExercice  = parseInt(rowsFAExercice[0]?.total || 0);
 
     if (req.utilisateur.role === 'stockiste') {
       const user = await User.findByPk(userId, { attributes: ['commission_rate'] });
@@ -122,33 +127,30 @@ const obtenirStats = async (req, res) => {
         part_mapa_direct: Math.round(caDirectExercice * tauxMapa / 100),
       };
     } else {
-      // Admin — agrège gains via factures + mouvements délégués (scope exercice)
-      const [rowsConsult, rowsAppro] = await Promise.all([
-        sequelize.query(
-          `SELECT
-             COALESCE(SUM(f.montant_paye * COALESCE(u.commission_rate, 0) / 100), 0) AS gains,
-             COALESCE(SUM(f.montant_paye * (100 - COALESCE(u.commission_rate, 0)) / 100), 0) AS mapa
-           FROM factures f
-           LEFT JOIN users u ON f.created_by = u.id AND u.role = 'stockiste'
-           WHERE f.date_facture >= :debut AND f.statut <> 'annulee'`,
-          { replacements: { debut: dateExercice }, type: sequelize.QueryTypes.SELECT }
-        ),
-        sequelize.query(
-          `SELECT
-             COALESCE(SUM(commission_stockiste), 0) AS gains,
-             COALESCE(SUM(gain_delegue), 0) AS gains_delegue
-           FROM mouvements_delegue
-           WHERE type = 'vente' AND statut = 'valide' AND date_mouvement >= :debut`,
-          { replacements: { debut: dateExercice }, type: sequelize.QueryTypes.SELECT }
-        ),
-      ]);
+      // Admin — gains sur Factures directes (hors délégués)
+      const excludeClause = delegueIdsArr.length > 0 ? 'AND f.created_by NOT IN (:delegueIds)' : '';
+      const rowsConsult = await sequelize.query(
+        `SELECT
+           COALESCE(SUM(f.montant_paye * COALESCE(u.commission_rate, 0) / 100), 0) AS gains,
+           COALESCE(SUM(f.montant_paye * (100 - COALESCE(u.commission_rate, 0)) / 100), 0) AS mapa
+         FROM factures f
+         LEFT JOIN users u ON f.created_by = u.id AND u.role = 'stockiste'
+         WHERE f.date_facture >= :debut AND f.statut <> 'annulee' ${excludeClause}`,
+        {
+          replacements: {
+            debut: dateExercice,
+            ...(delegueIdsArr.length > 0 ? { delegueIds: delegueIdsArr } : {}),
+          },
+          type: sequelize.QueryTypes.SELECT,
+        }
+      );
       repartition = {
         taux_total:        null,
         taux_direct:       null,
         taux_indirect:     null,
         taux_mapa:         null,
-        ca_direct:         caDirectExercice + caApproExercice,
-        gains_directs:     Math.round((rowsConsult[0]?.gains || 0) + (rowsAppro[0]?.gains || 0)),
+        ca_direct:         caDirectExercice,
+        gains_directs:     Math.round(rowsConsult[0]?.gains || 0),
         part_mapa_direct:  Math.round(rowsConsult[0]?.mapa || 0),
       };
     }
