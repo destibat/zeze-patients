@@ -42,6 +42,8 @@ const creerAnalyse = async (req, res) => {
 
   if (!date_analyse) return res.status(400).json({ message: 'La date de l\'analyse est requise' });
 
+  const dec = (v) => (v !== null && v !== undefined && v !== '') ? parseFloat(v) : null;
+
   const analyse = await AnalyseNFS.create({
     patient_id: patientId,
     consultation_id: consultation_id || null,
@@ -49,25 +51,25 @@ const creerAnalyse = async (req, res) => {
     date_analyse,
     sexe_patient: sexe_patient || null,
     age_patient: age_patient ? parseInt(age_patient) : null,
-    hemoglobine: hemoglobine ?? null,
-    hematocrite: hematocrite ?? null,
-    globules_rouges: globules_rouges ?? null,
-    vgm: vgm ?? null,
-    tcmh: tcmh ?? null,
-    ccmh: ccmh ?? null,
-    rdw: rdw ?? null,
-    globules_blancs: globules_blancs ?? null,
-    neutrophiles_pct: neutrophiles_pct ?? null,
-    neutrophiles_abs: neutrophiles_abs ?? null,
-    lymphocytes_pct: lymphocytes_pct ?? null,
-    lymphocytes_abs: lymphocytes_abs ?? null,
-    monocytes_pct: monocytes_pct ?? null,
-    monocytes_abs: monocytes_abs ?? null,
-    eosinophiles_pct: eosinophiles_pct ?? null,
-    eosinophiles_abs: eosinophiles_abs ?? null,
-    basophiles_pct: basophiles_pct ?? null,
-    basophiles_abs: basophiles_abs ?? null,
-    plaquettes: plaquettes ?? null,
+    hemoglobine: dec(hemoglobine),
+    hematocrite: dec(hematocrite),
+    globules_rouges: dec(globules_rouges),
+    vgm: dec(vgm),
+    tcmh: dec(tcmh),
+    ccmh: dec(ccmh),
+    rdw: dec(rdw),
+    globules_blancs: dec(globules_blancs),
+    neutrophiles_pct: dec(neutrophiles_pct),
+    neutrophiles_abs: dec(neutrophiles_abs),
+    lymphocytes_pct: dec(lymphocytes_pct),
+    lymphocytes_abs: dec(lymphocytes_abs),
+    monocytes_pct: dec(monocytes_pct),
+    monocytes_abs: dec(monocytes_abs),
+    eosinophiles_pct: dec(eosinophiles_pct),
+    eosinophiles_abs: dec(eosinophiles_abs),
+    basophiles_pct: dec(basophiles_pct),
+    basophiles_abs: dec(basophiles_abs),
+    plaquettes: dec(plaquettes),
     interpretations: interpretations || null,
     conclusion: conclusion?.trim() || null,
   });
@@ -83,7 +85,19 @@ const modifierAnalyse = async (req, res) => {
   const analyse = await AnalyseNFS.findByPk(req.params.analyseId);
   if (!analyse) return res.status(404).json({ message: 'Analyse introuvable' });
 
-  await analyse.update(req.body);
+  const dec = (v) => (v !== null && v !== undefined && v !== '') ? parseFloat(v) : null;
+  const champsNumeriques = [
+    'hemoglobine', 'hematocrite', 'globules_rouges', 'vgm', 'tcmh', 'ccmh', 'rdw',
+    'globules_blancs', 'neutrophiles_pct', 'neutrophiles_abs', 'lymphocytes_pct', 'lymphocytes_abs',
+    'monocytes_pct', 'monocytes_abs', 'eosinophiles_pct', 'eosinophiles_abs',
+    'basophiles_pct', 'basophiles_abs', 'plaquettes',
+  ];
+  const corps = { ...req.body };
+  for (const champ of champsNumeriques) {
+    if (champ in corps) corps[champ] = dec(corps[champ]);
+  }
+
+  await analyse.update(corps);
 
   const result = await AnalyseNFS.findByPk(analyse.id, {
     include: [{ association: 'auteur', attributes: ['id', 'nom', 'prenom'] }],
