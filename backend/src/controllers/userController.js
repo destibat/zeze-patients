@@ -73,7 +73,7 @@ const creerUtilisateur = async (req, res) => {
     password_hash: password,
     role,
     telephone: telephone?.trim() || null,
-    commission_rate: role === 'stockiste' && commission_rate != null ? parseFloat(commission_rate) : 25,
+    commission_rate: commission_rate != null ? parseFloat(commission_rate) : (role === 'delegue' ? 15 : 30),
     stockiste_id: role === 'delegue' ? stockiste_id : null,
     doit_changer_mdp: true,
   });
@@ -117,7 +117,7 @@ const modifierUtilisateur = async (req, res) => {
     pays: pays !== undefined ? pays?.trim() || null : utilisateur.pays,
     nom_cabinet: nom_cabinet !== undefined ? nom_cabinet?.trim() || null : utilisateur.nom_cabinet,
     actif: actif !== undefined ? actif : utilisateur.actif,
-    commission_rate: nouveauRole === 'stockiste' && commission_rate != null
+    commission_rate: ['stockiste', 'delegue'].includes(nouveauRole) && commission_rate != null
       ? parseFloat(commission_rate)
       : utilisateur.commission_rate,
     stockiste_id: nouveauRole === 'delegue'
