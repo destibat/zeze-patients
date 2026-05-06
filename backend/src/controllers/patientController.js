@@ -121,6 +121,9 @@ const modifierPatient = async (req, res) => {
     if (req.body[champ] !== undefined) miseAJour[champ] = req.body[champ];
   });
 
+  // Les champs ENUM refusent '' en MariaDB strict mode — convertir en null
+  if (miseAJour.groupe_sanguin === '') miseAJour.groupe_sanguin = null;
+
   await patient.update(miseAJour);
   await journaliser('UPDATE_PATIENT', req, patient.id);
 
