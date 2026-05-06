@@ -1,6 +1,6 @@
 'use strict';
 
-const { Exercice, MouvementDelegue, Facture, User, ParametreCabinet, sequelize } = require('../models');
+const { Exercice, MouvementDelegue, Facture, User, sequelize } = require('../models');
 const { Op } = require('sequelize');
 
 // ── Génération du numéro séquentiel ──────────────────────────────────────────
@@ -16,10 +16,11 @@ const genererNumero = async () => {
 };
 
 // ── Calcul du bilan complet d'un exercice ─────────────────────────────────────
-// Pour un exercice ouvert/rouvert : recalcule les commissions depuis les taux actuels.
-// Pour un exercice clôturé : utilise les valeurs stockées dans les mouvements.
+// Deux canaux revendeur : Facture (ordonnance cabinet) + MouvementDelegue (stock perso).
+// Exercice ouvert/rouvert → recalcul depuis les taux individuels actuels.
+// Exercice clôturé → valeurs stockées pour MouvementDelegue ; recalcul pour Factures
+//   (pas de champ commission stocké sur Facture).
 const calculerBilan = async (exerciceId, statut = null) => {
-  // Si le statut n'est pas fourni, on le charge
   let exerciceStatut = statut;
   if (!exerciceStatut) {
     const ex = await Exercice.findByPk(exerciceId, { attributes: ['statut'] });
@@ -27,139 +28,34 @@ const calculerBilan = async (exerciceId, statut = null) => {
   }
   const recalculer = ['ouvert', 'rouvert'].includes(exerciceStatut);
 
-  // Taux délégué depuis parametres_cabinet (pour les exercices ouverts)
-  let tauxDelegueActuel = 0.15;
-  if (recalculer) {
-    const paramDelegue = await ParametreCabinet.findOne({ where: { cle: 'commission_delegue' } });
-    tauxDelegueActuel = parseFloat(paramDelegue?.valeur ?? 15) / 100;
-  }
-
-  // ── Factures (ventes directes stockiste/secrétaire/admin) ─────────────────
+  // ── Toutes les Factures de l'exercice ─────────────────────────────────────
   const factures = await Facture.findAll({
-    where: {
-      exercice_id: exerciceId,
-      statut: { [Op.ne]: 'annulee' },
-    },
+    where: { exercice_id: exerciceId, statut: { [Op.ne]: 'annulee' } },
     include: [{
       model: User, as: 'createur',
-      attributes: ['id', 'nom', 'prenom', 'role', 'commission_rate'],
+      attributes: ['id', 'nom', 'prenom', 'role', 'commission_rate', 'stockiste_id'],
       include: [{ model: User, as: 'stockiste', attributes: ['id', 'nom', 'prenom', 'commission_rate'] }],
     }],
     raw: false,
   });
 
-  // ── Ventes délégués validées ───────────────────────────────────────────────
+  // ── Ventes délégués directes (depuis stock perso, validées) ───────────────
   const ventesDeleg = await MouvementDelegue.findAll({
-    where: {
-      exercice_id: exerciceId,
-      type: 'vente',
-      statut: 'valide',
-    },
+    where: { exercice_id: exerciceId, type: 'vente', statut: 'valide' },
     include: [{
       model: User, as: 'delegue',
-      attributes: ['id', 'nom', 'prenom', 'stockiste_id'],
+      attributes: ['id', 'nom', 'prenom', 'commission_rate', 'stockiste_id'],
       include: [{ model: User, as: 'stockiste', attributes: ['id', 'nom', 'prenom', 'commission_rate'] }],
     }],
     raw: false,
   });
 
-  // ── Agrégation factures ────────────────────────────────────────────────────
   const parStockiste = {};
-  const parDelegue = {};
-  const produitsMap = {};
+  const parDelegue   = {};
+  const produitsMap  = {};
 
-  for (const f of factures) {
-    const createur = f.createur;
-    // Si le créateur est un délégué, sa commission appartient à son stockiste
-    // Ici on traite le cas général : le créateur directs de la facture
-    let tauxComm = 0;
-    let stockisteId = null;
-    let stockisteNom = '';
-
-    if (createur?.role === 'stockiste' || createur?.role === 'administrateur') {
-      tauxComm = parseFloat(createur.commission_rate ?? 0);
-      stockisteId = createur.id;
-      stockisteNom = `${createur.prenom} ${createur.nom}`;
-    } else if (createur?.stockiste) {
-      // Délégué ou secrétaire qui facture — commission au stockiste parrain
-      tauxComm = parseFloat(createur.stockiste.commission_rate ?? 0);
-      stockisteId = createur.stockiste.id;
-      stockisteNom = `${createur.stockiste.prenom} ${createur.stockiste.nom}`;
-    }
-
-    const montant = f.montant_paye || 0;
-    const gainStockiste = Math.round(montant * tauxComm / 100);
-    const partMapa = montant - gainStockiste;
-
-    if (stockisteId) {
-      if (!parStockiste[stockisteId]) {
-        parStockiste[stockisteId] = {
-          id: stockisteId, nom: stockisteNom,
-          taux: tauxComm,
-          ca_factures: 0, gain_factures: 0,
-          ca_delegues: 0, commission_delegues: 0,
-        };
-      }
-      parStockiste[stockisteId].ca_factures += montant;
-      parStockiste[stockisteId].gain_factures += gainStockiste;
-    }
-
-    // Top produits factures
-    let lignes = f.lignes;
-    if (typeof lignes === 'string') { try { lignes = JSON.parse(lignes); } catch { lignes = []; } }
-    for (const l of (lignes || [])) {
-      produitsMap[l.nom_produit || l.nom || 'Inconnu'] = produitsMap[l.nom_produit || l.nom || 'Inconnu'] || { quantite: 0, ca: 0 };
-      produitsMap[l.nom_produit || l.nom || 'Inconnu'].quantite += l.quantite || 0;
-      produitsMap[l.nom_produit || l.nom || 'Inconnu'].ca += (l.prix_unitaire || 0) * (l.quantite || 0);
-    }
-  }
-
-  // ── Agrégation ventes délégués ─────────────────────────────────────────────
-  for (const v of ventesDeleg) {
-    const del = v.delegue;
-    const stockiste = del?.stockiste;
-    const stockisteId = del?.stockiste_id;
-    const stockisteNom = stockiste ? `${stockiste.prenom} ${stockiste.nom}` : 'N/A';
-    const tauxTotal = parseFloat(stockiste?.commission_rate ?? 25);
-
-    // Pour un exercice ouvert : recalculer depuis les taux actuels
-    // Pour un exercice clôturé : utiliser les valeurs enregistrées
-    const gainDelegue = recalculer
-      ? Math.round(v.montant_total * tauxDelegueActuel)
-      : v.gain_delegue;
-    const commissionStockiste = recalculer
-      ? Math.round(v.montant_total * (tauxTotal / 100 - tauxDelegueActuel))
-      : v.commission_stockiste;
-
-    // Délégué
-    if (!parDelegue[del.id]) {
-      parDelegue[del.id] = {
-        id: del.id, nom: `${del.prenom} ${del.nom}`,
-        stockiste_nom: stockisteNom,
-        nb_ventes: 0, ca: 0, gain_delegue: 0, commission_stockiste: 0,
-      };
-    }
-    parDelegue[del.id].nb_ventes += 1;
-    parDelegue[del.id].ca += v.montant_total;
-    parDelegue[del.id].gain_delegue += gainDelegue;
-    parDelegue[del.id].commission_stockiste += commissionStockiste;
-
-    // Stockiste parrain
-    if (stockisteId) {
-      if (!parStockiste[stockisteId]) {
-        parStockiste[stockisteId] = {
-          id: stockisteId, nom: stockisteNom,
-          taux: tauxTotal,
-          ca_factures: 0, gain_factures: 0,
-          ca_delegues: 0, commission_delegues: 0,
-        };
-      }
-      parStockiste[stockisteId].ca_delegues += v.montant_total;
-      parStockiste[stockisteId].commission_delegues += commissionStockiste;
-    }
-
-    // Top produits ventes délégués
-    let lignes = v.lignes;
+  const ajouterProduits = (lignesRaw) => {
+    let lignes = lignesRaw;
     if (typeof lignes === 'string') { try { lignes = JSON.parse(lignes); } catch { lignes = []; } }
     for (const l of (lignes || [])) {
       const nom = l.nom_produit || l.nom || 'Inconnu';
@@ -167,22 +63,110 @@ const calculerBilan = async (exerciceId, statut = null) => {
       produitsMap[nom].quantite += l.quantite || 0;
       produitsMap[nom].ca += (l.prix_unitaire || 0) * (l.quantite || 0);
     }
+  };
+
+  const ajouterDelegue = (id, nom, stockisteNom, montant, gainDelegue, commStockiste) => {
+    if (!parDelegue[id]) {
+      parDelegue[id] = { id, nom, stockiste_nom: stockisteNom, nb_ventes: 0, ca: 0, gain_delegue: 0, commission_stockiste: 0 };
+    }
+    parDelegue[id].nb_ventes      += 1;
+    parDelegue[id].ca             += montant;
+    parDelegue[id].gain_delegue   += gainDelegue;
+    parDelegue[id].commission_stockiste += commStockiste;
+  };
+
+  const ajouterStockisteIndirect = (id, nom, taux, montant, commStockiste) => {
+    if (!parStockiste[id]) {
+      parStockiste[id] = { id, nom, taux, ca_factures: 0, gain_factures: 0, ca_delegues: 0, commission_delegues: 0 };
+    }
+    parStockiste[id].ca_delegues        += montant;
+    parStockiste[id].commission_delegues += commStockiste;
+  };
+
+  // ── Traitement des Factures ────────────────────────────────────────────────
+  for (const f of factures) {
+    const createur = f.createur;
+    const montant  = f.montant_paye || 0;
+    ajouterProduits(f.lignes);
+
+    if (createur?.role === 'delegue') {
+      // Canal ordonnance revendeur : commission partagée entre délégué et stockiste
+      const tauxDelegue = parseFloat(createur.commission_rate ?? 15);
+      const tauxTotal   = parseFloat(createur.stockiste?.commission_rate ?? 30);
+      const gainDelegue = Math.round(montant * tauxDelegue / 100);
+      const commStock   = Math.round(montant * (tauxTotal - tauxDelegue) / 100);
+      const stockisteId  = createur.stockiste_id;
+      const stockisteNom = createur.stockiste
+        ? `${createur.stockiste.prenom} ${createur.stockiste.nom}` : 'N/A';
+
+      ajouterDelegue(createur.id, `${createur.prenom} ${createur.nom}`, stockisteNom, montant, gainDelegue, commStock);
+      if (stockisteId) ajouterStockisteIndirect(stockisteId, stockisteNom, tauxTotal, montant, commStock);
+
+    } else {
+      // Canal direct (secrétaire / stockiste / admin) : commission 100 % au stockiste
+      let tauxComm = 0, stockisteId = null, stockisteNom = '';
+
+      if (createur?.role === 'stockiste' || createur?.role === 'administrateur') {
+        tauxComm     = parseFloat(createur.commission_rate ?? 0);
+        stockisteId  = createur.id;
+        stockisteNom = `${createur.prenom} ${createur.nom}`;
+      } else if (createur?.stockiste) {
+        tauxComm     = parseFloat(createur.stockiste.commission_rate ?? 0);
+        stockisteId  = createur.stockiste.id;
+        stockisteNom = `${createur.stockiste.prenom} ${createur.stockiste.nom}`;
+      }
+
+      const gainStockiste = Math.round(montant * tauxComm / 100);
+      if (stockisteId) {
+        if (!parStockiste[stockisteId]) {
+          parStockiste[stockisteId] = { id: stockisteId, nom: stockisteNom, taux: tauxComm, ca_factures: 0, gain_factures: 0, ca_delegues: 0, commission_delegues: 0 };
+        }
+        parStockiste[stockisteId].ca_factures  += montant;
+        parStockiste[stockisteId].gain_factures += gainStockiste;
+      }
+    }
+  }
+
+  // ── Traitement des ventes directes délégués (stock perso) ─────────────────
+  for (const v of ventesDeleg) {
+    const del = v.delegue;
+    if (!del) continue;
+    const stockiste    = del.stockiste;
+    const stockisteId  = del.stockiste_id;
+    const stockisteNom = stockiste ? `${stockiste.prenom} ${stockiste.nom}` : 'N/A';
+    const tauxTotal    = parseFloat(stockiste?.commission_rate ?? 30);
+    const tauxDelegue  = parseFloat(del.commission_rate ?? 15);
+
+    const gainDelegue = recalculer
+      ? Math.round(v.montant_total * tauxDelegue / 100)
+      : (v.gain_delegue || 0);
+    const commStock = recalculer
+      ? Math.round(v.montant_total * (tauxTotal - tauxDelegue) / 100)
+      : (v.commission_stockiste || 0);
+
+    ajouterDelegue(del.id, `${del.prenom} ${del.nom}`, stockisteNom, v.montant_total, gainDelegue, commStock);
+    if (stockisteId) ajouterStockisteIndirect(stockisteId, stockisteNom, tauxTotal, v.montant_total, commStock);
+    ajouterProduits(v.lignes);
   }
 
   // ── Totaux ─────────────────────────────────────────────────────────────────
-  const ca_factures_total = factures.reduce((s, f) => s + (f.montant_paye || 0), 0);
-  const ca_delegues_total = ventesDeleg.reduce((s, v) => s + (v.montant_total || 0), 0);
+  const ca_factures_total = factures
+    .filter((f) => f.createur?.role !== 'delegue')
+    .reduce((s, f) => s + (f.montant_paye || 0), 0);
+  const ca_delegues_total =
+    factures.filter((f) => f.createur?.role === 'delegue').reduce((s, f) => s + (f.montant_paye || 0), 0) +
+    ventesDeleg.reduce((s, v) => s + (v.montant_total || 0), 0);
   const ca_total = ca_factures_total + ca_delegues_total;
 
-  const commissions_stockistes_total = Object.values(parStockiste).reduce(
-    (s, st) => s + st.gain_factures + st.commission_delegues, 0
-  );
-  const commissions_delegues_total = Object.values(parDelegue).reduce(
-    (s, d) => s + d.gain_delegue, 0
-  );
+  const commissions_stockistes_total = Object.values(parStockiste)
+    .reduce((s, st) => s + st.gain_factures + st.commission_delegues, 0);
+  const commissions_delegues_total = Object.values(parDelegue)
+    .reduce((s, d) => s + d.gain_delegue, 0);
   const net_mapa = ca_total - commissions_stockistes_total - commissions_delegues_total;
 
-  // ── Structurer la réponse ─────────────────────────────────────────────────
+  const nb_factures_directes = factures.filter((f) => f.createur?.role !== 'delegue').length;
+  const nb_ventes_delegues   = Object.values(parDelegue).reduce((s, d) => s + d.nb_ventes, 0);
+
   const stockistesDetail = Object.values(parStockiste).map((st) => ({
     ...st,
     commission_totale: st.gain_factures + st.commission_delegues,
@@ -195,17 +179,17 @@ const calculerBilan = async (exerciceId, statut = null) => {
     .slice(0, 20);
 
   return {
-    nb_factures: factures.length,
-    nb_ventes_delegues: ventesDeleg.length,
+    nb_factures: nb_factures_directes,
+    nb_ventes_delegues,
     ca_factures: ca_factures_total,
     ca_delegues: ca_delegues_total,
     ca_total,
     commissions_stockistes: commissions_stockistes_total,
-    commissions_delegues: commissions_delegues_total,
+    commissions_delegues:   commissions_delegues_total,
     net_mapa,
     par_stockiste: stockistesDetail,
-    par_delegue: Object.values(parDelegue),
-    top_produits: topProduits,
+    par_delegue:   Object.values(parDelegue),
+    top_produits:  topProduits,
   };
 };
 

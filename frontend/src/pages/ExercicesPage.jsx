@@ -208,15 +208,39 @@ export const AperçuBilan = ({ bilan, exercice }) => {
         <div>
           <p className="text-xs font-semibold text-texte-secondaire uppercase tracking-wide mb-2">Revendeurs</p>
           <div className="divide-y divide-bordure border border-bordure rounded-bouton overflow-hidden text-sm">
+            {/* En-tête colonnes */}
+            <div className="flex items-center justify-between px-3 py-1.5 bg-fond-secondaire text-xs text-texte-secondaire font-medium">
+              <span>Revendeur</span>
+              <div className="flex gap-4 text-right">
+                <span className="w-24">CA</span>
+                <span className="w-24 text-purple-600">Gain délégué</span>
+                <span className="w-24 text-blue-600">Part stockiste</span>
+              </div>
+            </div>
             {bilan.par_delegue.map((d) => (
               <div key={d.id} className="flex items-center justify-between px-3 py-2">
                 <div>
                   <p className="font-medium text-texte-principal">{d.nom}</p>
-                  <p className="text-xs text-texte-secondaire">{d.nb_ventes} vente{d.nb_ventes > 1 ? 's' : ''} · {fmtFCFA(d.ca)}</p>
+                  <p className="text-xs text-texte-secondaire">{d.nb_ventes} vente{d.nb_ventes > 1 ? 's' : ''}</p>
                 </div>
-                <span className="text-purple-600 font-medium">{fmtFCFA(d.gain_delegue)}</span>
+                <div className="flex gap-4 text-right">
+                  <span className="w-24 text-xs text-texte-secondaire font-mono">{fmtFCFA(d.ca)}</span>
+                  <span className="w-24 text-purple-600 font-medium font-mono">{fmtFCFA(d.gain_delegue)}</span>
+                  <span className="w-24 text-blue-600 font-medium font-mono">{fmtFCFA(d.commission_stockiste)}</span>
+                </div>
               </div>
             ))}
+            {/* Ligne totaux revendeurs */}
+            {bilan.par_delegue.length > 1 && (
+              <div className="flex items-center justify-between px-3 py-2 bg-fond-secondaire font-semibold text-xs">
+                <span className="text-texte-principal">Total revendeurs</span>
+                <div className="flex gap-4 text-right">
+                  <span className="w-24 font-mono text-texte-principal">{fmtFCFA(bilan.ca_delegues)}</span>
+                  <span className="w-24 text-purple-600 font-mono">{fmtFCFA(bilan.commissions_delegues)}</span>
+                  <span className="w-24 text-blue-600 font-mono">{fmtFCFA(bilan.par_delegue.reduce((s, d) => s + (d.commission_stockiste || 0), 0))}</span>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
