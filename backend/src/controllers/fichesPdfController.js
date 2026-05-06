@@ -1,6 +1,7 @@
 'use strict';
 
-const { Exercice, MouvementDelegue, User, ParametreCabinet } = require('../models');
+const { Exercice, MouvementDelegue, Facture, Patient, User, ParametreCabinet } = require('../models');
+const { Op } = require('sequelize');
 const { calculerBilan } = require('./exerciceController');
 const {
   genererFicheMAPAPDF,
@@ -124,21 +125,41 @@ const ficheBilanDelegue = async (req, res) => {
   const { exercice } = resultat;
 
   const delegue = await User.findByPk(delegueId, {
-    attributes: ['id', 'nom', 'prenom', 'role'],
+    attributes: ['id', 'nom', 'prenom', 'role', 'commission_rate'],
   });
   if (!delegue || delegue.role !== 'delegue') {
     return res.status(404).json({ message: 'Délégué introuvable' });
   }
 
-  const ventes = await MouvementDelegue.findAll({
-    where: {
-      delegue_id: delegueId,
-      exercice_id: exerciceId,
-      type: 'vente',
-    },
+  const tauxDelegue = delegue.commission_rate || 15;
+
+  // Canal 1 : ventes depuis stock personnel
+  const ventesStock = await MouvementDelegue.findAll({
+    where: { delegue_id: delegueId, exercice_id: exerciceId, type: 'vente' },
     order: [['date_mouvement', 'ASC'], ['created_at', 'ASC']],
     raw: true,
   });
+
+  // Canal 2 : ventes via ordonnances (Factures créées par le délégué pendant l'exercice)
+  const facturesDelegue = await Facture.findAll({
+    where: {
+      created_by: delegueId,
+      statut: { [Op.ne]: 'annulee' },
+      date_facture: { [Op.gte]: exercice.date_ouverture },
+    },
+    include: [{ model: Patient, as: 'patient', attributes: ['nom', 'prenom'] }],
+  });
+
+  const ventesOrdonnances = facturesDelegue.map((f) => ({
+    statut: 'valide',
+    date_mouvement: f.date_facture,
+    client_nom: f.patient ? `${f.patient.prenom} ${f.patient.nom}` : '—',
+    lignes: f.lignes || [],
+    montant_total: f.montant_total,
+    gain_delegue: Math.round(f.montant_total * tauxDelegue / 100),
+  }));
+
+  const ventes = [...ventesStock, ...ventesOrdonnances];
 
   const infos = await chargerInfosCabinet();
   const buffer = await genererBilanIndividuelPDF(exercice, delegue, ventes, infos);
