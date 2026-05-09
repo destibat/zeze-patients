@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '../services/api';
 import Alert from '../components/ui/Alert';
 import Button from '../components/ui/Button';
-import { User, Lock, Building2, Save, Percent, Eye, EyeOff, Store, Pencil, X, Check, ImageUp, FileImage, Upload, AlertTriangle, RotateCcw } from 'lucide-react';
+import { User, Lock, Building2, Save, Percent, Eye, EyeOff, Store, Pencil, X, Check, ImageUp, FileImage, Upload, AlertTriangle, RotateCcw, Users } from 'lucide-react';
 
 const Section = ({ titre, icone: Icone, children }) => (
   <div className="carte space-y-4">
@@ -151,6 +151,26 @@ const ZoneDangereuse = () => {
   const [erreur, setErreur]             = useState('');
   const [chargement, setChargement]     = useState(false);
 
+  const [unitesDelegue, setUnitesDelegue]       = useState(5);
+  const [succesDelegue, setSuccesDelegue]       = useState('');
+  const [erreurDelegue, setErreurDelegue]       = useState('');
+  const [chargementDelegue, setChargementDelegue] = useState(false);
+
+  const handleResetDelegues = async () => {
+    setChargementDelegue(true);
+    setErreurDelegue('');
+    setSuccesDelegue('');
+    try {
+      const res = await api.post('/admin/reset-stock-delegues', { unites_par_produit: unitesDelegue });
+      setSuccesDelegue(res.data.message);
+      qc.invalidateQueries();
+    } catch (e) {
+      setErreurDelegue(e?.response?.data?.message || 'Erreur lors de la réinitialisation');
+    } finally {
+      setChargementDelegue(false);
+    }
+  };
+
   const handleReset = async () => {
     if (confirmation !== 'RESET') return;
     setChargement(true);
@@ -174,14 +194,52 @@ const ZoneDangereuse = () => {
         <AlertTriangle size={16} /> Zone dangereuse
       </h2>
 
-      {succes && <Alert type="succes" message="Remise à zéro effectuée. Stock produits actifs remis à 20 unités." />}
+      {succes && <Alert type="succes" message="Remise à zéro effectuée. Stock produits actifs remis à 20 unités, stock revendeurs vidé." />}
       {erreur && <Alert type="erreur" message={erreur} />}
 
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      {/* Reset stock revendeurs */}
+      <div className="border-t border-red-200 pt-4 space-y-3">
+        {succesDelegue && <Alert type="succes" message={succesDelegue} />}
+        {erreurDelegue && <Alert type="erreur" message={erreurDelegue} />}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <p className="text-sm font-medium text-texte-principal flex items-center gap-1.5">
+              <Users size={14} className="text-red-500" /> Stock des revendeurs
+            </p>
+            <p className="text-xs text-texte-secondaire mt-0.5">
+              Vide tous les stocks et mouvements des revendeurs, puis redistribue le nombre d'unités choisi par produit actif.
+            </p>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <div className="flex items-center gap-1.5">
+              <label className="text-xs text-texte-secondaire whitespace-nowrap">Unités/produit</label>
+              <input
+                type="number"
+                min={0}
+                max={100}
+                value={unitesDelegue}
+                onChange={(e) => setUnitesDelegue(Math.max(0, parseInt(e.target.value) || 0))}
+                className="champ-input w-16 text-center text-sm"
+              />
+            </div>
+            <Button
+              variante="danger"
+              icone={Users}
+              chargement={chargementDelegue}
+              onClick={handleResetDelegues}
+            >
+              Réinit. revendeurs
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      {/* Reset global */}
+      <div className="border-t border-red-200 pt-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <p className="text-sm font-medium text-texte-principal">Remettre les données à zéro</p>
+          <p className="text-sm font-medium text-texte-principal">Remettre toutes les données à zéro</p>
           <p className="text-xs text-texte-secondaire mt-0.5">
-            Supprime toutes les données de test. Remet le stock à 0.
+            Supprime toutes les données de test. Remet le stock cabinet à 20, stock revendeurs à 0.
             <br />
             <span className="font-medium text-texte-principal">Conservé :</span> utilisateurs, patients, catalogue produits.
           </p>
