@@ -1,6 +1,6 @@
 'use strict';
 
-const { Ordonnance, Consultation, Patient, User, Facture, Produit, sequelize } = require('../models');
+const { Ordonnance, Consultation, Patient, User, Facture, Produit, StockDelegue, sequelize } = require('../models');
 const { genererNumeroOrdonnance } = require('../services/numeroOrdonnanceService');
 const { getPosologie } = require('../services/posologieService');
 const pdfService = require('../services/pdfService');
@@ -50,13 +50,25 @@ const creer = async (req, res) => {
   const transaction = await sequelize.transaction();
 
   try {
-    // Tous les rôles : décrémenter le stock cabinet (sans bloquer si insuffisant)
-    // Le délégué vend via ordonnance → stock vient du cabinet, pas de son stock perso
     for (const ligne of lignes.filter((l) => l.produit_id)) {
-      const produit = await Produit.findByPk(ligne.produit_id, { transaction, lock: true });
-      if (produit && produit.quantite_stock > 0) {
-        const aDecrementer = Math.min(produit.quantite_stock, ligne.quantite);
-        await produit.decrement('quantite_stock', { by: aDecrementer, transaction });
+      if (req.utilisateur.role === 'delegue' && ligne.source === 'stock') {
+        // Le délégué vend depuis son stock perso → décrémenter StockDelegue
+        const stockPerso = await StockDelegue.findOne({
+          where: { delegue_id: req.utilisateur.id, produit_id: ligne.produit_id },
+          transaction,
+          lock: true,
+        });
+        if (stockPerso && stockPerso.quantite > 0) {
+          const aDecrementer = Math.min(stockPerso.quantite, ligne.quantite);
+          await stockPerso.decrement('quantite', { by: aDecrementer, transaction });
+        }
+      } else {
+        // Stock cabinet (tous les autres rôles, ou source='achat' pour le délégué)
+        const produit = await Produit.findByPk(ligne.produit_id, { transaction, lock: true });
+        if (produit && produit.quantite_stock > 0) {
+          const aDecrementer = Math.min(produit.quantite_stock, ligne.quantite);
+          await produit.decrement('quantite_stock', { by: aDecrementer, transaction });
+        }
       }
     }
 
