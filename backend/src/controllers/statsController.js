@@ -52,13 +52,9 @@ const obtenirStats = async (req, res) => {
   let caMois = caDirectMois;
   let gainsOrdonnancesMois = 0;
 
-  // Pour les délégués : CA = montant facturé (pas encaissé) + ventes stock directes validées
+  // Pour les délégués : CA = ordonnances + ventes directes stock. Gains via MouvementDelegue type='achat' uniquement.
   if (req.utilisateur.role === 'delegue') {
-    const delegueUser = await User.findByPk(userId, { attributes: ['commission_rate'] });
-    const tauxDelegue = parseFloat(delegueUser?.commission_rate ?? 15);
-    caDirectMois = caFactureMois;
-    caMois = caDirectMois;
-    gainsOrdonnancesMois = Math.round(caDirectMois * tauxDelegue / 100);
+    const caOrdonnancesMois = caFactureMois;
     const ventesDirectes = await MouvementDelegue.findAll({
       where: {
         delegue_id: userId,
@@ -69,7 +65,12 @@ const obtenirStats = async (req, res) => {
       attributes: ['montant_total'],
       raw: true,
     });
-    caMois += ventesDirectes.reduce((s, v) => s + (v.montant_total || 0), 0);
+    const caVentesDirectesMois = ventesDirectes.reduce((s, v) => s + (v.montant_total || 0), 0);
+    caDirectMois = caOrdonnancesMois;
+    caMois = caOrdonnancesMois + caVentesDirectesMois;
+    gainsOrdonnancesMois = 0; // Les gains sont désormais uniquement via MouvementDelegue type='achat'
+    // Champs supplémentaires transmis pour le dashboard
+    req._delegueStats = { caOrdonnancesMois, caVentesDirectesMois };
   }
 
   // Pour les stockistes et l'admin : KPI CA mois + répartition scope exercice
@@ -201,8 +202,11 @@ const obtenirStats = async (req, res) => {
     ca_filtre: !estAdmin,
     rdv_aujourd_hui: rdvAujourdhui,
     factures_a_relancer: facturesARelancer,
-    gains_ordonnances_mois: gainsOrdonnancesMois, // délégué : 15% des factures encaissées ce mois
-    repartition, // null si non stockiste
+    gains_ordonnances_mois: gainsOrdonnancesMois,
+    // Détail pour le dashboard délégué
+    ca_ordonnances_mois: req._delegueStats?.caOrdonnancesMois ?? null,
+    ca_ventes_directes_mois: req._delegueStats?.caVentesDirectesMois ?? null,
+    repartition,
   });
 };
 

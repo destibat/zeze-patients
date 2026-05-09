@@ -14,6 +14,7 @@ import ConsultationFormPage from './pages/consultations/ConsultationFormPage';
 import ConsultationFichePage from './pages/consultations/ConsultationFichePage';
 import StockPage from './pages/StockPage';
 import MonStockPage from './pages/MonStockPage';
+import MonBilanPage from './pages/MonBilanPage';
 import AgendaPage from './pages/AgendaPage';
 import FacturationPage from './pages/FacturationPage';
 import ConsultationsPage from './pages/ConsultationsPage';
@@ -108,6 +109,14 @@ const App = () => (
               element={
                 <ProtectedRoute roles={['delegue']}>
                   <MonStockPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="mon-bilan"
+              element={
+                <ProtectedRoute roles={['delegue']}>
+                  <MonBilanPage />
                 </ProtectedRoute>
               }
             />

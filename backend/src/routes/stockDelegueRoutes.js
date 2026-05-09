@@ -15,6 +15,7 @@ router.post('/acheter',      autoriser('delegue'), asyncHandler(ctrl.acheter));
 router.post('/vendre',       autoriser('delegue'), asyncHandler(ctrl.vendre));
 router.get('/ventes',        autoriser('delegue'), asyncHandler(ctrl.listerMesVentes));
 router.get('/stats',         autoriser('delegue'), asyncHandler(ctrl.obtenirStatsStock));
+router.get('/mon-bilan',     autoriser('delegue'), asyncHandler(ctrl.monBilan));
 
 // Gains, ventes directes et validation — admin et stockiste uniquement
 router.get('/gains-delegues',    adminOuMedecin, asyncHandler(ctrl.obtenirGainsDelegues));

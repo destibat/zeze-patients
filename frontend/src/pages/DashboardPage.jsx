@@ -10,7 +10,7 @@ import { useStatsPretEmprunts } from '../hooks/usePretEmprunts';
 import {
   Users, Stethoscope, Calendar, TrendingUp, Bell,
   Clock, CheckCircle, AlertCircle, Phone,
-  ShoppingCart, ShoppingBag, Package, BookOpen, AlertTriangle, ArrowRightLeft,
+  ShoppingCart, ShoppingBag, Package, BookOpen, AlertTriangle, ArrowRightLeft, FileBarChart,
 } from 'lucide-react';
 
 const toDateInput = (d) => d.toISOString().split('T')[0];
@@ -234,34 +234,51 @@ const DashboardDelegue = ({ utilisateur }) => {
         />
       </div>
 
-      {/* KPI ligne 2 : stock personnel */}
+      {/* KPI ligne 2 : activité financière */}
       <div>
-        <h2 className="text-sm font-semibold text-texte-secondaire uppercase tracking-wide mb-3">
-          Mon stock ce mois
-        </h2>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-sm font-semibold text-texte-secondaire uppercase tracking-wide">
+            Mon activité — exercice en cours
+          </h2>
+          <button
+            onClick={() => navigate('/mon-bilan')}
+            className="flex items-center gap-1.5 text-xs font-medium text-zeze-vert hover:underline"
+          >
+            <FileBarChart size={13} /> Voir mon bilan complet →
+          </button>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
           <CarteKPI
-            titre="Achats (approvisionnement)"
+            titre="Ventes via ordonnances"
+            valeur={isLoading ? '…' : formatMontant(stats?.ca_ordonnances_mois ?? 0)}
+            icone={ShoppingBag}
+            couleur="bg-zeze-vert"
+            sous="Factures créées ce mois"
+            onClick={() => navigate('/ordonnances')}
+          />
+          <CarteKPI
+            titre="Ventes directes stock"
+            valeur={valMontant(stockStats?.ventes_mois)}
+            icone={ShoppingBag}
+            couleur="bg-emerald-600"
+            sous="Depuis mon stock personnel"
+            onClick={() => navigate('/mon-stock')}
+          />
+          <CarteKPI
+            titre="Approvisionnements"
             valeur={valMontant(stockStats?.achats_mois)}
             icone={ShoppingCart}
             couleur="bg-blue-600"
-            sous="Montant total dépensé ce mois"
-            onClick={() => navigate('/mon-stock')}
+            sous="Achats auprès du stockiste"
+            onClick={() => navigate('/approvisionnements')}
           />
           <CarteKPI
-            titre="Ventes directes (stock)"
-            valeur={valMontant(stockStats?.ventes_mois)}
-            icone={ShoppingBag}
-            couleur="bg-zeze-or"
-            sous={stockStats ? `Gain validé : ${formatMontant(stockStats.gain_delegue_mois)}` : null}
-            onClick={() => navigate('/mon-stock')}
-          />
-          <CarteKPI
-            titre="Mes gains totaux"
-            valeur={isLoading || stockLoading ? '…' : formatMontant((stats?.gains_ordonnances_mois ?? 0) + (stockStats?.gain_delegue_mois ?? 0))}
+            titre="Ma commission"
+            valeur={stockLoading ? '…' : formatMontant(stockStats?.gain_delegue_mois ?? 0)}
             icone={TrendingUp}
-            couleur="bg-emerald-600"
-            sous={isLoading || stockLoading ? null : `Ordonnances : ${formatMontant(stats?.gains_ordonnances_mois ?? 0)} · Stock : ${formatMontant(stockStats?.gain_delegue_mois ?? 0)}`}
+            couleur="bg-zeze-or"
+            sous="Sur achats de l'exercice"
+            onClick={() => navigate('/mon-bilan')}
           />
         </div>
       </div>

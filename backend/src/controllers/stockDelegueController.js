@@ -1,6 +1,6 @@
 'use strict';
 
-const { StockDelegue, MouvementDelegue, Facture, FactureAchat, Produit, StockMouvement, User, Exercice, sequelize } = require('../models');
+const { StockDelegue, MouvementDelegue, Facture, FactureAchat, Produit, StockMouvement, User, Exercice, Patient, CommandeApprovisionnement, sequelize } = require('../models');
 const { Op } = require('sequelize');
 
 // Récupère l'exercice ouvert ou lance une erreur métier
@@ -436,8 +436,85 @@ const ventesDirectesDelegues = async (req, res) => {
   res.json(resultat);
 };
 
+// Bilan personnel du délégué sur une période
+const monBilan = async (req, res) => {
+  const userId = req.utilisateur.id;
+  const { debut, fin } = req.query;
+
+  const maintenant = new Date();
+  const debutMois = new Date(maintenant.getFullYear(), maintenant.getMonth(), 1);
+  const dateDebut = debut ? new Date(debut) : debutMois;
+  const dateFin = fin ? new Date(fin) : new Date();
+  dateFin.setHours(23, 59, 59, 999);
+
+  const debutStr = dateDebut.toISOString().split('T')[0];
+  const finStr   = dateFin.toISOString().split('T')[0];
+
+  const [commandesAppro, facturesOrd, ventesDirectes, mouvAchats] = await Promise.all([
+    CommandeApprovisionnement.findAll({
+      where: {
+        revendeur_id: userId,
+        statut: 'validee',
+        date_validation: { [Op.between]: [debutStr, finStr] },
+      },
+      include: [
+        { model: FactureAchat, as: 'facture', attributes: ['id', 'statut_paiement', 'montant_total', 'mode_paiement', 'date_paiement'] },
+        { model: User, as: 'stockiste', attributes: ['id', 'nom', 'prenom'] },
+      ],
+      order: [['date_validation', 'DESC']],
+    }),
+    Facture.findAll({
+      where: {
+        created_by: userId,
+        statut: { [Op.ne]: 'annulee' },
+        date_facture: { [Op.between]: [debutStr, finStr] },
+      },
+      include: [{ model: Patient, as: 'patient', attributes: ['id', 'nom', 'prenom', 'numero_dossier'] }],
+      order: [['date_facture', 'DESC']],
+    }),
+    MouvementDelegue.findAll({
+      where: {
+        delegue_id: userId,
+        type: 'vente',
+        date_mouvement: { [Op.between]: [debutStr, finStr] },
+      },
+      include: [{ model: Produit, as: 'produit', attributes: ['id', 'nom'] }],
+      order: [['date_mouvement', 'DESC']],
+    }),
+    MouvementDelegue.findAll({
+      where: {
+        delegue_id: userId,
+        type: 'achat',
+        date_mouvement: { [Op.between]: [debutStr, finStr] },
+      },
+      attributes: ['gain_delegue', 'montant_total'],
+      raw: true,
+    }),
+  ]);
+
+  const total_achats         = commandesAppro.reduce((s, c) => s + (c.montant_total || 0), 0);
+  const total_ventes_ord     = facturesOrd.reduce((s, f) => s + (f.montant_total || 0), 0);
+  const total_ventes_dir     = ventesDirectes.filter((v) => v.statut === 'valide').reduce((s, v) => s + (v.montant_total || 0), 0);
+  const total_gains          = mouvAchats.reduce((s, m) => s + (m.gain_delegue || 0), 0);
+
+  res.json({
+    periode:       { debut: dateDebut, fin: dateFin },
+    commandes_appro:      commandesAppro,
+    factures_ordonnances: facturesOrd,
+    ventes_directes:      ventesDirectes,
+    totaux: {
+      achats:             total_achats,
+      ventes:             total_ventes_ord + total_ventes_dir,
+      ventes_ordonnances: total_ventes_ord,
+      ventes_directes:    total_ventes_dir,
+      gains:              total_gains,
+    },
+  });
+};
+
 module.exports = {
   listerMonStock, acheter, vendre, listerMesVentes, obtenirStatsStock,
   obtenirGainsDelegues, ventesDirectesDelegues,
   ventesEnAttente, validerVente, refuserVente,
+  monBilan,
 };

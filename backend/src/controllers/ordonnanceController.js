@@ -1,6 +1,6 @@
 'use strict';
 
-const { Ordonnance, Consultation, Patient, User, Facture, Produit, StockDelegue, sequelize } = require('../models');
+const { Ordonnance, Consultation, Patient, User, Facture, Produit, StockDelegue, MouvementDelegue, Exercice, sequelize } = require('../models');
 const { genererNumeroOrdonnance } = require('../services/numeroOrdonnanceService');
 const { getPosologie } = require('../services/posologieService');
 const pdfService = require('../services/pdfService');
@@ -93,6 +93,44 @@ const creer = async (req, res) => {
       notes,
       statut: 'brouillon',
     }, { transaction });
+
+    // Délégué avec lignes source='achat' : créer MouvementDelegue type='achat' pour tracer le gain
+    if (req.utilisateur.role === 'delegue') {
+      const { Op } = require('sequelize');
+      const lignesAchatDirect = lignes.filter((l) => l.produit_id && l.source === 'achat');
+      if (lignesAchatDirect.length > 0) {
+        const exercice = await Exercice.findOne({
+          where: { statut: { [Op.in]: ['ouvert', 'rouvert'] } },
+          transaction,
+        });
+        const delegueUser = await User.findByPk(req.utilisateur.id, {
+          attributes: ['commission_rate', 'stockiste_id'], transaction,
+        });
+        const tauxDelegue = parseFloat(delegueUser?.commission_rate ?? 15) / 100;
+        let tauxTotal = 0.25;
+        if (delegueUser?.stockiste_id) {
+          const stockisteUser = await User.findByPk(delegueUser.stockiste_id, {
+            attributes: ['commission_rate'], transaction,
+          });
+          tauxTotal = parseFloat(stockisteUser?.commission_rate ?? 25) / 100;
+        }
+        for (const ligne of lignesAchatDirect) {
+          const montant_ligne = ligne.prix_unitaire * ligne.quantite;
+          await MouvementDelegue.create({
+            delegue_id:           req.utilisateur.id,
+            type:                 'achat',
+            statut:               'valide',
+            produit_id:           ligne.produit_id,
+            quantite:             ligne.quantite,
+            montant_total:        montant_ligne,
+            gain_delegue:         Math.round(montant_ligne * tauxDelegue),
+            commission_stockiste: Math.round(montant_ligne * (tauxTotal - tauxDelegue)),
+            date_mouvement:       dateOrdonnance,
+            exercice_id:          exercice?.id ?? null,
+          }, { transaction });
+        }
+      }
+    }
 
     await transaction.commit();
     res.status(201).json(ordonnance);

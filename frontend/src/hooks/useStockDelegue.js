@@ -83,6 +83,15 @@ export const useValiderVente = () => {
   });
 };
 
+export const useMonBilan = (params = {}) => {
+  const { debut, fin } = params;
+  return useQuery({
+    queryKey: ['mon-bilan', debut, fin],
+    queryFn: () => api.get('/stock-delegue/mon-bilan', { params: { debut, fin } }).then((r) => r.data),
+    enabled: true,
+  });
+};
+
 export const useRefuserVente = () => {
   const qc = useQueryClient();
   return useMutation({
