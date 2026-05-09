@@ -245,15 +245,48 @@ export const AperçuBilan = ({ bilan, exercice }) => {
         <div>
           <p className="text-xs font-semibold text-texte-secondaire uppercase tracking-wide mb-2">Stockistes</p>
           <div className="divide-y divide-bordure border border-bordure rounded-bouton overflow-hidden text-sm">
-            {bilan.par_stockiste.map((s) => (
-              <div key={s.id} className="flex items-center justify-between px-3 py-2">
-                <div>
-                  <p className="font-medium text-texte-principal">{s.nom}</p>
-                  <p className="text-xs text-texte-secondaire">Taux {s.taux}%</p>
-                </div>
-                <span className="text-blue-600 font-medium">{formatMontant(s.commission_totale)}</span>
+            {/* En-tête colonnes */}
+            <div className="flex items-center justify-between px-3 py-1.5 bg-fond-secondaire text-xs text-texte-secondaire font-medium">
+              <span>Stockiste</span>
+              <div className="flex gap-4 text-right">
+                <span className="w-28">CA vendu</span>
+                <span className="w-24 text-blue-600">Gains</span>
               </div>
-            ))}
+            </div>
+            {bilan.par_stockiste.map((s) => {
+              const caTotal = (s.ca_factures || 0) + (s.ca_delegues || 0);
+              return (
+                <div key={s.id} className="flex items-center justify-between px-3 py-2">
+                  <div>
+                    <p className="font-medium text-texte-principal">{s.nom}</p>
+                    <p className="text-xs text-texte-secondaire">
+                      Taux {s.taux}%
+                      {s.ca_factures > 0 && s.ca_delegues > 0 && (
+                        <> · Direct&nbsp;{formatMontant(s.ca_factures)} + Revendeurs&nbsp;{formatMontant(s.ca_delegues)}</>
+                      )}
+                    </p>
+                  </div>
+                  <div className="flex gap-4 text-right">
+                    <span className="w-28 text-xs text-texte-secondaire font-mono">{formatMontant(caTotal)}</span>
+                    <span className="w-24 text-blue-600 font-medium font-mono">{formatMontant(s.commission_totale)}</span>
+                  </div>
+                </div>
+              );
+            })}
+            {/* Ligne total stockistes */}
+            {bilan.par_stockiste.length > 1 && (
+              <div className="flex items-center justify-between px-3 py-2 bg-fond-secondaire font-semibold text-xs">
+                <span className="text-texte-principal">Total stockistes</span>
+                <div className="flex gap-4 text-right">
+                  <span className="w-28 font-mono text-texte-principal">
+                    {formatMontant(bilan.par_stockiste.reduce((s, st) => s + (st.ca_factures || 0) + (st.ca_delegues || 0), 0))}
+                  </span>
+                  <span className="w-24 text-blue-600 font-mono">
+                    {formatMontant(bilan.commissions_stockistes)}
+                  </span>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
