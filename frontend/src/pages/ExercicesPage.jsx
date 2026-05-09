@@ -11,14 +11,9 @@ import {
   BookOpen, BookMarked, Lock, Unlock, Plus, ChevronDown, ChevronUp,
   TrendingUp, Users, Wallet, Printer, Loader2, AlertTriangle, X,
 } from 'lucide-react';
+import { formatMontant } from '../utils/formatMontant';
 
 // ── Utilitaires ──────────────────────────────────────────────────────────────
-const fmt = (n) =>
-  n >= 1_000_000
-    ? (n / 1_000_000).toFixed(2).replace('.', ',') + ' M'
-    : new Intl.NumberFormat('fr-FR').format(n ?? 0);
-
-const fmtFCFA = (n) => fmt(n) + ' FCFA';
 
 const fmtDate = (d) =>
   d ? new Date(d).toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' }) : '—';
@@ -184,7 +179,7 @@ export const AperçuBilan = ({ bilan, exercice }) => {
         ].map(({ label, val, couleur }) => (
           <div key={label} className="bg-fond-secondaire rounded-bouton p-3 text-center">
             <p className="text-xs text-texte-secondaire mb-1">{label}</p>
-            <p className={`text-sm ${couleur}`}>{fmtFCFA(val)}</p>
+            <p className={`text-sm ${couleur}`}>{formatMontant(val)}</p>
           </div>
         ))}
       </div>
@@ -193,12 +188,12 @@ export const AperçuBilan = ({ bilan, exercice }) => {
       <div className="grid grid-cols-2 gap-3 text-sm">
         <div className="border border-bordure rounded-bouton p-3">
           <p className="text-xs text-texte-secondaire mb-1">Factures directes</p>
-          <p className="font-medium text-texte-principal">{fmtFCFA(bilan.ca_factures)}</p>
+          <p className="font-medium text-texte-principal">{formatMontant(bilan.ca_factures)}</p>
           <p className="text-xs text-texte-secondaire">{bilan.nb_factures} facture{bilan.nb_factures > 1 ? 's' : ''}</p>
         </div>
         <div className="border border-bordure rounded-bouton p-3">
           <p className="text-xs text-texte-secondaire mb-1">Ventes revendeurs</p>
-          <p className="font-medium text-texte-principal">{fmtFCFA(bilan.ca_delegues)}</p>
+          <p className="font-medium text-texte-principal">{formatMontant(bilan.ca_delegues)}</p>
           <p className="text-xs text-texte-secondaire">{bilan.nb_ventes_delegues} vente{bilan.nb_ventes_delegues > 1 ? 's' : ''}</p>
         </div>
       </div>
@@ -224,9 +219,9 @@ export const AperçuBilan = ({ bilan, exercice }) => {
                   <p className="text-xs text-texte-secondaire">{d.nb_ventes} vente{d.nb_ventes > 1 ? 's' : ''}</p>
                 </div>
                 <div className="flex gap-4 text-right">
-                  <span className="w-24 text-xs text-texte-secondaire font-mono">{fmtFCFA(d.ca)}</span>
-                  <span className="w-24 text-purple-600 font-medium font-mono">{fmtFCFA(d.gain_delegue)}</span>
-                  <span className="w-24 text-blue-600 font-medium font-mono">{fmtFCFA(d.commission_stockiste)}</span>
+                  <span className="w-24 text-xs text-texte-secondaire font-mono">{formatMontant(d.ca)}</span>
+                  <span className="w-24 text-purple-600 font-medium font-mono">{formatMontant(d.gain_delegue)}</span>
+                  <span className="w-24 text-blue-600 font-medium font-mono">{formatMontant(d.commission_stockiste)}</span>
                 </div>
               </div>
             ))}
@@ -235,9 +230,9 @@ export const AperçuBilan = ({ bilan, exercice }) => {
               <div className="flex items-center justify-between px-3 py-2 bg-fond-secondaire font-semibold text-xs">
                 <span className="text-texte-principal">Total revendeurs</span>
                 <div className="flex gap-4 text-right">
-                  <span className="w-24 font-mono text-texte-principal">{fmtFCFA(bilan.ca_delegues)}</span>
-                  <span className="w-24 text-purple-600 font-mono">{fmtFCFA(bilan.commissions_delegues)}</span>
-                  <span className="w-24 text-blue-600 font-mono">{fmtFCFA(bilan.par_delegue.reduce((s, d) => s + (d.commission_stockiste || 0), 0))}</span>
+                  <span className="w-24 font-mono text-texte-principal">{formatMontant(bilan.ca_delegues)}</span>
+                  <span className="w-24 text-purple-600 font-mono">{formatMontant(bilan.commissions_delegues)}</span>
+                  <span className="w-24 text-blue-600 font-mono">{formatMontant(bilan.par_delegue.reduce((s, d) => s + (d.commission_stockiste || 0), 0))}</span>
                 </div>
               </div>
             )}
@@ -256,7 +251,7 @@ export const AperçuBilan = ({ bilan, exercice }) => {
                   <p className="font-medium text-texte-principal">{s.nom}</p>
                   <p className="text-xs text-texte-secondaire">Taux {s.taux}%</p>
                 </div>
-                <span className="text-blue-600 font-medium">{fmtFCFA(s.commission_totale)}</span>
+                <span className="text-blue-600 font-medium">{formatMontant(s.commission_totale)}</span>
               </div>
             ))}
           </div>
@@ -273,7 +268,7 @@ export const AperçuBilan = ({ bilan, exercice }) => {
                 <p className="text-texte-principal">{p.nom}</p>
                 <div className="text-right text-xs text-texte-secondaire">
                   <span className="font-medium text-texte-principal">{p.quantite} unité{p.quantite > 1 ? 's' : ''}</span>
-                  {' · '}{fmtFCFA(p.ca)}
+                  {' · '}{formatMontant(p.ca)}
                 </div>
               </div>
             ))}
@@ -439,10 +434,10 @@ const ExercicesPage = () => {
             </div>
             <div className="text-right">
               <p className="text-xs text-texte-secondaire">CA accumulé</p>
-              <p className="text-lg font-bold text-zeze-vert">{fmtFCFA(actuel.ca_accumule)}</p>
+              <p className="text-lg font-bold text-zeze-vert">{formatMontant(actuel.ca_accumule)}</p>
               {actuel.ca_factures > 0 && actuel.ca_delegues > 0 && (
                 <p className="text-xs text-texte-secondaire">
-                  {fmtFCFA(actuel.ca_factures)} fact. + {fmtFCFA(actuel.ca_delegues)} dél.
+                  {formatMontant(actuel.ca_factures)} fact. + {formatMontant(actuel.ca_delegues)} dél.
                 </p>
               )}
             </div>

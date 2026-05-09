@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../contexts/AuthContext';
+import { formatMontant } from '../utils/formatMontant';
 import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
 import { useStatsStockDelegue, useGainsDelegues, useVentesEnAttente } from '../hooks/useStockDelegue';
@@ -32,11 +33,6 @@ const useRdvAujourdhui = () => {
     refetchInterval: 60 * 1000,
   });
 };
-
-const formatMontant = (n) =>
-  n >= 1_000_000
-    ? new Intl.NumberFormat('fr-FR', { minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(n / 1_000_000) + ' M FCFA'
-    : new Intl.NumberFormat('fr-FR').format(n) + ' FCFA';
 
 const STATUT_RDV = {
   planifie:  { label: 'Planifié',  couleur: 'bg-yellow-100 text-yellow-800', icone: Clock },
@@ -73,8 +69,6 @@ const WidgetExercice = () => {
   const { data, isLoading } = useExerciceActuel();
   const exercice = data?.exercice;
   const { data: bilanData, isLoading: bilanLoading } = useBilanExercice(exercice?.id);
-
-  const fmt = (n) => new Intl.NumberFormat('fr-FR').format(Math.round(n || 0)) + ' FCFA';
 
   if (isLoading) {
     return (
@@ -150,26 +144,26 @@ const WidgetExercice = () => {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-1 border-t border-bordure">
         <div>
           <p className="text-xs text-texte-secondaire">CA accumulé</p>
-          <p className="text-sm font-bold text-texte-principal">{fmt(data.ca_accumule)}</p>
+          <p className="text-sm font-bold text-texte-principal">{formatMontant(data.ca_accumule)}</p>
           <p className="text-xs text-texte-secondaire">
-            Fact. {fmt(data.ca_factures)} · Dél. {fmt(data.ca_delegues)}
+            Fact. {formatMontant(data.ca_factures)} · Dél. {formatMontant(data.ca_delegues)}
           </p>
         </div>
         <div>
           <p className="text-xs text-texte-secondaire">Commissions dues</p>
           <p className="text-sm font-bold text-zeze-or">
-            {bilanLoading ? '…' : commissionsTotal !== null ? fmt(commissionsTotal) : '—'}
+            {bilanLoading ? '…' : commissionsTotal !== null ? formatMontant(commissionsTotal) : '—'}
           </p>
           {!bilanLoading && bilan && (
             <p className="text-xs text-texte-secondaire">
-              Stock. {fmt(bilan.commissions_stockistes)} · Dél. {fmt(bilan.commissions_delegues)}
+              Stock. {formatMontant(bilan.commissions_stockistes)} · Dél. {formatMontant(bilan.commissions_delegues)}
             </p>
           )}
         </div>
         <div>
           <p className="text-xs text-texte-secondaire">Net MAPA</p>
           <p className="text-sm font-bold text-zeze-vert">
-            {bilanLoading ? '…' : bilan ? fmt(bilan.net_mapa) : '—'}
+            {bilanLoading ? '…' : bilan ? formatMontant(bilan.net_mapa) : '—'}
           </p>
         </div>
         <div className="flex items-center justify-end">
@@ -550,6 +544,38 @@ const DashboardStandard = ({ utilisateur }) => {
         </div>
       )}
 
+      {/* Détail CA exercice — stockiste uniquement */}
+      {utilisateur?.role === 'stockiste' && (
+        <div>
+          <h2 className="text-sm font-semibold text-texte-secondaire uppercase tracking-wide mb-3">
+            CA exercice en cours — détail
+          </h2>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <CarteKPI
+              titre="Mon CA exercice"
+              valeur={isLoading ? '…' : r ? formatMontant(r.ca_direct) : '—'}
+              icone={TrendingUp}
+              couleur="bg-emerald-500"
+              sous="Mes ventes directes depuis l'ouverture"
+            />
+            <CarteKPI
+              titre="CA exercice de mes revendeurs"
+              valeur={isLoading ? '…' : r?.ca_revendeurs_exercice != null ? formatMontant(r.ca_revendeurs_exercice) : '—'}
+              icone={Users}
+              couleur="bg-blue-500"
+              sous="Ventes des délégués rattachés"
+            />
+            <CarteKPI
+              titre="Mon total exercice"
+              valeur={isLoading ? '…' : r ? formatMontant((r.ca_direct ?? 0) + (r.ca_revendeurs_exercice ?? 0)) : '—'}
+              icone={TrendingUp}
+              couleur="bg-slate-600"
+              sous="Directs + revendeurs"
+            />
+          </div>
+        </div>
+      )}
+
       {/* Widget exercice comptable */}
       {estStockisteOuAdmin && <WidgetExercice />}
 
@@ -561,7 +587,6 @@ const DashboardStandard = ({ utilisateur }) => {
 
       {/* Répartition financière — stockiste uniquement */}
       {estStockisteOuAdmin && !isLoading && r && (() => {
-        const fmt = (n) => new Intl.NumberFormat('fr-FR').format(Math.round(n || 0)) + ' FCFA';
         const caTotal = r.ca_direct + caDelegueMois;
 
         return (
@@ -574,26 +599,26 @@ const DashboardStandard = ({ utilisateur }) => {
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <CarteKPI
                 titre="CA exercice en cours"
-                valeur={fmt(caTotal)}
+                valeur={formatMontant(caTotal)}
                 icone={TrendingUp}
                 couleur="bg-slate-500"
-                sous={`Directs : ${fmt(r.ca_direct)}  ·  Revendeurs : ${fmt(caDelegueMois)}`}
+                sous={`Directs : ${formatMontant(r.ca_direct)}  ·  Revendeurs : ${formatMontant(caDelegueMois)}`}
               />
               <CarteKPI
                 titre={r.taux_direct != null ? 'Vos gains totaux' : 'Gains des stockistes'}
-                valeur={fmt(gainsTotaux)}
+                valeur={formatMontant(gainsTotaux)}
                 icone={TrendingUp}
                 couleur="bg-zeze-or"
                 sous={r.taux_direct != null
-                  ? `Directs (${r.taux_direct}%) : ${fmt(r.gains_directs)}  ·  Reversés : ${fmt(gainsIndirectsMois)}`
-                  : `Consultations : ${fmt(r.gains_directs)}  ·  Via revendeurs : ${fmt(gainsIndirectsMois)}`}
+                  ? `Directs (${r.taux_direct}%) : ${formatMontant(r.gains_directs)}  ·  Reversés : ${formatMontant(gainsIndirectsMois)}`
+                  : `Consultations : ${formatMontant(r.gains_directs)}  ·  Via revendeurs : ${formatMontant(gainsIndirectsMois)}`}
               />
               <CarteKPI
                 titre={r.taux_mapa != null ? `Part versée à MAPA (${r.taux_mapa}%)` : 'Part versée à MAPA'}
-                valeur={fmt(mapaTotal)}
+                valeur={formatMontant(mapaTotal)}
                 icone={ShoppingBag}
                 couleur="bg-zeze-vert"
-                sous={`Directs : ${fmt(r.part_mapa_direct)}  ·  Revendeurs : ${fmt(mapaDelegueMois)}`}
+                sous={`Directs : ${formatMontant(r.part_mapa_direct)}  ·  Revendeurs : ${formatMontant(mapaDelegueMois)}`}
               />
             </div>
 
@@ -618,13 +643,13 @@ const DashboardStandard = ({ utilisateur }) => {
                       <p className="font-medium text-texte-principal text-xs">Ventes directes</p>
                       <p className="text-xs text-texte-secondaire">Ordonnances que vous avez créées</p>
                     </td>
-                    <td className="px-4 py-2.5 text-right font-mono text-xs text-texte-secondaire">{fmt(r.ca_direct)}</td>
+                    <td className="px-4 py-2.5 text-right font-mono text-xs text-texte-secondaire">{formatMontant(r.ca_direct)}</td>
                     <td className="px-4 py-2.5 text-right font-mono text-xs text-zeze-vert font-semibold hidden sm:table-cell">
-                      {fmt(r.part_mapa_direct)}
+                      {formatMontant(r.part_mapa_direct)}
                       {r.taux_mapa != null && <span className="text-texte-secondaire font-normal"> ({r.taux_mapa}%)</span>}
                     </td>
                     <td className="px-4 py-2.5 text-right font-mono text-xs text-zeze-or font-semibold">
-                      {fmt(r.gains_directs)}
+                      {formatMontant(r.gains_directs)}
                       {r.taux_direct != null && <span className="text-texte-secondaire font-normal"> ({r.taux_direct}%)</span>}
                     </td>
                   </tr>
@@ -646,13 +671,13 @@ const DashboardStandard = ({ utilisateur }) => {
                           `Commission reversée (revendeur ${g.taux_delegue ?? 15}% · stockiste ${g.taux_commission - (g.taux_delegue ?? 15)}%)`
                         </p>
                       </td>
-                      <td className="px-4 py-2.5 text-right font-mono text-xs text-texte-secondaire">{fmt(g.ventes_mois)}</td>
+                      <td className="px-4 py-2.5 text-right font-mono text-xs text-texte-secondaire">{formatMontant(g.ventes_mois)}</td>
                       <td className="px-4 py-2.5 text-right font-mono text-xs text-zeze-vert font-semibold hidden sm:table-cell">
-                        {fmt(g.part_mapa_mois)}
+                        {formatMontant(g.part_mapa_mois)}
                         {r.taux_mapa != null && <span className="text-texte-secondaire font-normal"> ({r.taux_mapa}%)</span>}
                       </td>
                       <td className="px-4 py-2.5 text-right font-mono text-xs text-zeze-or font-semibold">
-                        {fmt(g.commission_stockiste_mois)}
+                        {formatMontant(g.commission_stockiste_mois)}
                         
                       </td>
                     </tr>
@@ -662,9 +687,9 @@ const DashboardStandard = ({ utilisateur }) => {
                 <tfoot className="border-t-2 border-gray-300 bg-fond-secondaire">
                   <tr>
                     <td className="px-4 py-2.5 font-semibold text-xs text-texte-principal">Total</td>
-                    <td className="px-4 py-2.5 text-right font-mono text-xs font-semibold text-texte-principal">{fmt(caTotal)}</td>
-                    <td className="px-4 py-2.5 text-right font-mono text-xs font-semibold text-zeze-vert hidden sm:table-cell">{fmt(mapaTotal)}</td>
-                    <td className="px-4 py-2.5 text-right font-mono text-xs font-semibold text-zeze-or">{fmt(gainsTotaux)}</td>
+                    <td className="px-4 py-2.5 text-right font-mono text-xs font-semibold text-texte-principal">{formatMontant(caTotal)}</td>
+                    <td className="px-4 py-2.5 text-right font-mono text-xs font-semibold text-zeze-vert hidden sm:table-cell">{formatMontant(mapaTotal)}</td>
+                    <td className="px-4 py-2.5 text-right font-mono text-xs font-semibold text-zeze-or">{formatMontant(gainsTotaux)}</td>
                   </tr>
                 </tfoot>
               </table>
@@ -673,7 +698,7 @@ const DashboardStandard = ({ utilisateur }) => {
               {gainsDelegues.length > 0 && (
                 <div className="px-4 py-2 border-t border-bordure bg-blue-50">
                   <p className="text-xs text-blue-700">
-                    Gains revendeurs (exercice) : <strong>{fmt(gainsDelegueMois)}</strong> — versés directement aux revendeurs, non inclus dans vos gains.
+                    Gains revendeurs (exercice) : <strong>{formatMontant(gainsDelegueMois)}</strong> — versés directement aux revendeurs, non inclus dans vos gains.
                   </p>
                 </div>
               )}

@@ -4,8 +4,7 @@ import { useMonStock, useVendreStock, useMesVentes } from '../hooks/useStockDele
 import { Package, ShoppingCart, ShoppingBag, Plus, X, Clock, ArrowRight } from 'lucide-react';
 import Button from '../components/ui/Button';
 import Alert from '../components/ui/Alert';
-
-const formatMontant = (n) => new Intl.NumberFormat('fr-FR').format(n || 0) + ' FCFA';
+import { formatMontant } from '../utils/formatMontant';
 
 const parseLignes = (lignes) => {
   if (!lignes) return [];

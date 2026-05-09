@@ -12,6 +12,7 @@ import {
   FileText, Download, Search, Receipt, CheckCircle,
   Pencil, Trash2, X, Save, Loader2,
 } from 'lucide-react';
+import { formatMontant } from '../utils/formatMontant';
 
 const useOrdonnancesGlobal = (params) =>
   useQuery({
@@ -27,8 +28,6 @@ const useUtilisateursFiltres = (estAdmin) =>
     enabled: estAdmin,
     staleTime: 5 * 60 * 1000,
   });
-
-const formatMontant = (n) => new Intl.NumberFormat('fr-FR').format(n || 0) + ' FCFA';
 
 const STATUT = {
   brouillon: { label: 'Brouillon', couleur: 'bg-gray-100 text-gray-600' },

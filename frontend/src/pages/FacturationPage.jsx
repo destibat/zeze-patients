@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { useVentesDirectesDelegues, useVentesEnAttente, useValiderVente, useRefuserVente } from '../hooks/useStockDelegue';
 import { useFacturesAchat, useMarquerPaye } from '../hooks/useFacturesAchat';
+import { formatMontant } from '../utils/formatMontant';
 
 // ── Hooks ─────────────────────────────────────────────────────────────────────
 
@@ -62,8 +63,6 @@ const MODE_PAIEMENT = {
   cheque:       'Chèque',
   autre:        'Autre',
 };
-
-const formatMontant = (n) => new Intl.NumberFormat('fr-FR').format(n || 0) + ' FCFA';
 
 // ── Modal paiement ────────────────────────────────────────────────────────────
 

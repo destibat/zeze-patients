@@ -2,11 +2,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useExerciceActuel } from '../../hooks/useExercices';
 import { BookOpen, AlertTriangle, TrendingUp, Clock } from 'lucide-react';
-
-const formatMontant = (n) =>
-  n >= 1_000_000
-    ? (n / 1_000_000).toFixed(1).replace('.', ',') + ' M FCFA'
-    : new Intl.NumberFormat('fr-FR').format(n ?? 0) + ' FCFA';
+import { formatMontant } from '../../utils/formatMontant';
 
 const BandeauExercice = () => {
   const { utilisateur } = useAuth();

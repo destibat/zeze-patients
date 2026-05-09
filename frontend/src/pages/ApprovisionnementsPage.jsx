@@ -10,8 +10,7 @@ import { useMarquerEnvoye, useMarquerPaye } from '../hooks/useFacturesAchat';
 import Button from '../components/ui/Button';
 import Alert from '../components/ui/Alert';
 import { ShoppingCart, Plus, X, Send, Check, Package, Clock, CheckCircle, XCircle, Trash2, Banknote } from 'lucide-react';
-
-const formatMontant = (n) => new Intl.NumberFormat('fr-FR').format(n || 0) + ' FCFA';
+import { formatMontant } from '../utils/formatMontant';
 
 const STATUT_CFG = {
   brouillon:  { label: 'Brouillon',   couleur: 'bg-gray-100 text-gray-600',    icone: Clock },

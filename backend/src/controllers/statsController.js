@@ -117,14 +117,51 @@ const obtenirStats = async (req, res) => {
       const user = await User.findByPk(userId, { attributes: ['commission_rate'] });
       const tauxTotal = parseFloat(user?.commission_rate ?? 25);
       const tauxMapa  = 100 - tauxTotal;
+
+      const mesRevendeurs = await User.findAll({
+        where: { stockiste_id: userId, role: 'delegue' },
+        attributes: ['id'],
+        raw: true,
+      });
+      const revendeursIds = mesRevendeurs.map((u) => u.id);
+
+      let caRevendeursExercice = 0;
+      if (revendeursIds.length > 0) {
+        const [ventesRevs, facturesRevs] = await Promise.all([
+          MouvementDelegue.findAll({
+            where: {
+              delegue_id: { [Op.in]: revendeursIds },
+              type: 'vente',
+              statut: 'valide',
+              date_mouvement: { [Op.gte]: dateExercice },
+            },
+            attributes: ['montant_total'],
+            raw: true,
+          }),
+          Facture.findAll({
+            where: {
+              created_by: { [Op.in]: revendeursIds },
+              statut: { [Op.ne]: 'annulee' },
+              date_facture: { [Op.gte]: dateExercice },
+            },
+            attributes: ['montant_total'],
+            raw: true,
+          }),
+        ]);
+        caRevendeursExercice =
+          ventesRevs.reduce((s, v) => s + (v.montant_total || 0), 0) +
+          facturesRevs.reduce((s, f) => s + (f.montant_total || 0), 0);
+      }
+
       repartition = {
-        taux_total:       tauxTotal,
-        taux_direct:      tauxTotal,
-        taux_indirect:    null,
-        taux_mapa:        tauxMapa,
-        ca_direct:        caDirectExercice,
-        gains_directs:    Math.round(caDirectExercice * tauxTotal / 100),
-        part_mapa_direct: Math.round(caDirectExercice * tauxMapa / 100),
+        taux_total:             tauxTotal,
+        taux_direct:            tauxTotal,
+        taux_indirect:          null,
+        taux_mapa:              tauxMapa,
+        ca_direct:              caDirectExercice,
+        ca_revendeurs_exercice: caRevendeursExercice,
+        gains_directs:          Math.round(caDirectExercice * tauxTotal / 100),
+        part_mapa_direct:       Math.round(caDirectExercice * tauxMapa / 100),
       };
     } else {
       // Admin — gains sur Factures directes (hors délégués)

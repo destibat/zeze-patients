@@ -1,8 +1,7 @@
 import { useState } from 'react';
 import { useProduits } from '../../hooks/useProduits';
 import { Search, Plus, X, Package } from 'lucide-react';
-
-const formatMontant = (n) => new Intl.NumberFormat('fr-FR').format(n) + ' FCFA';
+import { formatMontant } from '../../utils/formatMontant';
 
 const ProduitPicker = ({ lignes = [], onChange, posologie, estDelegue = false, stockDelegue = [] }) => {
   const [recherche, setRecherche] = useState('');

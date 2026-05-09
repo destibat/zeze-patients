@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import api from '../services/api';
 import { useExercices, useBilanExercice } from '../hooks/useExercices';
 import { TrendingUp, Users, Stethoscope, Package, ChevronLeft, ChevronRight, Printer, BookOpen } from 'lucide-react';
+import { formatMontant, formatNombre } from '../utils/formatMontant';
 
 const PERIODES = [
   { val: 'annee',     label: 'Année' },
@@ -22,12 +23,6 @@ const useStatsDetaillees = (params) =>
     keepPreviousData: true,
     enabled: !!params,
   });
-
-const formatMontant = (n) => {
-  if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + ' M';
-  if (n >= 1_000) return (n / 1_000).toFixed(0) + ' k';
-  return String(n || 0);
-};
 
 const toDateInput = (d) => d.toISOString().split('T')[0];
 
@@ -69,7 +64,7 @@ const CAChart = ({ donnees }) => {
           <div key={i} className="flex-1 min-w-[8px] flex flex-col items-center gap-1 group relative">
             {d.facture > 0 && (
               <div className="absolute -top-6 left-1/2 -translate-x-1/2 bg-texte-principal text-white text-xs px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 whitespace-nowrap z-10">
-                {formatMontant(d.facture)} FCFA
+                {formatMontant(d.facture)}
               </div>
             )}
             <div className="w-full flex items-end gap-0.5" style={{ height: '112px' }}>
@@ -204,8 +199,6 @@ const libellePeriode = (data) => {
 const fmtDate = (s) =>
   s ? new Date(s).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
 
-const fmtMontant = (n) => new Intl.NumberFormat('fr-FR').format(Math.round(n || 0)) + ' FCFA';
-
 const KpiLigne = ({ label, valeur, emphasis, green, small }) => (
   <div className={`flex items-center justify-between ${small ? 'py-0.5' : 'py-1'}`}>
     <span className={`${small ? 'text-xs text-texte-secondaire pl-2' : 'text-sm text-texte-principal'}`}>{label}</span>
@@ -239,15 +232,15 @@ const ColonneExercice = ({ exercice, bilan, stats, isLoading }) => {
       {/* Indicateurs financiers */}
       <div className="space-y-0.5">
         <p className="text-xs font-semibold text-texte-secondaire uppercase tracking-wide mb-1">Financier</p>
-        <KpiLigne label="CA total" valeur={isLoading ? '…' : b ? fmtMontant(b.ca_total) : '—'} emphasis />
-        <KpiLigne label="Factures directes" valeur={isLoading ? '…' : b ? fmtMontant(b.ca_factures) : '—'} small />
-        <KpiLigne label="Ventes revendeurs" valeur={isLoading ? '…' : b ? fmtMontant(b.ca_delegues) : '—'} small />
+        <KpiLigne label="CA total" valeur={isLoading ? '…' : b ? formatMontant(b.ca_total) : '—'} emphasis />
+        <KpiLigne label="Factures directes" valeur={isLoading ? '…' : b ? formatMontant(b.ca_factures) : '—'} small />
+        <KpiLigne label="Ventes revendeurs" valeur={isLoading ? '…' : b ? formatMontant(b.ca_delegues) : '—'} small />
         <div className="border-t border-bordure my-1" />
-        <KpiLigne label="Commissions" valeur={isLoading ? '…' : commissions !== null ? fmtMontant(commissions) : '—'} />
-        <KpiLigne label="Stockistes" valeur={isLoading ? '…' : b ? fmtMontant(b.commissions_stockistes) : '—'} small />
-        <KpiLigne label="Revendeurs" valeur={isLoading ? '…' : b ? fmtMontant(b.commissions_delegues) : '—'} small />
+        <KpiLigne label="Commissions" valeur={isLoading ? '…' : commissions !== null ? formatMontant(commissions) : '—'} />
+        <KpiLigne label="Stockistes" valeur={isLoading ? '…' : b ? formatMontant(b.commissions_stockistes) : '—'} small />
+        <KpiLigne label="Revendeurs" valeur={isLoading ? '…' : b ? formatMontant(b.commissions_delegues) : '—'} small />
         <div className="border-t border-bordure my-1" />
-        <KpiLigne label="Net MAPA" valeur={isLoading ? '…' : b ? fmtMontant(b.net_mapa) : '—'} emphasis green />
+        <KpiLigne label="Net MAPA" valeur={isLoading ? '…' : b ? formatMontant(b.net_mapa) : '—'} emphasis green />
       </div>
 
       {/* Indicateurs activité */}
@@ -286,7 +279,7 @@ const ColonneExercice = ({ exercice, bilan, stats, isLoading }) => {
                 <div key={i} className="space-y-0.5">
                   <div className="flex justify-between text-xs">
                     <span className="text-texte-principal truncate max-w-[60%]">{p.nom}</span>
-                    <span className="text-texte-secondaire">{p.quantite} u · {formatMontant(p.ca)} FCFA</span>
+                    <span className="text-texte-secondaire">{p.quantite} u · {formatMontant(p.ca)}</span>
                   </div>
                   <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
                     <div className="h-full bg-amber-400 rounded-full" style={{ width: `${pct}%` }} />
@@ -525,7 +518,7 @@ const StatistiquesPage = () => {
               <div>
                 <p className="text-xs text-texte-secondaire">{estAdmin ? 'CA facturé' : 'Mon CA facturé'} · {libellePeriode(data)}</p>
                 <p className="text-2xl font-titres font-bold text-texte-principal">
-                  {formatMontant(data?.total_facture)} <span className="text-sm font-normal text-texte-secondaire">FCFA</span>
+                  {formatNombre(data?.total_facture)} <span className="text-sm font-normal text-texte-secondaire">FCFA</span>
                 </p>
               </div>
             </div>
@@ -536,7 +529,7 @@ const StatistiquesPage = () => {
               <div>
                 <p className="text-xs text-texte-secondaire">{estAdmin ? 'Encaissé' : 'Mon encaissé'} · {libellePeriode(data)}</p>
                 <p className="text-2xl font-titres font-bold text-texte-principal">
-                  {formatMontant(data?.total_encaisse)} <span className="text-sm font-normal text-texte-secondaire">FCFA</span>
+                  {formatNombre(data?.total_encaisse)} <span className="text-sm font-normal text-texte-secondaire">FCFA</span>
                 </p>
               </div>
             </div>
@@ -596,7 +589,7 @@ const StatistiquesPage = () => {
                       <div key={i} className="space-y-0.5">
                         <div className="flex justify-between text-xs">
                           <span className="text-texte-principal truncate max-w-[60%]">{p.nom}</span>
-                          <span className="text-texte-secondaire">{p.quantite} unité{p.quantite > 1 ? 's' : ''} · {formatMontant(p.ca)} FCFA</span>
+                          <span className="text-texte-secondaire">{p.quantite} unité{p.quantite > 1 ? 's' : ''} · {formatMontant(p.ca)}</span>
                         </div>
                         <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
                           <div className="h-full bg-amber-400 rounded-full" style={{ width: `${pct}%` }} />

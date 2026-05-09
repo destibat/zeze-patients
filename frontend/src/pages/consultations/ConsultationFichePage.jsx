@@ -13,6 +13,7 @@ import {
   ArrowLeft, FileText, Download, Plus, X, HeartPulse,
   Thermometer, Activity, Weight, Ruler, Droplets, Receipt, CheckCircle,
 } from 'lucide-react';
+import { formatMontant } from '../../utils/formatMontant';
 
 const fetchConsultation = (patientId, id) =>
   api.get(`/patients/${patientId}/consultations/${id}`).then((r) => r.data);
@@ -27,8 +28,6 @@ const Constante = ({ label, valeur, unite, icone: Icone }) =>
       </div>
     </div>
   ) : null;
-
-const formatMontant = (n) => new Intl.NumberFormat('fr-FR').format(n) + ' FCFA';
 
 const ConsultationFichePage = () => {
   const { id: patientId, consultationId } = useParams();

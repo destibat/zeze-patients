@@ -6,6 +6,7 @@ import { useMettreAJourSeuil } from '../hooks/useStock';
 import Alert from '../components/ui/Alert';
 import Button from '../components/ui/Button';
 import { Package, TrendingUp, TrendingDown, AlertTriangle, X, Plus, Minus, RefreshCw, Bell, BellOff, Pencil } from 'lucide-react';
+import { formatMontant } from '../utils/formatMontant';
 
 const useStock = () =>
   useQuery({ queryKey: ['stock'], queryFn: () => api.get('/stock').then((r) => r.data), refetchInterval: 60 * 1000 });
@@ -27,8 +28,6 @@ const useEnregistrerMouvement = (produitId) => {
     },
   });
 };
-
-const formatMontant = (n) => new Intl.NumberFormat('fr-FR').format(n) + ' FCFA';
 
 const categorieLabel = {
   antibiotique: 'Antibiotique',
