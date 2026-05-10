@@ -121,17 +121,29 @@ const obtenirStats = async (req, res) => {
       });
       const revendeursIds = mesRevendeurs.map((u) => u.id);
 
-      // CA approvisionnements ce mois (commandeAppro + ordonnances source='achat') pour ce stockiste
+      // CA approvisionnements ce mois ET depuis l'exercice (commandeAppro + ordonnances source='achat')
+      let caApproExercice = 0;
       if (revendeursIds.length > 0) {
-        const caApproMois = await MouvementDelegue.sum('montant_total', {
-          where: {
-            delegue_id: { [Op.in]: revendeursIds },
-            type: 'achat',
-            statut: 'valide',
-            date_mouvement: { [Op.gte]: debutMoisStr },
-          },
-        });
+        const [caApproMois, caApproEx] = await Promise.all([
+          MouvementDelegue.sum('montant_total', {
+            where: {
+              delegue_id: { [Op.in]: revendeursIds },
+              type: 'achat',
+              statut: 'valide',
+              date_mouvement: { [Op.gte]: debutMoisStr },
+            },
+          }),
+          MouvementDelegue.sum('montant_total', {
+            where: {
+              delegue_id: { [Op.in]: revendeursIds },
+              type: 'achat',
+              statut: 'valide',
+              date_mouvement: { [Op.gte]: dateExercice },
+            },
+          }),
+        ]);
         caMois += caApproMois || 0;
+        caApproExercice = caApproEx || 0;
       }
 
       let caRevendeursExercice = 0;
@@ -162,15 +174,16 @@ const obtenirStats = async (req, res) => {
           facturesRevs.reduce((s, f) => s + (f.montant_total || 0), 0);
       }
 
+      const caDirectTotal = caDirectExercice + caApproExercice;
       repartition = {
         taux_total:             tauxTotal,
         taux_direct:            tauxTotal,
         taux_indirect:          null,
         taux_mapa:              tauxMapa,
-        ca_direct:              caDirectExercice,
+        ca_direct:              caDirectTotal,
         ca_revendeurs_exercice: caRevendeursExercice,
-        gains_directs:          Math.round(caDirectExercice * tauxTotal / 100),
-        part_mapa_direct:       Math.round(caDirectExercice * tauxMapa / 100),
+        gains_directs:          Math.round(caDirectTotal * tauxTotal / 100),
+        part_mapa_direct:       Math.round(caDirectTotal * tauxMapa / 100),
       };
     } else {
       // Admin — tous les approvisionnements ce mois
