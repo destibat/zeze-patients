@@ -1,6 +1,6 @@
 'use strict';
 
-const { StockDelegue, MouvementDelegue, Facture, FactureAchat, Produit, StockMouvement, User, Exercice, Patient, CommandeApprovisionnement, sequelize } = require('../models');
+const { StockDelegue, MouvementDelegue, Facture, FactureAchat, Produit, StockMouvement, User, Exercice, Patient, CommandeApprovisionnement, Ordonnance, sequelize } = require('../models');
 const { Op } = require('sequelize');
 
 // Récupère l'exercice ouvert ou lance une erreur métier
@@ -201,7 +201,10 @@ const obtenirStatsStock = async (req, res) => {
   const whereVente = { delegue_id: req.utilisateur.id, type: 'vente' };
   if (exercice) whereVente.exercice_id = exercice.id;
 
-  const [achats, toutesVentes, nbProduits] = await Promise.all([
+  const whereOrd = { medecin_id: req.utilisateur.id, statut: { [Op.ne]: 'annulee' } };
+  if (dateOuverture) whereOrd.date_ordonnance = { [Op.gte]: dateOuverture };
+
+  const [achats, toutesVentes, nbProduits, ordonnances] = await Promise.all([
     MouvementDelegue.findAll({
       where: whereAchat,
       attributes: ['montant_total', 'gain_delegue'], raw: true,
@@ -211,17 +214,33 @@ const obtenirStatsStock = async (req, res) => {
       attributes: ['montant_total', 'statut'], raw: true,
     }),
     StockDelegue.count({ where: { delegue_id: req.utilisateur.id } }),
+    Ordonnance.findAll({ where: whereOrd, attributes: ['lignes'], raw: true }),
   ]);
+
+  // Décomposition des ordonnances par source (stock perso vs achat direct au stockiste)
+  let ca_ord_depuis_stock = 0;
+  let ca_ord_achat_direct = 0;
+  for (const ord of ordonnances) {
+    let lignes = ord.lignes;
+    if (typeof lignes === 'string') { try { lignes = JSON.parse(lignes); } catch { lignes = []; } }
+    for (const l of (Array.isArray(lignes) ? lignes : [])) {
+      const montant = (l.prix_unitaire || 0) * (l.quantite || 0);
+      if (l.source === 'stock') ca_ord_depuis_stock += montant;
+      else ca_ord_achat_direct += montant;
+    }
+  }
 
   const ventesEnAttente = toutesVentes.filter((v) => v.statut === 'en_attente');
   const gainAchatsMois  = achats.reduce((s, a) => s + (a.gain_delegue || 0), 0);
 
   res.json({
-    achats_mois:       achats.reduce((s, a) => s + (a.montant_total || 0), 0),
-    ventes_mois:       toutesVentes.reduce((s, v) => s + (v.montant_total || 0), 0),
-    gain_delegue_mois: gainAchatsMois,
-    nb_produits_stock: nbProduits,
-    ventes_en_attente: ventesEnAttente.length,
+    achats_mois:          achats.reduce((s, a) => s + (a.montant_total || 0), 0),
+    ventes_mois:          toutesVentes.reduce((s, v) => s + (v.montant_total || 0), 0),
+    gain_delegue_mois:    gainAchatsMois,
+    nb_produits_stock:    nbProduits,
+    ventes_en_attente:    ventesEnAttente.length,
+    ca_ord_depuis_stock,
+    ca_ord_achat_direct,
   });
 };
 

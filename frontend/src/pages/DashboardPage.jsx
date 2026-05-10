@@ -253,7 +253,7 @@ const DashboardDelegue = ({ utilisateur }) => {
             valeur={isLoading ? '…' : formatMontant(stats?.ca_ordonnances_mois ?? 0)}
             icone={ShoppingBag}
             couleur="bg-zeze-vert"
-            sous="Factures créées ce mois"
+            sous={stockLoading ? null : `Stock: ${formatMontant(stockStats?.ca_ord_depuis_stock ?? 0)} · Direct: ${formatMontant(stockStats?.ca_ord_achat_direct ?? 0)}`}
             onClick={() => navigate('/ordonnances')}
           />
           <CarteKPI
@@ -261,7 +261,7 @@ const DashboardDelegue = ({ utilisateur }) => {
             valeur={valMontant(stockStats?.ventes_mois)}
             icone={ShoppingBag}
             couleur="bg-emerald-600"
-            sous="Depuis mon stock personnel"
+            sous="Hors ordonnance"
             onClick={() => navigate('/mon-stock')}
           />
           <CarteKPI
