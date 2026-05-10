@@ -174,16 +174,16 @@ const obtenirStats = async (req, res) => {
           facturesRevs.reduce((s, f) => s + (f.montant_total || 0), 0);
       }
 
-      const caDirectTotal = caDirectExercice + caApproExercice;
       repartition = {
         taux_total:             tauxTotal,
         taux_direct:            tauxTotal,
         taux_indirect:          null,
         taux_mapa:              tauxMapa,
-        ca_direct:              caDirectTotal,
+        ca_direct:              caDirectExercice,
+        ca_appro_exercice:      caApproExercice,
         ca_revendeurs_exercice: caRevendeursExercice,
-        gains_directs:          Math.round(caDirectTotal * tauxTotal / 100),
-        part_mapa_direct:       Math.round(caDirectTotal * tauxMapa / 100),
+        gains_directs:          Math.round(caDirectExercice * tauxTotal / 100),
+        part_mapa_direct:       Math.round(caDirectExercice * tauxMapa / 100),
       };
     } else {
       // Admin — tous les approvisionnements ce mois

@@ -570,10 +570,10 @@ const DashboardStandard = ({ utilisateur }) => {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <CarteKPI
               titre="Mon CA exercice"
-              valeur={isLoading ? '…' : r ? formatMontant(r.ca_direct) : '—'}
+              valeur={isLoading ? '…' : r ? formatMontant((r.ca_direct ?? 0) + (r.ca_appro_exercice ?? 0)) : '—'}
               icone={TrendingUp}
               couleur="bg-emerald-500"
-              sous="Mes ventes directes depuis l'ouverture"
+              sous="Mes factures directes + appros revendeurs"
             />
             <CarteKPI
               titre="CA exercice de mes revendeurs"
@@ -584,10 +584,10 @@ const DashboardStandard = ({ utilisateur }) => {
             />
             <CarteKPI
               titre="Mon total exercice"
-              valeur={isLoading ? '…' : r ? formatMontant((r.ca_direct ?? 0) + (r.ca_revendeurs_exercice ?? 0)) : '—'}
+              valeur={isLoading ? '…' : r ? formatMontant((r.ca_direct ?? 0) + (r.ca_appro_exercice ?? 0) + (r.ca_revendeurs_exercice ?? 0)) : '—'}
               icone={TrendingUp}
               couleur="bg-slate-600"
-              sous="Directs + revendeurs"
+              sous="Directs + appros + revendeurs"
             />
           </div>
         </div>
