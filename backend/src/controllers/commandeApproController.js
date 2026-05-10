@@ -125,9 +125,13 @@ const valider = async (req, res) => {
   const lignes = Array.isArray(commande.lignes) ? commande.lignes : [];
   const today  = new Date().toISOString().split('T')[0];
 
-  // Taux de commission du stockiste pour calculer la répartition
-  const stockisteUser = await User.findByPk(commande.stockiste_id, { attributes: ['commission_rate'] });
-  const tauxTotal = parseFloat(stockisteUser?.commission_rate ?? 25) / 100;
+  // Taux de commission : stockiste (total) et revendeur (sa part)
+  const [stockisteUser, revendeurUser] = await Promise.all([
+    User.findByPk(commande.stockiste_id, { attributes: ['commission_rate'] }),
+    User.findByPk(commande.revendeur_id, { attributes: ['commission_rate'] }),
+  ]);
+  const tauxTotal   = parseFloat(stockisteUser?.commission_rate ?? 25) / 100;
+  const tauxDelegue = parseFloat(revendeurUser?.commission_rate ?? 15) / 100;
 
   const transaction = await sequelize.transaction();
   try {
@@ -165,7 +169,7 @@ const valider = async (req, res) => {
       });
       await item.increment('quantite', { by: ligne.quantite, transaction });
 
-      // Mouvement délégué avec gains calculés
+      // Mouvement délégué avec gains calculés selon les taux réels
       const montant_ligne = ligne.prix_unitaire * ligne.quantite;
       await MouvementDelegue.create({
         delegue_id:           commande.revendeur_id,
@@ -174,8 +178,8 @@ const valider = async (req, res) => {
         produit_id:           ligne.produit_id,
         quantite:             ligne.quantite,
         montant_total:        montant_ligne,
-        gain_delegue:         Math.round(montant_ligne * 0.15),
-        commission_stockiste: Math.round(montant_ligne * (tauxTotal - 0.15)),
+        gain_delegue:         Math.round(montant_ligne * tauxDelegue),
+        commission_stockiste: Math.round(montant_ligne * (tauxTotal - tauxDelegue)),
         date_mouvement:       today,
       }, { transaction });
     }

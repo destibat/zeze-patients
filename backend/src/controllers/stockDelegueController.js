@@ -136,7 +136,6 @@ const vendre = async (req, res) => {
     });
   }
 
-  const { tauxStockiste, tauxDelegue } = await getTaux(req.utilisateur.id);
   const today = new Date().toISOString().split('T')[0];
   const transaction = await sequelize.transaction();
 
@@ -155,17 +154,15 @@ const vendre = async (req, res) => {
     }
 
     const montant_total = lignes.reduce((s, l) => s + l.prix_unitaire * l.quantite, 0);
-    const gain_delegue        = Math.round(montant_total * tauxDelegue);
-    const commission_stockiste = Math.round(montant_total * (tauxStockiste - tauxDelegue));
-    // part_mapa = montant_total - gain_delegue - commission_stockiste
+    // Vente depuis stock perso : commission déjà comptabilisée lors de l'approvisionnement
 
     const mouvement = await MouvementDelegue.create({
       delegue_id: req.utilisateur.id,
       type: 'vente',
       lignes,
       montant_total,
-      commission_stockiste,
-      gain_delegue,
+      commission_stockiste: 0,
+      gain_delegue: 0,
       client_nom: client_nom?.trim() || null,
       date_mouvement: today,
       statut: 'en_attente',
@@ -193,13 +190,10 @@ const listerMesVentes = async (req, res) => {
   res.json(ventes);
 };
 
-// Stats délégué — ventes_mois = toutes les ventes, gain = uniquement les ventes validées
+// Stats délégué — commission uniquement sur les achats au stockiste (commandeAppro + source='achat')
 const obtenirStatsStock = async (req, res) => {
   const exercice = await getExerciceOuvert();
   const dateOuverture = exercice?.date_ouverture;
-
-  const delegueUser = await User.findByPk(req.utilisateur.id, { attributes: ['commission_rate'] });
-  const tauxDelegue = parseFloat(delegueUser?.commission_rate ?? 15) / 100;
 
   const whereAchat = { delegue_id: req.utilisateur.id, type: 'achat' };
   if (dateOuverture) whereAchat.date_mouvement = { [Op.gte]: dateOuverture };
@@ -207,7 +201,7 @@ const obtenirStatsStock = async (req, res) => {
   const whereVente = { delegue_id: req.utilisateur.id, type: 'vente' };
   if (exercice) whereVente.exercice_id = exercice.id;
 
-  const [achats, toutesVentes, ventesValidees, nbProduits] = await Promise.all([
+  const [achats, toutesVentes, nbProduits] = await Promise.all([
     MouvementDelegue.findAll({
       where: whereAchat,
       attributes: ['montant_total', 'gain_delegue'], raw: true,
@@ -215,10 +209,6 @@ const obtenirStatsStock = async (req, res) => {
     MouvementDelegue.findAll({
       where: whereVente,
       attributes: ['montant_total', 'statut'], raw: true,
-    }),
-    MouvementDelegue.findAll({
-      where: { ...whereVente, statut: 'valide' },
-      attributes: ['montant_total'], raw: true,
     }),
     StockDelegue.count({ where: { delegue_id: req.utilisateur.id } }),
   ]);
@@ -229,15 +219,15 @@ const obtenirStatsStock = async (req, res) => {
   res.json({
     achats_mois:       achats.reduce((s, a) => s + (a.montant_total || 0), 0),
     ventes_mois:       toutesVentes.reduce((s, v) => s + (v.montant_total || 0), 0),
-    gain_delegue_mois: Math.round(ventesValidees.reduce((s, v) => s + (v.montant_total || 0), 0) * tauxDelegue) + gainAchatsMois,
+    gain_delegue_mois: gainAchatsMois,
     nb_produits_stock: nbProduits,
     ventes_en_attente: ventesEnAttente.length,
   });
 };
 
-// Gains des délégués — admin et stockiste : voit gain délégué, part stockiste ET part MAPA (scope = exercice en cours)
-// Deux canaux de vente : (1) MouvementDelegue type='vente' validé (vente directe depuis stock perso)
-//                        (2) Facture créée par le délégué via ordonnance (vente au cabinet)
+// Gains des délégués — admin et stockiste : commission calculée sur les achats au stockiste uniquement
+// (commandeAppro + lignes ordonnance source='achat'). Les ventes depuis stock perso ne génèrent pas
+// de nouvelle commission car elle a été prise lors de l'approvisionnement.
 const obtenirGainsDelegues = async (req, res) => {
   const estAdmin = req.utilisateur.role === 'administrateur';
 
@@ -257,12 +247,24 @@ const obtenirGainsDelegues = async (req, res) => {
 
   const ids = delegues.map((d) => d.id);
 
-  const [ventesStock, facturesOrd] = await Promise.all([
+  const [mouvAchats, ventesStock, facturesOrd] = await Promise.all([
+    // Achats au stockiste — base de commission (valeurs stockées à la création)
+    MouvementDelegue.findAll({
+      where: {
+        delegue_id: { [Op.in]: ids },
+        type: 'achat',
+        date_mouvement: { [Op.gte]: exercice.date_ouverture },
+      },
+      attributes: ['delegue_id', 'montant_total', 'gain_delegue', 'commission_stockiste'],
+      raw: true,
+    }),
+    // Ventes directes stock — CA patient uniquement (pas de nouvelle commission)
     MouvementDelegue.findAll({
       where: { delegue_id: { [Op.in]: ids }, type: 'vente', statut: 'valide', exercice_id: exercice.id },
       attributes: ['delegue_id', 'montant_total'],
       raw: true,
     }),
+    // Factures ordonnances — CA patient (commission déjà captée sur les lignes source='achat')
     Facture.findAll({
       where: {
         created_by: { [Op.in]: ids },
@@ -275,24 +277,30 @@ const obtenirGainsDelegues = async (req, res) => {
   ]);
 
   const resultat = delegues.map((d) => {
+    const mouvAchatsD   = mouvAchats.filter((m) => m.delegue_id === d.id);
     const ventesStockD  = ventesStock.filter((v) => v.delegue_id === d.id);
     const facturesD     = facturesOrd.filter((f) => f.created_by === d.id);
-    const tauxTotal     = parseFloat(d.stockiste?.commission_rate ?? 25);
-    const tauxDelegue   = parseFloat(d.commission_rate ?? 15);
 
-    const ca_stock       = ventesStockD.reduce((s, v) => s + (v.montant_total || 0), 0);
-    const ca_ordonnances = facturesD.reduce((s, f) => s + (f.montant_total || 0), 0);
-    const ca_total       = ca_stock + ca_ordonnances;
+    const tauxTotal   = parseFloat(d.stockiste?.commission_rate ?? 25);
+    const tauxDelegue = parseFloat(d.commission_rate ?? 15);
 
-    const gain_delegue_mois         = Math.round(ca_total * tauxDelegue / 100);
-    const commission_stockiste_mois  = Math.round(ca_total * (tauxTotal - tauxDelegue) / 100);
-    const part_mapa_mois            = ca_total - gain_delegue_mois - commission_stockiste_mois;
+    // Commission depuis les valeurs stockées (évite le double-compte des lignes source='stock')
+    const achats_stockiste          = mouvAchatsD.reduce((s, m) => s + (m.montant_total || 0), 0);
+    const gain_delegue_mois         = mouvAchatsD.reduce((s, m) => s + (m.gain_delegue || 0), 0);
+    const commission_stockiste_mois = mouvAchatsD.reduce((s, m) => s + (m.commission_stockiste || 0), 0);
+    const part_mapa_mois            = achats_stockiste - gain_delegue_mois - commission_stockiste_mois;
+
+    // CA patient (pour information — ne sert pas au calcul de commission)
+    const ca_ventes_directes = ventesStockD.reduce((s, v) => s + (v.montant_total || 0), 0);
+    const ca_ordonnances     = facturesD.reduce((s, f) => s + (f.montant_total || 0), 0);
 
     return {
       delegue: { id: d.id, nom: d.nom, prenom: d.prenom },
       taux_commission: tauxTotal,
       taux_delegue:    tauxDelegue,
-      ventes_mois: ca_total,
+      ventes_mois:            achats_stockiste,       // base de commission = achats au stockiste
+      ca_ventes_directes,                             // CA ventes directes (info)
+      ca_ordonnances,                                 // CA ordonnances patient (info)
       gain_delegue_mois,
       commission_stockiste_mois,
       part_mapa_mois,

@@ -648,7 +648,7 @@ const DashboardStandard = ({ utilisateur }) => {
                 <thead className="bg-fond-secondaire border-b border-bordure">
                   <tr>
                     <th className="text-left px-4 py-2 font-semibold text-texte-secondaire text-xs">Source</th>
-                    <th className="text-right px-4 py-2 font-semibold text-texte-secondaire text-xs">CA</th>
+                    <th className="text-right px-4 py-2 font-semibold text-texte-secondaire text-xs">Achats stk.</th>
                     <th className="text-right px-4 py-2 font-semibold text-texte-secondaire text-xs hidden sm:table-cell">Part MAPA</th>
                     <th className="text-right px-4 py-2 font-semibold text-texte-secondaire text-xs">Vos gains</th>
                   </tr>
@@ -685,7 +685,7 @@ const DashboardStandard = ({ utilisateur }) => {
                           {g.delegue.prenom} {g.delegue.nom}
                         </p>
                         <p className="text-xs text-texte-secondaire">
-                          `Commission reversée (revendeur ${g.taux_delegue ?? 15}% · stockiste ${g.taux_commission - (g.taux_delegue ?? 15)}%)`
+                          {`Commission : rev. ${g.taux_delegue ?? 15}% · stk. ${g.taux_commission - (g.taux_delegue ?? 15)}%`}
                         </p>
                       </td>
                       <td className="px-4 py-2.5 text-right font-mono text-xs text-texte-secondaire">{formatMontant(g.ventes_mois)}</td>
