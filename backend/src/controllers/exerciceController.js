@@ -1,6 +1,6 @@
 'use strict';
 
-const { Exercice, MouvementDelegue, Facture, FactureAchat, User, sequelize } = require('../models');
+const { Exercice, MouvementDelegue, Facture, User, sequelize } = require('../models');
 const { Op } = require('sequelize');
 
 // ── Génération du numéro séquentiel ──────────────────────────────────────────
@@ -372,16 +372,25 @@ const obtenirActuel = async (req, res) => {
     return res.json({ exercice: null, message: 'Aucun exercice ouvert en ce moment' });
   }
 
-  // CA accumulé rapide (factures + ventes délégués + approvisionnements commandeAppro)
-  const [caFactures, caDelegues, caApprovisionnements] = await Promise.all([
+  // Exclure les délégués de caFactures (leurs ordonnances patients ≠ CA du stockiste)
+  const delegueUsers = await User.findAll({ where: { role: 'delegue' }, attributes: ['id'], raw: true });
+  const delegueIds = delegueUsers.map((u) => u.id);
+
+  // CA accumulé : ventes directes stockiste + achats des délégués (commandeAppro + ordonnances source='achat')
+  const [caFactures, caApprovisionnements] = await Promise.all([
     Facture.sum('montant_paye', {
-      where: { exercice_id: exercice.id, statut: { [Op.ne]: 'annulee' } },
+      where: {
+        exercice_id: exercice.id,
+        statut: { [Op.ne]: 'annulee' },
+        ...(delegueIds.length > 0 ? { created_by: { [Op.notIn]: delegueIds } } : {}),
+      },
     }),
     MouvementDelegue.sum('montant_total', {
-      where: { exercice_id: exercice.id, type: 'vente', statut: 'valide' },
-    }),
-    FactureAchat.sum('montant_total', {
-      where: { created_at: { [Op.gte]: exercice.date_ouverture } },
+      where: {
+        type: 'achat',
+        statut: 'valide',
+        date_mouvement: { [Op.gte]: exercice.date_ouverture },
+      },
     }),
   ]);
 
@@ -391,9 +400,8 @@ const obtenirActuel = async (req, res) => {
 
   res.json({
     exercice,
-    ca_accumule: (caFactures || 0) + (caDelegues || 0) + (caApprovisionnements || 0),
+    ca_accumule: (caFactures || 0) + (caApprovisionnements || 0),
     ca_factures: caFactures || 0,
-    ca_delegues: caDelegues || 0,
     ca_approvisionnements: caApprovisionnements || 0,
     duree_jours: dureeJours,
   });

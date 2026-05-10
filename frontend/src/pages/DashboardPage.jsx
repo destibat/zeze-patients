@@ -146,7 +146,7 @@ const WidgetExercice = () => {
           <p className="text-xs text-texte-secondaire">CA accumulé</p>
           <p className="text-sm font-bold text-texte-principal">{formatMontant(data.ca_accumule)}</p>
           <p className="text-xs text-texte-secondaire">
-            Fact. {formatMontant(data.ca_factures)} · Ventes dél. {formatMontant(data.ca_delegues)} · Appro. {formatMontant(data.ca_approvisionnements ?? 0)}
+            Fact. {formatMontant(data.ca_factures)} · Appro. {formatMontant(data.ca_approvisionnements ?? 0)}
           </p>
         </div>
         <div>

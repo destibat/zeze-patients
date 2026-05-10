@@ -81,14 +81,9 @@ const obtenirStats = async (req, res) => {
       attributes: ['id', 'date_ouverture'],
     });
     const dateExercice = exercice?.date_ouverture ?? debutMoisStr;
-    const filtreStockiste = estAdmin ? '' : 'AND stockiste_id = :stockisteId';
-
-    // FactureAchat ce mois → ajout au KPI CA mois
-    const rowsFAMois = await sequelize.query(
-      `SELECT COALESCE(SUM(montant_total), 0) AS total FROM factures_achat WHERE created_at >= :debut ${filtreStockiste}`,
-      { replacements: { debut: debutMoisStr, stockisteId: userId }, type: sequelize.QueryTypes.SELECT }
-    );
-    caMois += parseInt(rowsFAMois[0]?.total || 0);
+    // Approvisionnements ce mois (commandeAppro + ordonnances source='achat')
+    // Source de vérité : MouvementDelegue type='achat' statut='valide' (inclut les deux flux,
+    // contrairement à FactureAchat qui manquait les ordonnances source='achat')
 
     // Données exercice pour la répartition
     // Admin : exclure les Factures des délégués (comptées séparément via gainsDelegues)
@@ -125,6 +120,19 @@ const obtenirStats = async (req, res) => {
         raw: true,
       });
       const revendeursIds = mesRevendeurs.map((u) => u.id);
+
+      // CA approvisionnements ce mois (commandeAppro + ordonnances source='achat') pour ce stockiste
+      if (revendeursIds.length > 0) {
+        const caApproMois = await MouvementDelegue.sum('montant_total', {
+          where: {
+            delegue_id: { [Op.in]: revendeursIds },
+            type: 'achat',
+            statut: 'valide',
+            date_mouvement: { [Op.gte]: debutMoisStr },
+          },
+        });
+        caMois += caApproMois || 0;
+      }
 
       let caRevendeursExercice = 0;
       if (revendeursIds.length > 0) {
@@ -165,6 +173,12 @@ const obtenirStats = async (req, res) => {
         part_mapa_direct:       Math.round(caDirectExercice * tauxMapa / 100),
       };
     } else {
+      // Admin — tous les approvisionnements ce mois
+      const caApproMoisAdmin = await MouvementDelegue.sum('montant_total', {
+        where: { type: 'achat', statut: 'valide', date_mouvement: { [Op.gte]: debutMoisStr } },
+      });
+      caMois += caApproMoisAdmin || 0;
+
       // Admin — gains sur Factures directes (hors délégués)
       const excludeClause = delegueIdsArr.length > 0 ? 'AND f.created_by NOT IN (:delegueIds)' : '';
       const rowsConsult = await sequelize.query(
