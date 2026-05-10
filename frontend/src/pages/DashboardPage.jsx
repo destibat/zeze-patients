@@ -491,8 +491,8 @@ const DashboardStandard = ({ utilisateur }) => {
   const gainsIndirectsMois = gainsDelegues.reduce((s, g) => s + g.commission_stockiste_mois, 0);
   const gainsDelegueMois   = gainsDelegues.reduce((s, g) => s + g.gain_delegue_mois, 0);
   const mapaDelegueMois    = gainsDelegues.reduce((s, g) => s + g.part_mapa_mois, 0);
-  const gainsTotaux        = r ? (r.gains_directs + gainsIndirectsMois) : 0;
-  const mapaTotal          = r ? (r.part_mapa_direct + mapaDelegueMois) : 0;
+  const gainsTotaux = r ? (r.gains_directs + (r.gains_indirects ?? gainsIndirectsMois)) : 0;
+  const mapaTotal   = r ? (r.part_mapa_direct + (r.mapa_indirects ?? mapaDelegueMois)) : 0;
 
   const val = (v) => (isLoading ? '…' : v ?? '—');
   const rdvActifs = rdvs.filter((r) => r.statut !== 'annule');
@@ -604,7 +604,9 @@ const DashboardStandard = ({ utilisateur }) => {
 
       {/* Répartition financière — stockiste uniquement */}
       {estStockisteOuAdmin && !isLoading && r && (() => {
-        const caTotal = r.ca_direct + caDelegueMois;
+        const caTotal = (r.ca_direct ?? 0) + (r.ca_appro_exercice ?? 0);
+        const gainsIndirectsAff = r.gains_indirects ?? gainsIndirectsMois;
+        const mapaIndirectsAff  = r.mapa_indirects  ?? mapaDelegueMois;
 
         return (
           <div className="space-y-4">
@@ -619,7 +621,7 @@ const DashboardStandard = ({ utilisateur }) => {
                 valeur={formatMontant(caTotal)}
                 icone={TrendingUp}
                 couleur="bg-slate-500"
-                sous={`Directs : ${formatMontant(r.ca_direct)}  ·  Revendeurs : ${formatMontant(caDelegueMois)}`}
+                sous={`Directs : ${formatMontant(r.ca_direct)}  ·  Appros : ${formatMontant(r.ca_appro_exercice ?? 0)}`}
               />
               <CarteKPI
                 titre={r.taux_direct != null ? 'Vos gains totaux' : 'Gains des stockistes'}
@@ -627,15 +629,15 @@ const DashboardStandard = ({ utilisateur }) => {
                 icone={TrendingUp}
                 couleur="bg-zeze-or"
                 sous={r.taux_direct != null
-                  ? `Directs (${r.taux_direct}%) : ${formatMontant(r.gains_directs)}  ·  Reversés : ${formatMontant(gainsIndirectsMois)}`
-                  : `Consultations : ${formatMontant(r.gains_directs)}  ·  Via revendeurs : ${formatMontant(gainsIndirectsMois)}`}
+                  ? `Directs (${r.taux_direct}%) : ${formatMontant(r.gains_directs)}  ·  Reversés : ${formatMontant(gainsIndirectsAff)}`
+                  : `Consultations : ${formatMontant(r.gains_directs)}  ·  Via revendeurs : ${formatMontant(gainsIndirectsAff)}`}
               />
               <CarteKPI
                 titre={r.taux_mapa != null ? `Part versée à MAPA (${r.taux_mapa}%)` : 'Part versée à MAPA'}
                 valeur={formatMontant(mapaTotal)}
                 icone={ShoppingBag}
                 couleur="bg-zeze-vert"
-                sous={`Directs : ${formatMontant(r.part_mapa_direct)}  ·  Revendeurs : ${formatMontant(mapaDelegueMois)}`}
+                sous={`Directs : ${formatMontant(r.part_mapa_direct)}  ·  Appros : ${formatMontant(mapaIndirectsAff)}`}
               />
             </div>
 

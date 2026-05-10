@@ -123,27 +123,35 @@ const obtenirStats = async (req, res) => {
 
       // CA approvisionnements ce mois ET depuis l'exercice (commandeAppro + ordonnances source='achat')
       let caApproExercice = 0;
+      let gainsApproStockiste = 0;
+      let mapaApproExercice = 0;
       if (revendeursIds.length > 0) {
-        const [caApproMois, caApproEx] = await Promise.all([
-          MouvementDelegue.sum('montant_total', {
+        const [approMois, approExercice] = await Promise.all([
+          MouvementDelegue.findAll({
             where: {
               delegue_id: { [Op.in]: revendeursIds },
               type: 'achat',
               statut: 'valide',
               date_mouvement: { [Op.gte]: debutMoisStr },
             },
+            attributes: ['montant_total'],
+            raw: true,
           }),
-          MouvementDelegue.sum('montant_total', {
+          MouvementDelegue.findAll({
             where: {
               delegue_id: { [Op.in]: revendeursIds },
               type: 'achat',
               statut: 'valide',
               date_mouvement: { [Op.gte]: dateExercice },
             },
+            attributes: ['montant_total', 'commission_stockiste', 'gain_delegue'],
+            raw: true,
           }),
         ]);
-        caMois += caApproMois || 0;
-        caApproExercice = caApproEx || 0;
+        caMois += approMois.reduce((s, m) => s + (m.montant_total || 0), 0);
+        caApproExercice     = approExercice.reduce((s, m) => s + (m.montant_total || 0), 0);
+        gainsApproStockiste = approExercice.reduce((s, m) => s + (m.commission_stockiste || 0), 0);
+        mapaApproExercice   = approExercice.reduce((s, m) => s + ((m.montant_total || 0) - (m.gain_delegue || 0) - (m.commission_stockiste || 0)), 0);
       }
 
       let caRevendeursExercice = 0;
@@ -183,7 +191,9 @@ const obtenirStats = async (req, res) => {
         ca_appro_exercice:      caApproExercice,
         ca_revendeurs_exercice: caRevendeursExercice,
         gains_directs:          Math.round(caDirectExercice * tauxTotal / 100),
+        gains_indirects:        gainsApproStockiste,
         part_mapa_direct:       Math.round(caDirectExercice * tauxMapa / 100),
+        mapa_indirects:         mapaApproExercice,
       };
     } else {
       // Admin — tous les approvisionnements ce mois
