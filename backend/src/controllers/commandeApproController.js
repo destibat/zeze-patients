@@ -181,6 +181,7 @@ const valider = async (req, res) => {
         gain_delegue:         Math.round(montant_ligne * tauxDelegue),
         commission_stockiste: Math.round(montant_ligne * (tauxTotal - tauxDelegue)),
         date_mouvement:       today,
+        lignes:               [{ nom_produit: produit.nom, produit_id: ligne.produit_id, quantite: ligne.quantite, prix_unitaire: ligne.prix_unitaire }],
       }, { transaction });
     }
 
