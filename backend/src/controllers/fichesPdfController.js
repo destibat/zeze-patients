@@ -134,8 +134,8 @@ const ficheBilanDelegue = async (req, res) => {
 
   // Achats appro : commandeAppro validées + ordonnances source='achat' (MouvementDelegue type='achat')
   const filtreDate = {
-    [Op.gte]: exercice.date_ouverture,
-    ...(exercice.date_cloture ? { [Op.lte]: exercice.date_cloture } : {}),
+    [Op.gte]: new Date(exercice.date_ouverture).toISOString().split('T')[0],
+    ...(exercice.date_cloture ? { [Op.lte]: new Date(exercice.date_cloture).toISOString().split('T')[0] } : {}),
   };
   const achatsRaw = await MouvementDelegue.findAll({
     where: {
@@ -220,8 +220,8 @@ const ficheBilanStockiste = async (req, res) => {
 
   // Appros délégués : commissions stockiste sur les achats des revendeurs rattachés
   const filtreDate = {
-    [Op.gte]: exercice.date_ouverture,
-    ...(exercice.date_cloture ? { [Op.lte]: exercice.date_cloture } : {}),
+    [Op.gte]: new Date(exercice.date_ouverture).toISOString().split('T')[0],
+    ...(exercice.date_cloture ? { [Op.lte]: new Date(exercice.date_cloture).toISOString().split('T')[0] } : {}),
   };
   const approsRaw = await MouvementDelegue.findAll({
     where: { type: 'achat', statut: 'valide', montant_total: { [Op.gt]: 0 }, date_mouvement: filtreDate },

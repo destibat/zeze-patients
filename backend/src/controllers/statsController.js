@@ -80,7 +80,9 @@ const obtenirStats = async (req, res) => {
       where: { statut: { [Op.in]: ['ouvert', 'rouvert'] } },
       attributes: ['id', 'date_ouverture'],
     });
-    const dateExercice = exercice?.date_ouverture ?? debutMoisStr;
+    const dateExercice = exercice?.date_ouverture
+      ? new Date(exercice.date_ouverture).toISOString().split('T')[0]
+      : debutMoisStr;
     // Approvisionnements ce mois (commandeAppro + ordonnances source='achat')
     // Source de vérité : MouvementDelegue type='achat' statut='valide' (inclut les deux flux,
     // contrairement à FactureAchat qui manquait les ordonnances source='achat')

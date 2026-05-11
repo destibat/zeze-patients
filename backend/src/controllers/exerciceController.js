@@ -52,7 +52,10 @@ const calculerBilan = async (exerciceId, statut = null) => {
   // ── Achats appro (commandes validées par le stockiste) ────────────────────
   // Pas d'exercice_id sur ces mouvements → filtrage par date_mouvement
   const filtreDate = dateOuverture
-    ? { [Op.gte]: dateOuverture, ...(dateCloture ? { [Op.lte]: dateCloture } : {}) }
+    ? {
+        [Op.gte]: new Date(dateOuverture).toISOString().split('T')[0],
+        ...(dateCloture ? { [Op.lte]: new Date(dateCloture).toISOString().split('T')[0] } : {}),
+      }
     : undefined;
   const achatsDeleg = filtreDate ? await MouvementDelegue.findAll({
     where: { type: 'achat', statut: 'valide', montant_total: { [Op.gt]: 0 }, date_mouvement: filtreDate },
