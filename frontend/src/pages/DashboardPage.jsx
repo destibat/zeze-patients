@@ -573,21 +573,14 @@ const DashboardStandard = ({ utilisateur }) => {
               valeur={isLoading ? '…' : r ? formatMontant((r.ca_direct ?? 0) + (r.ca_appro_exercice ?? 0)) : '—'}
               icone={TrendingUp}
               couleur="bg-emerald-500"
-              sous="Mes factures directes + appros revendeurs"
+              sous="Mes ventes directes + appros délégués"
             />
             <CarteKPI
-              titre="CA exercice de mes revendeurs"
+              titre="CA patient de mes délégués"
               valeur={isLoading ? '…' : r?.ca_revendeurs_exercice != null ? formatMontant(r.ca_revendeurs_exercice) : '—'}
               icone={Users}
               couleur="bg-blue-500"
-              sous="Ventes des délégués rattachés"
-            />
-            <CarteKPI
-              titre="Mon total exercice"
-              valeur={isLoading ? '…' : r ? formatMontant((r.ca_direct ?? 0) + (r.ca_appro_exercice ?? 0) + (r.ca_revendeurs_exercice ?? 0)) : '—'}
-              icone={TrendingUp}
-              couleur="bg-slate-600"
-              sous="Directs + appros + revendeurs"
+              sous="Informatif — non cumulable avec Mon CA"
             />
           </div>
         </div>
