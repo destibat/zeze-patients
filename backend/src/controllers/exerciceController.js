@@ -104,18 +104,9 @@ const calculerBilan = async (exerciceId, statut = null) => {
     ajouterProduits(f.lignes);
 
     if (createur?.role === 'delegue') {
-      // Canal ordonnance revendeur : commission partagée entre délégué et stockiste
-      const tauxDelegue = parseFloat(createur.commission_rate ?? 15);
-      const tauxTotal   = parseFloat(createur.stockiste?.commission_rate ?? 30);
-      const gainDelegue = Math.round(montant * tauxDelegue / 100);
-      const commStock   = Math.round(montant * (tauxTotal - tauxDelegue) / 100);
-      const stockisteId  = createur.stockiste_id;
-      const stockisteNom = createur.stockiste
-        ? `${createur.stockiste.prenom} ${createur.stockiste.nom}` : 'N/A';
-
-      ajouterDelegue(createur.id, `${createur.prenom} ${createur.nom}`, stockisteNom, montant, gainDelegue, commStock);
-      if (stockisteId) ajouterStockisteIndirect(stockisteId, stockisteNom, tauxTotal, montant, commStock);
-
+      // Factures délégués = facturation patient uniquement.
+      // Leurs commissions sont déjà capturées via MouvementDelegue type='achat' (achatsDeleg).
+      // Ne pas recalculer ici pour éviter le double-comptage.
     } else {
       // Canal direct (secrétaire / stockiste / admin) : commission 100 % au stockiste
       let tauxComm = 0, stockisteId = null, stockisteNom = '';
@@ -190,7 +181,6 @@ const calculerBilan = async (exerciceId, statut = null) => {
     .filter((f) => f.createur?.role !== 'delegue')
     .reduce((s, f) => s + (f.montant_paye || 0), 0);
   const ca_delegues_total =
-    factures.filter((f) => f.createur?.role === 'delegue').reduce((s, f) => s + (f.montant_paye || 0), 0) +
     ventesDeleg.reduce((s, v) => s + (v.montant_total || 0), 0) +
     achatsDeleg.reduce((s, a) => s + (a.montant_total || 0), 0);
   const ca_total = ca_factures_total + ca_delegues_total;
