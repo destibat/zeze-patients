@@ -696,8 +696,9 @@ const genererBilanIndividuelPDF = (exercice, delegue, achats, ventes, stock = []
 
     if (yRow > PAGE_H - MB - 20) yRow = sautDePage(colsAchats, hdrsAchats);
     yRow = ligneTableau(doc, yRow, colsAchats, [
-      `TOTAL (${achats.length} achat${achats.length !== 1 ? 's' : ''}) · Commission : ${fmtMontant(commAchats)}`,
-      '', '', '',
+      'TOTAL',
+      `${achats.length} achat${achats.length !== 1 ? 's' : ''} — Commission : ${fmtMontant(commAchats)}`,
+      '', '',
       fmtMontant(totalAchats),
     ], true);
 
