@@ -1,6 +1,6 @@
 'use strict';
 
-const { Exercice, MouvementDelegue, Facture, User, sequelize } = require('../models');
+const { Exercice, MouvementDelegue, Facture, User, Produit, sequelize } = require('../models');
 const { Op } = require('sequelize');
 
 // ── Génération du numéro séquentiel ──────────────────────────────────────────
@@ -38,16 +38,37 @@ const calculerBilan = async (exerciceId, statut = null) => {
     raw: false,
   });
 
+  // ── Utilitaire : normalise les lignes d'un mouvement sans champ lignes JSON ──
+  // (mouvements créés par ordonnance : seulement produit_id + quantite + montant_total)
+  const normaliserLignes = (mouvement) => {
+    const raw = typeof mouvement.toJSON === 'function' ? mouvement.toJSON() : mouvement;
+    let lignes = raw.lignes;
+    if (typeof lignes === 'string') { try { lignes = JSON.parse(lignes); } catch { lignes = []; } }
+    if (!Array.isArray(lignes) || lignes.length === 0) {
+      if (raw.produit_id) {
+        const prixUnit = raw.quantite > 0 ? Math.round(raw.montant_total / raw.quantite) : 0;
+        lignes = [{ nom_produit: raw.produit?.nom || '—', quantite: raw.quantite, prix_unitaire: prixUnit }];
+      } else {
+        lignes = [];
+      }
+    }
+    return { ...raw, lignes };
+  };
+
   // ── Ventes délégués directes (depuis stock perso, validées) ───────────────
-  const ventesDeleg = await MouvementDelegue.findAll({
+  const ventesDelegRaw = await MouvementDelegue.findAll({
     where: { exercice_id: exerciceId, type: 'vente', statut: 'valide' },
-    include: [{
-      model: User, as: 'delegue',
-      attributes: ['id', 'nom', 'prenom', 'commission_rate', 'stockiste_id'],
-      include: [{ model: User, as: 'stockiste', attributes: ['id', 'nom', 'prenom', 'commission_rate'] }],
-    }],
+    include: [
+      {
+        model: User, as: 'delegue',
+        attributes: ['id', 'nom', 'prenom', 'commission_rate', 'stockiste_id'],
+        include: [{ model: User, as: 'stockiste', attributes: ['id', 'nom', 'prenom', 'commission_rate'] }],
+      },
+      { model: Produit, as: 'produit', attributes: ['nom'] },
+    ],
     raw: false,
   });
+  const ventesDeleg = ventesDelegRaw.map(normaliserLignes);
 
   // ── Achats appro (commandes validées par le stockiste) ────────────────────
   // Pas d'exercice_id sur ces mouvements → filtrage par date_mouvement
@@ -57,15 +78,19 @@ const calculerBilan = async (exerciceId, statut = null) => {
         ...(dateCloture ? { [Op.lte]: new Date(dateCloture).toISOString().split('T')[0] } : {}),
       }
     : undefined;
-  const achatsDeleg = filtreDate ? await MouvementDelegue.findAll({
+  const achatsRaw = filtreDate ? await MouvementDelegue.findAll({
     where: { type: 'achat', statut: 'valide', montant_total: { [Op.gt]: 0 }, date_mouvement: filtreDate },
-    include: [{
-      model: User, as: 'delegue',
-      attributes: ['id', 'nom', 'prenom', 'commission_rate', 'stockiste_id'],
-      include: [{ model: User, as: 'stockiste', attributes: ['id', 'nom', 'prenom', 'commission_rate'] }],
-    }],
+    include: [
+      {
+        model: User, as: 'delegue',
+        attributes: ['id', 'nom', 'prenom', 'commission_rate', 'stockiste_id'],
+        include: [{ model: User, as: 'stockiste', attributes: ['id', 'nom', 'prenom', 'commission_rate'] }],
+      },
+      { model: Produit, as: 'produit', attributes: ['nom'] },
+    ],
     raw: false,
   }) : [];
+  const achatsDeleg = achatsRaw.map(normaliserLignes);
 
   // Pré-initialiser tous les stockistes à zéro pour qu'ils apparaissent même sans activité
   const tousStockistes = await User.findAll({
