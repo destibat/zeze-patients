@@ -543,7 +543,7 @@ const genererRecapDeleguesPDF = (exercice, bilan, infos = {}) =>
 // ═══════════════════════════════════════════════════════════════════════════════
 // FICHE 3 — BILAN INDIVIDUEL DÉLÉGUÉ
 // ═══════════════════════════════════════════════════════════════════════════════
-const genererBilanIndividuelPDF = (exercice, delegue, ventesDetail, infos = {}) =>
+const genererBilanIndividuelPDF = (exercice, delegue, achats, ventes, infos = {}) =>
   new Promise((resolve, reject) => {
     const doc = new PDFDocument({ margin: ML, size: 'A4', autoFirstPage: true });
     const chunks = [];
@@ -553,8 +553,8 @@ const genererBilanIndividuelPDF = (exercice, delegue, ventesDetail, infos = {}) 
 
     if (exercice.statut !== 'cloture') dessinerFiligrane(doc);
 
-    // ── En-tête personnalisé ─────────────────────────────────────────────────
-    const nomCabinet = infos.nom_cabinet || 'ZEZEPAGNON — Dossiers Patients';
+    // ── En-tête ──────────────────────────────────────────────────────────────
+    const nomCabinet    = infos.nom_cabinet || 'ZEZEPAGNON — Dossiers Patients';
     const adresseCabinet = infos.adresse || '';
     doc.rect(0, 0, 595, 6).fill(VERT);
     let y = MT;
@@ -575,17 +575,12 @@ const genererBilanIndividuelPDF = (exercice, delegue, ventesDetail, infos = {}) 
     y = doc.y + 4;
 
     const dateFin = exercice.date_cloture ? fmtDate(exercice.date_cloture) : "aujourd'hui";
-    const duree = exercice.duree_jours != null
-      ? ` — ${exercice.duree_jours} jour${exercice.duree_jours > 1 ? 's' : ''}`
-      : '';
+    const duree   = exercice.duree_jours != null
+      ? ` — ${exercice.duree_jours} jour${exercice.duree_jours > 1 ? 's' : ''}` : '';
     doc.fontSize(9).font('Helvetica').fillColor(GRIS)
-      .text(
-        `Exercice ${exercice.numero} · Du ${fmtDate(exercice.date_ouverture)} au ${dateFin}${duree}`,
-        ML, y, { width: PAGE_W }
-      );
+      .text(`Exercice ${exercice.numero} · Du ${fmtDate(exercice.date_ouverture)} au ${dateFin}${duree}`, ML, y, { width: PAGE_W });
     y = doc.y + 4;
 
-    // Mention exercice rouvert
     if (exercice.statut === 'rouvert') {
       doc.fontSize(8).font('Helvetica').fillColor(ORANGE)
         .text('⚠ Cet exercice a été rouvert après clôture', ML, y, { width: PAGE_W });
@@ -596,105 +591,175 @@ const genererBilanIndividuelPDF = (exercice, delegue, ventesDetail, infos = {}) 
     doc.moveTo(ML, y).lineTo(ML + PAGE_W, y).strokeColor(VERT).lineWidth(1.5).stroke();
     doc.y = y + 10;
 
-    // ── Synthèse en haut bien visible ────────────────────────────────────────
-    const ventes      = ventesDetail.filter((v) => v.statut === 'valide');
-    const nb_ventes   = ventes.length;
-    const total_ventes = ventes.reduce((s, v) => s + (v.montant_total || 0), 0);
-    const total_commission = ventes.reduce((s, v) => s + (v.gain_delegue || 0), 0);
+    // ── Calculs synthèse ─────────────────────────────────────────────────────
+    const tauxDelegue = parseFloat(delegue.commission_rate ?? 15);
+    const totalAchats = achats.reduce((s, a) => s + (a.montant_total || 0), 0);
+    const commAchats  = achats.reduce((s, a) => s + (a.gain_delegue  || 0), 0);
+    const validVentes = ventes.filter((v) => v.statut === 'valide');
+    const totalVentes = validVentes.reduce((s, v) => s + (v.montant_total || 0), 0);
+    const commVentes  = validVentes.reduce((s, v) => s + (v.gain_delegue  || 0), 0);
+    const commTotale  = commAchats + commVentes;
 
+    // ── 4 blocs KPI ──────────────────────────────────────────────────────────
     const ySynth = doc.y;
-    const wBloc = (PAGE_W - 8) / 3;
+    const wBloc  = (PAGE_W - 12) / 4;
 
     [
-      { label: 'Total de tes ventes', val: fmtMontant(total_ventes), col: VERT_FONCE },
-      { label: 'Ta commission (15 %)', val: fmtMontant(total_commission), col: BLEU },
-      { label: 'Nombre de ventes', val: `${nb_ventes}`, col: '#6A1B9A' },
+      { label: 'Achats appro',                         val: fmtMontant(totalAchats), col: VERT_FONCE },
+      { label: `Commission achats (${tauxDelegue} %)`, val: fmtMontant(commAchats),  col: BLEU       },
+      { label: 'Ventes directes',                      val: fmtMontant(totalVentes), col: '#1A237E'  },
+      { label: `Commission ventes (${tauxDelegue} %)`, val: fmtMontant(commVentes),  col: '#6A1B9A'  },
     ].forEach((bloc, i) => {
       const xBloc = ML + i * (wBloc + 4);
-      doc.rect(xBloc, ySynth, wBloc, 44).fill(bloc.col);
-      doc.fontSize(8).font('Helvetica').fillColor('white')
-        .text(bloc.label, xBloc + 6, ySynth + 6, { width: wBloc - 12, align: 'center' });
-      doc.fontSize(13).font('Helvetica-Bold').fillColor('white')
-        .text(bloc.val, xBloc + 6, ySynth + 18, { width: wBloc - 12, align: 'center' });
+      doc.rect(xBloc, ySynth, wBloc, 46).fill(bloc.col);
+      doc.fontSize(7.5).font('Helvetica').fillColor('white')
+        .text(bloc.label, xBloc + 4, ySynth + 6, { width: wBloc - 8, align: 'center' });
+      doc.fontSize(11).font('Helvetica-Bold').fillColor('white')
+        .text(bloc.val, xBloc + 4, ySynth + 22, { width: wBloc - 8, align: 'center' });
     });
 
-    doc.y = ySynth + 52;
+    doc.y = ySynth + 54;
+    doc.fontSize(9).font('Helvetica-Bold').fillColor(VERT_FONCE)
+      .text(`Commission totale : ${fmtMontant(commTotale)}`, ML, doc.y, { width: PAGE_W, align: 'right' });
+    doc.y = doc.y + 10;
 
-    // ── Tableau détaillé des ventes ─────────────────────────────────────────
+    // ── Utilitaires internes ─────────────────────────────────────────────────
+    const parseLignes = (raw) => {
+      if (typeof raw === 'string') { try { return JSON.parse(raw); } catch { return []; } }
+      return Array.isArray(raw) ? raw : [];
+    };
+
+    const fmtDateCourt = (d) => d
+      ? new Date(d).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: '2-digit' })
+      : '—';
+
+    const sautDePage = (cols, headers) => {
+      dessinerPiedDePage(doc, 'Document personnel — à conserver');
+      doc.addPage();
+      if (exercice.statut !== 'cloture') dessinerFiligrane(doc);
+      doc.rect(0, 0, 595, 6).fill(VERT);
+      doc.y = MT + 10;
+      const yH = doc.y;
+      doc.rect(ML, yH, PAGE_W, 14).fill('#CFD8DC');
+      doc.fontSize(8).font('Helvetica-Bold').fillColor('#37474F');
+      headers.forEach((h, i) => {
+        doc.text(h, cols[i].x, yH + 3, { width: cols[i].width, align: cols[i].align });
+      });
+      doc.y = yH + 16;
+      return doc.y;
+    };
+
+    // ── Section ACHATS APPRO ─────────────────────────────────────────────────
     doc.moveDown(0.5);
-    titreSection(doc, 'DÉTAIL DE TES VENTES');
+    titreSection(doc, 'ACHATS APPRO (approvisionnements et commandes validées)');
 
-    const cols = [
-      { x: ML + 4,   width: 60,  align: 'left'  },
-      { x: ML + 68,  width: 95,  align: 'left'  },
-      { x: ML + 167, width: 110, align: 'left'  },
-      { x: ML + 281, width: 40,  align: 'right' },
-      { x: ML + 325, width: 80,  align: 'right' },
-      { x: ML + 409, width: 76,  align: 'right' },
+    const colsAchats  = [
+      { x: ML + 4,   width: 52,  align: 'left'  },  // Date
+      { x: ML + 60,  width: 205, align: 'left'  },  // Produit
+      { x: ML + 269, width: 30,  align: 'right' },  // Qté
+      { x: ML + 303, width: 82,  align: 'right' },  // Prix unit.
+      { x: ML + 389, width: 96,  align: 'right' },  // Montant
     ];
+    const hdrsAchats = ['Date', 'Produit', 'Qté', 'Prix unit.', 'Montant'];
 
-    const yTh = doc.y;
+    let yTh = doc.y;
     doc.rect(ML, yTh, PAGE_W, 14).fill('#CFD8DC');
     doc.fontSize(8).font('Helvetica-Bold').fillColor('#37474F');
-    ['Date', 'Client', 'Produit(s)', 'Qté', 'Montant', 'Commission'].forEach((h, i) => {
-      doc.text(h, cols[i].x, yTh + 3, { width: cols[i].width, align: cols[i].align });
+    hdrsAchats.forEach((h, i) => {
+      doc.text(h, colsAchats[i].x, yTh + 3, { width: colsAchats[i].width, align: colsAchats[i].align });
     });
     doc.y = yTh + 16;
-
     let yRow = doc.y;
 
-    ventes.sort((a, b) => new Date(a.date_mouvement) - new Date(b.date_mouvement));
+    achats.sort((a, b) => new Date(a.date_mouvement) - new Date(b.date_mouvement));
 
-    ventes.forEach((v, idx) => {
-      let lignes = v.lignes;
-      if (typeof lignes === 'string') { try { lignes = JSON.parse(lignes); } catch { lignes = []; } }
-      if (!Array.isArray(lignes)) lignes = [];
+    achats.forEach((a, idx) => {
+      const lignes  = parseLignes(a.lignes);
+      const rows    = lignes.length > 0 ? lignes : [{}];
+      const dateStr = fmtDateCourt(a.date_mouvement);
+      const fond    = idx % 2 === 0 ? FOND_GRIS : null;
 
-      const produitStr = lignes.map((l) => `${l.nom_produit || l.nom || '?'}`).join(', ');
-      const qteStr = lignes.map((l) => String(l.quantite || 1)).join(', ');
-      const dateStr = v.date_mouvement
-        ? new Date(v.date_mouvement).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: '2-digit' })
-        : '—';
-
-      // Nouvelle page si nécessaire
-      if (yRow > PAGE_H - MB - 70) {
-        dessinerPiedDePage(doc, 'Document personnel — à conserver');
-        doc.addPage();
-        if (exercice.statut !== 'cloture') dessinerFiligrane(doc);
-        doc.rect(0, 0, 595, 6).fill(VERT);
-        doc.y = MT + 10;
-        yRow = doc.y;
-
-        doc.rect(ML, yRow, PAGE_W, 14).fill('#CFD8DC');
-        doc.fontSize(8).font('Helvetica-Bold').fillColor('#37474F');
-        ['Date', 'Client', 'Produit(s)', 'Qté', 'Montant', 'Commission'].forEach((h, i) => {
-          doc.text(h, cols[i].x, yRow + 3, { width: cols[i].width, align: cols[i].align });
-        });
-        yRow += 16;
-        doc.y = yRow;
-      }
-
-      yRow = ligneTableau(doc, yRow, cols, [
-        dateStr,
-        v.client_nom || '—',
-        produitStr,
-        qteStr,
-        fmtMontant(v.montant_total),
-        fmtMontant(v.gain_delegue),
-      ], false, idx % 2 === 0 ? FOND_GRIS : null);
+      rows.forEach((l, li) => {
+        if (yRow > PAGE_H - MB - 40) yRow = sautDePage(colsAchats, hdrsAchats);
+        const montantLigne = (l.prix_unitaire != null && l.quantite != null)
+          ? Math.round((l.prix_unitaire || 0) * (l.quantite || 0))
+          : a.montant_total;
+        yRow = ligneTableau(doc, yRow, colsAchats, [
+          li === 0 ? dateStr : '',
+          l.nom_produit || l.nom || '—',
+          l.quantite    != null ? String(l.quantite)      : '—',
+          l.prix_unitaire != null ? fmtMontant(l.prix_unitaire) : '—',
+          fmtMontant(montantLigne),
+        ], false, fond);
+      });
     });
 
-    // Ligne total
-    yRow = ligneTableau(doc, yRow, cols, [
-      'TOTAL',
-      '',
-      '',
-      '',
-      fmtMontant(total_ventes),
-      fmtMontant(total_commission),
+    if (yRow > PAGE_H - MB - 20) yRow = sautDePage(colsAchats, hdrsAchats);
+    yRow = ligneTableau(doc, yRow, colsAchats, [
+      `TOTAL (${achats.length} achat${achats.length !== 1 ? 's' : ''}) · Commission : ${fmtMontant(commAchats)}`,
+      '', '', '',
+      fmtMontant(totalAchats),
     ], true);
 
-    doc.y = yRow;
+    doc.y = yRow + 8;
+
+    // ── Section VENTES DIRECTES (si existantes) ──────────────────────────────
+    if (validVentes.length > 0) {
+      doc.moveDown(0.5);
+      titreSection(doc, 'VENTES DIRECTES (depuis stock personnel)', BLEU);
+
+      const colsVentes = [
+        { x: ML + 4,   width: 52,  align: 'left'  },  // Date
+        { x: ML + 60,  width: 100, align: 'left'  },  // Client
+        { x: ML + 164, width: 155, align: 'left'  },  // Produit
+        { x: ML + 323, width: 30,  align: 'right' },  // Qté
+        { x: ML + 357, width: 72,  align: 'right' },  // Montant
+        { x: ML + 433, width: 52,  align: 'right' },  // Comm.
+      ];
+      const hdrsVentes = ['Date', 'Client', 'Produit', 'Qté', 'Montant', 'Comm.'];
+
+      yTh = doc.y;
+      doc.rect(ML, yTh, PAGE_W, 14).fill('#CFD8DC');
+      doc.fontSize(8).font('Helvetica-Bold').fillColor('#37474F');
+      hdrsVentes.forEach((h, i) => {
+        doc.text(h, colsVentes[i].x, yTh + 3, { width: colsVentes[i].width, align: colsVentes[i].align });
+      });
+      doc.y = yTh + 16;
+      yRow = doc.y;
+
+      validVentes.sort((a, b) => new Date(a.date_mouvement) - new Date(b.date_mouvement));
+
+      validVentes.forEach((v, idx) => {
+        const lignes  = parseLignes(v.lignes);
+        const rows    = lignes.length > 0 ? lignes : [{}];
+        const dateStr = fmtDateCourt(v.date_mouvement);
+        const fond    = idx % 2 === 0 ? FOND_GRIS : null;
+
+        rows.forEach((l, li) => {
+          if (yRow > PAGE_H - MB - 40) yRow = sautDePage(colsVentes, hdrsVentes);
+          const isLast = li === rows.length - 1;
+          yRow = ligneTableau(doc, yRow, colsVentes, [
+            li === 0 ? dateStr : '',
+            li === 0 ? (v.client_nom || '—') : '',
+            l.nom_produit || l.nom || '—',
+            l.quantite != null ? String(l.quantite) : '—',
+            isLast ? fmtMontant(v.montant_total) : '',
+            isLast ? fmtMontant(v.gain_delegue || 0) : '',
+          ], false, fond);
+        });
+      });
+
+      if (yRow > PAGE_H - MB - 20) yRow = sautDePage(colsVentes, hdrsVentes);
+      yRow = ligneTableau(doc, yRow, colsVentes, [
+        `TOTAL (${validVentes.length} vente${validVentes.length !== 1 ? 's' : ''})`,
+        '', '', '',
+        fmtMontant(totalVentes),
+        fmtMontant(commVentes),
+      ], true);
+
+      doc.y = yRow;
+    }
+
     dessinerPiedDePage(doc, 'Document personnel — à conserver');
     doc.end();
   });

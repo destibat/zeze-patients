@@ -1,6 +1,6 @@
 'use strict';
 
-const { Exercice, MouvementDelegue, Facture, Patient, User, ParametreCabinet } = require('../models');
+const { Exercice, MouvementDelegue, User, ParametreCabinet } = require('../models');
 const { Op } = require('sequelize');
 const { calculerBilan } = require('./exerciceController');
 const {
@@ -131,38 +131,32 @@ const ficheBilanDelegue = async (req, res) => {
     return res.status(404).json({ message: 'Délégué introuvable' });
   }
 
-  const tauxDelegue = delegue.commission_rate || 15;
+  // Achats appro : commandeAppro validées + ordonnances source='achat' (MouvementDelegue type='achat')
+  const filtreDate = {
+    [Op.gte]: exercice.date_ouverture,
+    ...(exercice.date_cloture ? { [Op.lte]: exercice.date_cloture } : {}),
+  };
+  const achatsAppro = await MouvementDelegue.findAll({
+    where: {
+      delegue_id: delegueId,
+      type: 'achat',
+      statut: 'valide',
+      montant_total: { [Op.gt]: 0 },
+      date_mouvement: filtreDate,
+    },
+    order: [['date_mouvement', 'ASC'], ['created_at', 'ASC']],
+    raw: true,
+  });
 
-  // Canal 1 : ventes depuis stock personnel
-  const ventesStock = await MouvementDelegue.findAll({
+  // Ventes directes : ventes depuis le stock personnel du délégué (MouvementDelegue type='vente')
+  const ventesDirectes = await MouvementDelegue.findAll({
     where: { delegue_id: delegueId, exercice_id: exerciceId, type: 'vente' },
     order: [['date_mouvement', 'ASC'], ['created_at', 'ASC']],
     raw: true,
   });
 
-  // Canal 2 : ventes via ordonnances (Factures créées par le délégué pendant l'exercice)
-  const facturesDelegue = await Facture.findAll({
-    where: {
-      created_by: delegueId,
-      statut: { [Op.ne]: 'annulee' },
-      date_facture: { [Op.gte]: exercice.date_ouverture },
-    },
-    include: [{ model: Patient, as: 'patient', attributes: ['nom', 'prenom'] }],
-  });
-
-  const ventesOrdonnances = facturesDelegue.map((f) => ({
-    statut: 'valide',
-    date_mouvement: f.date_facture,
-    client_nom: f.patient ? `${f.patient.prenom} ${f.patient.nom}` : '—',
-    lignes: f.lignes || [],
-    montant_total: f.montant_total,
-    gain_delegue: Math.round(f.montant_total * tauxDelegue / 100),
-  }));
-
-  const ventes = [...ventesStock, ...ventesOrdonnances];
-
   const infos = await chargerInfosCabinet();
-  const buffer = await genererBilanIndividuelPDF(exercice, delegue, ventes, infos);
+  const buffer = await genererBilanIndividuelPDF(exercice, delegue, achatsAppro, ventesDirectes, infos);
   const nom = `${delegue.prenom}-${delegue.nom}`.toLowerCase().replace(/\s+/g, '-');
   envoyerPDF(res, buffer, `bilan-delegue-${nom}-${exercice.numero}.pdf`);
 };
