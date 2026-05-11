@@ -8,6 +8,7 @@ import {
   useCreerOrdonnanceDirecte, useRenouvelerOrdonnance, telechargerPDF,
 } from '../hooks/useOrdonnances';
 import { useRecherchePatients } from '../hooks/usePatients';
+import { useMonStock } from '../hooks/useStockDelegue';
 import ProduitPicker from '../components/ordonnances/ProduitPicker';
 import {
   FileText, Download, Search, Receipt, CheckCircle,
@@ -128,7 +129,7 @@ const ComboboxPatient = ({ value, onChange }) => {
 };
 
 // ── Modal nouvelle ordonnance sans consultation ───────────────────────────────
-const ModalNouvelleOrdonnance = ({ onFermer, onCreer, loading, erreur }) => {
+const ModalNouvelleOrdonnance = ({ onFermer, onCreer, loading, erreur, estDelegue = false, stockDelegue = [] }) => {
   const [patient, setPatient] = useState(null);
   const [lignes, setLignes] = useState([]);
   const [notes, setNotes] = useState('');
@@ -189,7 +190,7 @@ const ModalNouvelleOrdonnance = ({ onFermer, onCreer, loading, erreur }) => {
 
           <div>
             <p className="text-sm font-medium text-texte-principal mb-2">Produits</p>
-            <ProduitPicker lignes={lignes} onChange={setLignes} />
+            <ProduitPicker lignes={lignes} onChange={setLignes} estDelegue={estDelegue} stockDelegue={stockDelegue} />
           </div>
 
           <div>
@@ -218,6 +219,72 @@ const ModalNouvelleOrdonnance = ({ onFermer, onCreer, loading, erreur }) => {
           >
             {loading ? <Loader2 size={15} className="animate-spin" /> : <Plus size={15} />}
             Créer l'ordonnance
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ── Modal renouvellement (avec choix source pour délégué) ─────────────────────
+const ModalRenouveler = ({ ordonnance, onFermer, onRenouveler, loading, erreur, estDelegue = false, stockDelegue = [] }) => {
+  const [lignes, setLignes] = useState(() => {
+    const l = ordonnance.lignes;
+    return Array.isArray(l) ? l : [];
+  });
+  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="bg-white rounded-carte shadow-xl w-full max-w-3xl max-h-[90vh] flex flex-col">
+        <div className="flex items-start justify-between p-5 border-b border-bordure">
+          <div>
+            <h3 className="text-base font-semibold text-texte-principal">
+              Renouveler — {ordonnance.numero}
+            </h3>
+            <p className="text-sm text-texte-secondaire mt-0.5">
+              {ordonnance.patient?.prenom} {ordonnance.patient?.nom}
+            </p>
+          </div>
+          <button onClick={onFermer} className="text-texte-secondaire hover:text-texte-principal p-1"><X size={18} /></button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-5 space-y-4">
+          {erreur && (
+            <div className="bg-red-50 border border-red-200 text-red-700 text-sm px-3 py-2 rounded-bouton">{erreur}</div>
+          )}
+
+          <div>
+            <label className="block text-sm font-medium text-texte-principal mb-1">Date du renouvellement</label>
+            <input
+              type="date"
+              value={date}
+              max={new Date().toISOString().split('T')[0]}
+              onChange={(e) => setDate(e.target.value)}
+              className="champ-input text-sm w-48"
+            />
+          </div>
+
+          <div>
+            <p className="text-sm font-medium text-texte-principal mb-2">Produits</p>
+            <ProduitPicker lignes={lignes} onChange={setLignes} estDelegue={estDelegue} stockDelegue={stockDelegue} />
+          </div>
+        </div>
+
+        <div className="flex justify-end gap-2 px-5 py-4 border-t border-bordure">
+          <button
+            onClick={onFermer}
+            className="px-4 py-2 text-sm font-medium text-texte-secondaire hover:text-texte-principal border border-bordure rounded-bouton transition-colors"
+          >
+            Annuler
+          </button>
+          <button
+            onClick={() => onRenouveler({ lignes, date_ordonnance: date })}
+            disabled={loading || lignes.length === 0}
+            className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-indigo-600 text-white rounded-bouton hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+          >
+            {loading ? <Loader2 size={15} className="animate-spin" /> : <RefreshCw size={15} />}
+            Renouveler
           </button>
         </div>
       </div>
@@ -306,7 +373,10 @@ const OrdonnancesPage = () => {
   const { utilisateur, aLeRole } = useAuth();
   const estAdmin = aLeRole('administrateur');
   const estStockiste = aLeRole('stockiste');
+  const estDelegue = aLeRole('delegue');
   const peutValider = aLeRole('administrateur', 'stockiste', 'delegue');
+
+  const { data: stockDelegue = [] } = useMonStock(estDelegue);
 
   const [recherche, setRecherche] = useState('');
   const [filtreStatut, setFiltreStatut] = useState('');
@@ -314,7 +384,7 @@ const OrdonnancesPage = () => {
   const [telechargement, setTelechargement] = useState(null);
   const [validation, setValidation] = useState(null);
   const [suppression, setSuppression] = useState(null);
-  const [renouvellement, setRenouvellement] = useState(null);
+  const [ordARenouveler, setOrdARenouveler] = useState(null);
   const [ordAModifier, setOrdAModifier] = useState(null);
   const [afficherNouvelle, setAfficherNouvelle] = useState(false);
   const [erreur, setErreur] = useState('');
@@ -428,16 +498,19 @@ const OrdonnancesPage = () => {
     }
   };
 
-  const handleRenouveler = async (e, ord) => {
+  const handleRenouveler = (e, ord) => {
     e.stopPropagation();
-    if (!window.confirm(`Renouveler l'ordonnance ${ord.numero} pour ${ord.patient?.prenom} ${ord.patient?.nom} ?`)) return;
-    setRenouvellement(ord.id);
+    setOrdARenouveler(ord);
+    setErreurModal('');
+  };
+
+  const handleConfirmerRenouvellement = async ({ lignes, date_ordonnance }) => {
+    setErreurModal('');
     try {
-      await renouvelerOrd.mutateAsync(ord.id);
+      await renouvelerOrd.mutateAsync({ id: ordARenouveler.id, lignes, date_ordonnance });
+      setOrdARenouveler(null);
     } catch (err) {
-      setErreur(err?.response?.data?.message || 'Erreur lors du renouvellement');
-    } finally {
-      setRenouvellement(null);
+      setErreurModal(err?.response?.data?.message || 'Erreur lors du renouvellement');
     }
   };
 
@@ -554,13 +627,10 @@ const OrdonnancesPage = () => {
                           {peutValider && o.statut !== 'annulee' && (
                             <button
                               onClick={(e) => handleRenouveler(e, o)}
-                              disabled={renouvellement === o.id}
                               className="p-1.5 text-texte-secondaire hover:text-indigo-600 rounded"
                               title="Renouveler l'ordonnance"
                             >
-                              {renouvellement === o.id
-                                ? <Loader2 size={15} className="animate-spin text-indigo-500" />
-                                : <RefreshCw size={15} />}
+                              <RefreshCw size={15} />
                             </button>
                           )}
                           {peutValider && o.statut === 'brouillon' && (
@@ -633,6 +703,21 @@ const OrdonnancesPage = () => {
           onCreer={handleCreerDirecte}
           loading={creerDirecte.isPending}
           erreur={erreurModal}
+          estDelegue={estDelegue}
+          stockDelegue={stockDelegue}
+        />
+      )}
+
+      {/* Modal renouvellement */}
+      {ordARenouveler && (
+        <ModalRenouveler
+          ordonnance={ordARenouveler}
+          onFermer={() => { setOrdARenouveler(null); setErreurModal(''); }}
+          onRenouveler={handleConfirmerRenouvellement}
+          loading={renouvelerOrd.isPending}
+          erreur={erreurModal}
+          estDelegue={estDelegue}
+          stockDelegue={stockDelegue}
         />
       )}
 

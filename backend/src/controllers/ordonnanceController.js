@@ -320,7 +320,11 @@ const renouveler = async (req, res) => {
     return res.status(403).json({ message: 'Accès refusé' });
   }
 
-  const lignes = Array.isArray(original.lignes) ? original.lignes : [];
+  // Le client peut transmettre des lignes modifiées (ex: délégué choisit la source)
+  const lignesOriginal = Array.isArray(original.lignes) ? original.lignes : [];
+  const lignes = (req.body.lignes && req.body.lignes.length > 0)
+    ? req.body.lignes
+    : lignesOriginal;
   if (lignes.length === 0) {
     return res.status(400).json({ message: 'Aucun produit dans cette ordonnance' });
   }

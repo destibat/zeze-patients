@@ -69,9 +69,11 @@ export const useCreerOrdonnanceDirecte = () => {
 export const useRenouvelerOrdonnance = () => {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id) => api.post(`/ordonnances/${id}/renouveler`).then((r) => r.data),
+    mutationFn: ({ id, lignes, date_ordonnance } = {}) =>
+      api.post(`/ordonnances/${id}/renouveler`, { lignes, date_ordonnance }).then((r) => r.data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['ordonnances-global'] });
+      qc.invalidateQueries({ queryKey: ['stock-delegue'] });
     },
   });
 };
