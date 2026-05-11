@@ -101,34 +101,35 @@ const calculerBilan = async (exerciceId, statut = null) => {
   for (const f of factures) {
     const createur = f.createur;
     const montant  = f.montant_paye || 0;
-    ajouterProduits(f.lignes);
 
     if (createur?.role === 'delegue') {
       // Factures délégués = facturation patient uniquement.
-      // Leurs commissions sont déjà capturées via MouvementDelegue type='achat' (achatsDeleg).
-      // Ne pas recalculer ici pour éviter le double-comptage.
-    } else {
-      // Canal direct (secrétaire / stockiste / admin) : commission 100 % au stockiste
-      let tauxComm = 0, stockisteId = null, stockisteNom = '';
+      // Produits et commissions sont déjà capturés via achatsDeleg / ventesDeleg.
+      continue;
+    }
 
-      if (createur?.role === 'stockiste' || createur?.role === 'administrateur') {
-        tauxComm     = parseFloat(createur.commission_rate ?? 0);
-        stockisteId  = createur.id;
-        stockisteNom = `${createur.prenom} ${createur.nom}`;
-      } else if (createur?.stockiste) {
-        tauxComm     = parseFloat(createur.stockiste.commission_rate ?? 0);
-        stockisteId  = createur.stockiste.id;
-        stockisteNom = `${createur.stockiste.prenom} ${createur.stockiste.nom}`;
-      }
+    ajouterProduits(f.lignes);
 
-      const gainStockiste = Math.round(montant * tauxComm / 100);
-      if (stockisteId) {
-        if (!parStockiste[stockisteId]) {
-          parStockiste[stockisteId] = { id: stockisteId, nom: stockisteNom, taux: tauxComm, ca_factures: 0, gain_factures: 0, ca_delegues: 0, commission_delegues: 0 };
-        }
-        parStockiste[stockisteId].ca_factures  += montant;
-        parStockiste[stockisteId].gain_factures += gainStockiste;
+    // Canal direct (secrétaire / stockiste / admin) : commission 100 % au stockiste
+    let tauxComm = 0, stockisteId = null, stockisteNom = '';
+
+    if (createur?.role === 'stockiste' || createur?.role === 'administrateur') {
+      tauxComm     = parseFloat(createur.commission_rate ?? 0);
+      stockisteId  = createur.id;
+      stockisteNom = `${createur.prenom} ${createur.nom}`;
+    } else if (createur?.stockiste) {
+      tauxComm     = parseFloat(createur.stockiste.commission_rate ?? 0);
+      stockisteId  = createur.stockiste.id;
+      stockisteNom = `${createur.stockiste.prenom} ${createur.stockiste.nom}`;
+    }
+
+    const gainStockiste = Math.round(montant * tauxComm / 100);
+    if (stockisteId) {
+      if (!parStockiste[stockisteId]) {
+        parStockiste[stockisteId] = { id: stockisteId, nom: stockisteNom, taux: tauxComm, ca_factures: 0, gain_factures: 0, ca_delegues: 0, commission_delegues: 0 };
       }
+      parStockiste[stockisteId].ca_factures  += montant;
+      parStockiste[stockisteId].gain_factures += gainStockiste;
     }
   }
 
