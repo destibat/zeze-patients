@@ -67,7 +67,17 @@ const calculerBilan = async (exerciceId, statut = null) => {
     raw: false,
   }) : [];
 
+  // Pré-initialiser tous les stockistes à zéro pour qu'ils apparaissent même sans activité
+  const tousStockistes = await User.findAll({
+    where: { role: 'stockiste' },
+    attributes: ['id', 'nom', 'prenom', 'commission_rate'],
+    raw: true,
+  });
   const parStockiste = {};
+  for (const st of tousStockistes) {
+    const taux = parseFloat(st.commission_rate ?? 0);
+    parStockiste[st.id] = { id: st.id, nom: `${st.prenom} ${st.nom}`, taux, ca_factures: 0, gain_factures: 0, ca_delegues: 0, commission_delegues: 0 };
+  }
   const parDelegue   = {};
   const produitsMap  = {};
 
