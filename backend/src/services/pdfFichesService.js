@@ -823,9 +823,230 @@ const genererBilanIndividuelPDF = (exercice, delegue, achats, ventes, stock = []
   });
 
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// FICHE 4 — BILAN PERSONNEL STOCKISTE
+// ═══════════════════════════════════════════════════════════════════════════════
+const genererBilanStockistePDF = (exercice, stockiste, factures, resumeAppros, infos = {}) =>
+  new Promise((resolve, reject) => {
+    const doc = new PDFDocument({ margin: ML, size: 'A4', autoFirstPage: true });
+    const chunks = [];
+    doc.on('data', (c) => chunks.push(c));
+    doc.on('end', () => resolve(Buffer.concat(chunks)));
+    doc.on('error', reject);
+
+    if (exercice.statut !== 'cloture') dessinerFiligrane(doc);
+
+    // ── En-tête ──────────────────────────────────────────────────────────────
+    const nomCabinet    = infos.nom_cabinet || 'ZEZEPAGNON — Dossiers Patients';
+    const adresseCabinet = infos.adresse || '';
+    doc.rect(0, 0, 595, 6).fill(VERT);
+    let y = MT;
+
+    const enteteGauche = adresseCabinet ? `${nomCabinet} · ${adresseCabinet}` : nomCabinet;
+    doc.fontSize(9).font('Helvetica').fillColor(GRIS)
+      .text(enteteGauche, ML, y, { width: PAGE_W / 2 });
+    doc.fontSize(9).font('Helvetica').fillColor(GRIS)
+      .text(`Édité le ${fmtDate(new Date())}`, ML, y, { width: PAGE_W, align: 'right' });
+    y += 18;
+
+    doc.fontSize(16).font('Helvetica-Bold').fillColor(VERT_FONCE)
+      .text('BILAN PERSONNEL — STOCKISTE', ML, y, { width: PAGE_W });
+    y = doc.y + 4;
+
+    doc.fontSize(12).font('Helvetica-Bold').fillColor(NOIR)
+      .text(`${stockiste.prenom} ${stockiste.nom}`, ML, y, { width: PAGE_W });
+    y = doc.y + 4;
+
+    const dateFin = exercice.date_cloture ? fmtDate(exercice.date_cloture) : "aujourd'hui";
+    const duree   = exercice.duree_jours != null
+      ? ` — ${exercice.duree_jours} jour${exercice.duree_jours > 1 ? 's' : ''}` : '';
+    doc.fontSize(9).font('Helvetica').fillColor(GRIS)
+      .text(`Exercice ${exercice.numero} · Du ${fmtDate(exercice.date_ouverture)} au ${dateFin}${duree}`, ML, y, { width: PAGE_W });
+    y = doc.y + 4;
+
+    if (exercice.statut === 'rouvert') {
+      doc.fontSize(8).font('Helvetica').fillColor(ORANGE)
+        .text('⚠ Cet exercice a été rouvert après clôture', ML, y, { width: PAGE_W });
+      y = doc.y + 4;
+    }
+
+    y += 4;
+    doc.moveTo(ML, y).lineTo(ML + PAGE_W, y).strokeColor(VERT).lineWidth(1.5).stroke();
+    doc.y = y + 10;
+
+    // ── Calculs ──────────────────────────────────────────────────────────────
+    const tauxStockiste = parseFloat(stockiste.commission_rate ?? 30);
+    const caVentesDir   = factures.reduce((s, f) => s + (f.montant_paye || 0), 0);
+    const commVentesDir = Math.round(caVentesDir * tauxStockiste / 100);
+    const caAppros      = resumeAppros.reduce((s, d) => s + d.ca, 0);
+    const commAppros    = resumeAppros.reduce((s, d) => s + d.commission, 0);
+    const commTotale    = commVentesDir + commAppros;
+
+    // ── 4 blocs KPI ──────────────────────────────────────────────────────────
+    const ySynth = doc.y;
+    const wBloc  = (PAGE_W - 12) / 4;
+
+    [
+      { label: 'Ventes directes patients',              val: fmtMontant(caVentesDir),   col: VERT_FONCE },
+      { label: `Commission directe (${tauxStockiste}%)`,val: fmtMontant(commVentesDir), col: BLEU       },
+      { label: 'CA appros revendeurs',                  val: fmtMontant(caAppros),      col: '#1A237E'  },
+      { label: 'Commission appros',                     val: fmtMontant(commAppros),    col: '#6A1B9A'  },
+    ].forEach((bloc, i) => {
+      const xBloc = ML + i * (wBloc + 4);
+      doc.rect(xBloc, ySynth, wBloc, 46).fill(bloc.col);
+      doc.fontSize(7.5).font('Helvetica').fillColor('white')
+        .text(bloc.label, xBloc + 4, ySynth + 6, { width: wBloc - 8, align: 'center' });
+      doc.fontSize(11).font('Helvetica-Bold').fillColor('white')
+        .text(bloc.val, xBloc + 4, ySynth + 22, { width: wBloc - 8, align: 'center' });
+    });
+
+    doc.y = ySynth + 54;
+    doc.fontSize(9).font('Helvetica-Bold').fillColor(VERT_FONCE)
+      .text(`Commission totale : ${fmtMontant(commTotale)}`, ML, doc.y, { width: PAGE_W, align: 'right' });
+    doc.y = doc.y + 10;
+
+    // ── Utilitaires internes ─────────────────────────────────────────────────
+    const parseLignes = (raw) => {
+      if (typeof raw === 'string') { try { return JSON.parse(raw); } catch { return []; } }
+      return Array.isArray(raw) ? raw : [];
+    };
+
+    const fmtDateCourt = (d) => d
+      ? new Date(d).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: '2-digit' })
+      : '—';
+
+    const sautDePage = (cols, headers) => {
+      dessinerPiedDePage(doc, 'Document personnel — à conserver');
+      doc.addPage();
+      if (exercice.statut !== 'cloture') dessinerFiligrane(doc);
+      doc.rect(0, 0, 595, 6).fill(VERT);
+      doc.y = MT + 10;
+      const yH = doc.y;
+      doc.rect(ML, yH, PAGE_W, 14).fill('#CFD8DC');
+      doc.fontSize(8).font('Helvetica-Bold').fillColor('#37474F');
+      headers.forEach((h, i) => {
+        doc.text(h, cols[i].x, yH + 3, { width: cols[i].width, align: cols[i].align });
+      });
+      doc.y = yH + 16;
+      return doc.y;
+    };
+
+    // ── Section VENTES DIRECTES AUX PATIENTS ─────────────────────────────────
+    doc.moveDown(0.5);
+    titreSection(doc, 'VENTES DIRECTES AUX PATIENTS');
+
+    const colsVentes = [
+      { x: ML + 4,   width: 52,  align: 'left'  },  // Date
+      { x: ML + 60,  width: 100, align: 'left'  },  // Patient
+      { x: ML + 164, width: 145, align: 'left'  },  // Produit
+      { x: ML + 313, width: 30,  align: 'right' },  // Qté
+      { x: ML + 347, width: 68,  align: 'right' },  // Prix unit.
+      { x: ML + 419, width: 76,  align: 'right' },  // Montant
+    ];
+    const hdrsVentes = ['Date', 'Patient', 'Produit', 'Qté', 'Prix unit.', 'Montant'];
+
+    let yTh = doc.y;
+    doc.rect(ML, yTh, PAGE_W, 14).fill('#CFD8DC');
+    doc.fontSize(8).font('Helvetica-Bold').fillColor('#37474F');
+    hdrsVentes.forEach((h, i) => {
+      doc.text(h, colsVentes[i].x, yTh + 3, { width: colsVentes[i].width, align: colsVentes[i].align });
+    });
+    doc.y = yTh + 16;
+    let yRow = doc.y;
+
+    factures.sort((a, b) => new Date(a.date_facture) - new Date(b.date_facture));
+
+    factures.forEach((f, idx) => {
+      const lignes  = parseLignes(f.lignes);
+      const rows    = lignes.length > 0 ? lignes : [{}];
+      const dateStr = fmtDateCourt(f.date_facture);
+      const client  = f.patient ? `${f.patient.prenom} ${f.patient.nom}` : '—';
+      const fond    = idx % 2 === 0 ? FOND_GRIS : null;
+
+      rows.forEach((l, li) => {
+        if (yRow > PAGE_H - MB - 40) yRow = sautDePage(colsVentes, hdrsVentes);
+        const isLast = li === rows.length - 1;
+        const montantLigne = (l.prix_unitaire != null && l.quantite != null)
+          ? Math.round((l.prix_unitaire || 0) * (l.quantite || 0))
+          : null;
+        yRow = ligneTableau(doc, yRow, colsVentes, [
+          li === 0 ? dateStr : '',
+          li === 0 ? client : '',
+          l.nom_produit || l.nom || '—',
+          l.quantite != null ? String(l.quantite) : '—',
+          l.prix_unitaire != null ? fmtMontant(l.prix_unitaire) : '—',
+          isLast ? fmtMontant(f.montant_paye || 0) : (montantLigne != null ? fmtMontant(montantLigne) : ''),
+        ], false, fond);
+      });
+    });
+
+    if (factures.length === 0) {
+      if (yRow > PAGE_H - MB - 20) yRow = sautDePage(colsVentes, hdrsVentes);
+      yRow = ligneTableau(doc, yRow, colsVentes, ['Aucune vente directe sur cet exercice.', '', '', '', '', ''], false, FOND_GRIS);
+    }
+
+    if (yRow > PAGE_H - MB - 20) yRow = sautDePage(colsVentes, hdrsVentes);
+    yRow = ligneTableau(doc, yRow, colsVentes, [
+      'TOTAL',
+      `${factures.length} vente${factures.length !== 1 ? 's' : ''} — Commission : ${fmtMontant(commVentesDir)}`,
+      '', '', '',
+      fmtMontant(caVentesDir),
+    ], true);
+
+    doc.y = yRow + 8;
+
+    // ── Section RÉSUMÉ APPROS REVENDEURS ─────────────────────────────────────
+    if (resumeAppros.length > 0) {
+      doc.moveDown(0.5);
+      titreSection(doc, 'RÉSUMÉ DES APPROS REVENDEURS', BLEU);
+
+      const colsAppros = [
+        { x: ML + 4,   width: 185, align: 'left'  },  // Délégué
+        { x: ML + 193, width: 65,  align: 'right' },  // Nb opérations
+        { x: ML + 262, width: 110, align: 'right' },  // CA appro
+        { x: ML + 376, width: 119, align: 'right' },  // Commission stockiste
+      ];
+      const hdrsAppros = ['Revendeur', 'Nb opérations', 'CA appros', 'Commission stockiste'];
+
+      yTh = doc.y;
+      doc.rect(ML, yTh, PAGE_W, 14).fill('#CFD8DC');
+      doc.fontSize(8).font('Helvetica-Bold').fillColor('#37474F');
+      hdrsAppros.forEach((h, i) => {
+        doc.text(h, colsAppros[i].x, yTh + 3, { width: colsAppros[i].width, align: colsAppros[i].align });
+      });
+      doc.y = yTh + 16;
+      yRow = doc.y;
+
+      resumeAppros.forEach((d, idx) => {
+        if (yRow > PAGE_H - MB - 40) yRow = sautDePage(colsAppros, hdrsAppros);
+        yRow = ligneTableau(doc, yRow, colsAppros, [
+          d.nom,
+          String(d.nb),
+          fmtMontant(d.ca),
+          fmtMontant(d.commission),
+        ], false, idx % 2 === 0 ? FOND_GRIS : null);
+      });
+
+      if (yRow > PAGE_H - MB - 20) yRow = sautDePage(colsAppros, hdrsAppros);
+      yRow = ligneTableau(doc, yRow, colsAppros, [
+        `TOTAL (${resumeAppros.length} revendeur${resumeAppros.length !== 1 ? 's' : ''})`,
+        String(resumeAppros.reduce((s, d) => s + d.nb, 0)),
+        fmtMontant(caAppros),
+        fmtMontant(commAppros),
+      ], true);
+
+      doc.y = yRow;
+    }
+
+    dessinerPiedDePage(doc, 'Document personnel — à conserver');
+    doc.end();
+  });
+
+
 module.exports = {
   genererFicheMAPAPDF,
   genererDetailProduitsPDF,
   genererRecapDeleguesPDF,
   genererBilanIndividuelPDF,
+  genererBilanStockistePDF,
 };

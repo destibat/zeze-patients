@@ -29,7 +29,7 @@ const telechargerPDF = async (url, nomFichier, setChargement) => {
 };
 
 // ── Section fiches PDF ────────────────────────────────────────────────────────
-const SectionFichesPDF = ({ exerciceId, exerciceNumero, delegues = [] }) => {
+const SectionFichesPDF = ({ exerciceId, exerciceNumero, delegues = [], stockistes = [] }) => {
   const [parrainNom, setParrainNom] = useState('');
   const [chargements, setChargements] = useState({});
 
@@ -87,6 +87,32 @@ const SectionFichesPDF = ({ exerciceId, exerciceNumero, delegues = [] }) => {
           </Button>
         </div>
       </div>
+
+      {/* Bilan stockiste */}
+      {stockistes.length > 0 && (
+        <div className="border border-bordure rounded-bouton p-3 space-y-2">
+          <p className="text-xs font-semibold text-texte-secondaire uppercase tracking-wide">Bilan stockiste</p>
+          <div className="flex flex-wrap gap-2">
+            {stockistes.map((s) => (
+              <Button
+                key={s.id}
+                variante="secondaire"
+                icone={User}
+                chargement={chargements[`stockiste-${s.id}`]}
+                onClick={() =>
+                  telechargerPDF(
+                    `/exercices/${exerciceId}/fiches/stockiste/${s.id}.pdf`,
+                    `bilan-stockiste-${s.nom.toLowerCase().replace(/\s+/g, '-')}-${exerciceNumero}.pdf`,
+                    (v) => setChargement(`stockiste-${s.id}`, v)
+                  )
+                }
+              >
+                {s.nom}
+              </Button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Récap revendeurs */}
       <div className="border border-bordure rounded-bouton p-3 space-y-2">
@@ -199,6 +225,7 @@ const BilanExercicePage = () => {
             exerciceId={id}
             exerciceNumero={exercice?.numero ?? id}
             delegues={bilan.par_delegue ?? []}
+            stockistes={bilan.par_stockiste ?? []}
           />
         </>
       )}

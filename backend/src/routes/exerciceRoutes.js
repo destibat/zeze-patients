@@ -21,7 +21,8 @@ router.get('/:id/bilan',  adminOuMedecin, asyncHandler(ctrl.obtenirBilan));
 router.get('/:id/fiches/mapa.pdf',            adminOuMedecin,          asyncHandler(fichesPdf.ficheMapa));
 router.get('/:id/fiches/detail-produits.pdf', adminOuMedecin,          asyncHandler(fichesPdf.ficheDetailProduits));
 router.get('/:id/fiches/recap-delegues.pdf',  adminOuMedecin,          asyncHandler(fichesPdf.ficheRecapDelegues));
-router.get('/:id/fiches/delegue/:delegueId.pdf', adminMedecinOuDelegue, asyncHandler(fichesPdf.ficheBilanDelegue));
+router.get('/:id/fiches/delegue/:delegueId.pdf',   adminMedecinOuDelegue, asyncHandler(fichesPdf.ficheBilanDelegue));
+router.get('/:id/fiches/stockiste/:stockisteId.pdf', adminOuMedecin,       asyncHandler(fichesPdf.ficheBilanStockiste));
 
 // ── Ouverture (admin + stockiste) ─────────────────────────────────────────────
 router.post('/ouvrir',    adminOuMedecin, asyncHandler(ctrl.ouvrir));

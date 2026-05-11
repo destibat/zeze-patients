@@ -1,6 +1,6 @@
 'use strict';
 
-const { Exercice, MouvementDelegue, Produit, StockDelegue, User, ParametreCabinet } = require('../models');
+const { Exercice, Facture, MouvementDelegue, Patient, Produit, StockDelegue, User, ParametreCabinet } = require('../models');
 const { Op } = require('sequelize');
 const { calculerBilan } = require('./exerciceController');
 const {
@@ -8,6 +8,7 @@ const {
   genererDetailProduitsPDF,
   genererRecapDeleguesPDF,
   genererBilanIndividuelPDF,
+  genererBilanStockistePDF,
 } = require('../services/pdfFichesService');
 
 // ── Charge les infos cabinet depuis parametres_cabinet ────────────────────────
@@ -189,4 +190,69 @@ const ficheBilanDelegue = async (req, res) => {
   envoyerPDF(res, buffer, `bilan-delegue-${nom}-${exercice.numero}.pdf`);
 };
 
-module.exports = { ficheMapa, ficheDetailProduits, ficheRecapDelegues, ficheBilanDelegue };
+// ── GET /exercices/:id/fiches/stockiste/:stockisteId.pdf ──────────────────────
+const ficheBilanStockiste = async (req, res) => {
+  const { id: exerciceId, stockisteId } = req.params;
+
+  if (req.utilisateur.role === 'stockiste' && req.utilisateur.id !== stockisteId) {
+    return res.status(403).json({ message: 'Accès refusé : vous ne pouvez voir que votre propre bilan' });
+  }
+
+  const resultat = await chargerExerciceEtBilan(exerciceId);
+  if (!resultat) return res.status(404).json({ message: 'Exercice introuvable' });
+  const { exercice } = resultat;
+
+  const stockiste = await User.findByPk(stockisteId, {
+    attributes: ['id', 'nom', 'prenom', 'role', 'commission_rate'],
+  });
+  if (!stockiste) return res.status(404).json({ message: 'Stockiste introuvable' });
+
+  // Ventes directes : Factures créées par le stockiste pendant l'exercice
+  const factures = await Facture.findAll({
+    where: {
+      exercice_id: exerciceId,
+      created_by: stockisteId,
+      statut: { [Op.ne]: 'annulee' },
+    },
+    include: [{ model: Patient, as: 'patient', attributes: ['nom', 'prenom'] }],
+    order: [['date_facture', 'ASC']],
+  });
+
+  // Appros délégués : commissions stockiste sur les achats des revendeurs rattachés
+  const filtreDate = {
+    [Op.gte]: exercice.date_ouverture,
+    ...(exercice.date_cloture ? { [Op.lte]: exercice.date_cloture } : {}),
+  };
+  const approsRaw = await MouvementDelegue.findAll({
+    where: { type: 'achat', statut: 'valide', montant_total: { [Op.gt]: 0 }, date_mouvement: filtreDate },
+    include: [{
+      model: User, as: 'delegue',
+      attributes: ['id', 'nom', 'prenom'],
+      where: { stockiste_id: stockisteId },
+      required: true,
+    }],
+    order: [['date_mouvement', 'ASC']],
+    raw: false,
+  });
+
+  // Agréger par délégué
+  const parDelegue = {};
+  approsRaw.forEach((a) => {
+    const del = a.delegue;
+    if (!del) return;
+    if (!parDelegue[del.id]) {
+      parDelegue[del.id] = { nom: `${del.prenom} ${del.nom}`, nb: 0, ca: 0, commission: 0 };
+    }
+    parDelegue[del.id].nb++;
+    parDelegue[del.id].ca         += a.montant_total || 0;
+    parDelegue[del.id].commission += a.commission_stockiste || 0;
+  });
+  const resumeAppros = Object.values(parDelegue).sort((a, b) => b.ca - a.ca);
+
+  const infos = await chargerInfosCabinet();
+  const buffer = await genererBilanStockistePDF(exercice, stockiste, factures, resumeAppros, infos);
+  const nom = `${stockiste.prenom}-${stockiste.nom}`.toLowerCase().replace(/\s+/g, '-');
+  envoyerPDF(res, buffer, `bilan-stockiste-${nom}-${exercice.numero}.pdf`);
+};
+
+module.exports = { ficheMapa, ficheDetailProduits, ficheRecapDelegues, ficheBilanDelegue, ficheBilanStockiste };
