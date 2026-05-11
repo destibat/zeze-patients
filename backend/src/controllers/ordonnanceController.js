@@ -218,7 +218,13 @@ const valider = async (req, res) => {
 // ── Logique partagée stock + MouvementDelegue (utilisée par creer, creerDirecte, renouveler) ──
 const _appliquerStockEtMouvements = async (req, lignes, dateOrdonnance, transaction) => {
   const { Op } = require('sequelize');
-  for (const ligne of lignes.filter((l) => l.produit_id)) {
+  // Pour un délégué, normaliser les lignes sans source explicite → 'achat'
+  // (garantit la création du MouvementDelegue et le partage des commissions)
+  const lignesNorm = req.utilisateur.role === 'delegue'
+    ? lignes.map((l) => (l.source ? l : { ...l, source: 'achat' }))
+    : lignes;
+
+  for (const ligne of lignesNorm.filter((l) => l.produit_id)) {
     if (req.utilisateur.role === 'delegue' && ligne.source === 'stock') {
       const stockPerso = await StockDelegue.findOne({
         where: { delegue_id: req.utilisateur.id, produit_id: ligne.produit_id },
@@ -236,7 +242,7 @@ const _appliquerStockEtMouvements = async (req, lignes, dateOrdonnance, transact
   }
 
   if (req.utilisateur.role === 'delegue') {
-    const lignesAchat = lignes.filter((l) => l.produit_id && l.source === 'achat');
+    const lignesAchat = lignesNorm.filter((l) => l.produit_id && l.source === 'achat');
     if (lignesAchat.length > 0) {
       const exercice = await Exercice.findOne({
         where: { statut: { [Op.in]: ['ouvert', 'rouvert'] } }, transaction,

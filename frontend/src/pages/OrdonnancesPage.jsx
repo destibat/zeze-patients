@@ -228,9 +228,18 @@ const ModalNouvelleOrdonnance = ({ onFermer, onCreer, loading, erreur, estDelegu
 
 // ── Modal renouvellement (avec choix source pour délégué) ─────────────────────
 const ModalRenouveler = ({ ordonnance, onFermer, onRenouveler, loading, erreur, estDelegue = false, stockDelegue = [] }) => {
+  const stockParProduit = Object.fromEntries(stockDelegue.map((s) => [s.produit_id, s.quantite]));
+
   const [lignes, setLignes] = useState(() => {
     const l = ordonnance.lignes;
-    return Array.isArray(l) ? l : [];
+    if (!Array.isArray(l)) return [];
+    if (!estDelegue) return l;
+    // Pour le délégué, s'assurer que chaque ligne a une source explicite
+    return l.map((ligne) => {
+      if (ligne.source) return ligne;
+      const dispo = stockParProduit[ligne.produit_id] ?? 0;
+      return { ...ligne, source: dispo > 0 ? 'stock' : 'achat' };
+    });
   });
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
 
