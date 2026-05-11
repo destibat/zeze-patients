@@ -1,6 +1,6 @@
 'use strict';
 
-const { Exercice, MouvementDelegue, User, ParametreCabinet } = require('../models');
+const { Exercice, MouvementDelegue, Produit, StockDelegue, User, ParametreCabinet } = require('../models');
 const { Op } = require('sequelize');
 const { calculerBilan } = require('./exerciceController');
 const {
@@ -136,7 +136,7 @@ const ficheBilanDelegue = async (req, res) => {
     [Op.gte]: exercice.date_ouverture,
     ...(exercice.date_cloture ? { [Op.lte]: exercice.date_cloture } : {}),
   };
-  const achatsAppro = await MouvementDelegue.findAll({
+  const achatsRaw = await MouvementDelegue.findAll({
     where: {
       delegue_id: delegueId,
       type: 'achat',
@@ -144,8 +144,23 @@ const ficheBilanDelegue = async (req, res) => {
       montant_total: { [Op.gt]: 0 },
       date_mouvement: filtreDate,
     },
+    include: [{ model: Produit, as: 'produit', attributes: ['nom', 'prix_unitaire'] }],
     order: [['date_mouvement', 'ASC'], ['created_at', 'ASC']],
-    raw: true,
+  });
+
+  // Normalise les lignes : les mouvements créés par ordonnance (source='achat') n'ont pas de champ
+  // `lignes` JSON — on reconstitue depuis produit_id + quantite + montant_total.
+  const achatsAppro = achatsRaw.map((a) => {
+    const raw = a.toJSON();
+    let lignes = raw.lignes;
+    if (typeof lignes === 'string') { try { lignes = JSON.parse(lignes); } catch { lignes = []; } }
+    if (!Array.isArray(lignes) || lignes.length === 0) {
+      if (raw.produit_id) {
+        const prixUnit = raw.quantite > 0 ? Math.round(raw.montant_total / raw.quantite) : null;
+        lignes = [{ nom_produit: raw.produit?.nom || '—', quantite: raw.quantite, prix_unitaire: prixUnit }];
+      }
+    }
+    return { ...raw, lignes };
   });
 
   // Ventes directes : ventes depuis le stock personnel du délégué (MouvementDelegue type='vente')
@@ -155,8 +170,21 @@ const ficheBilanDelegue = async (req, res) => {
     raw: true,
   });
 
+  // Stock actuel du délégué (produits avec quantité > 0)
+  const stockItems = await StockDelegue.findAll({
+    where: { delegue_id: delegueId, quantite: { [Op.gt]: 0 } },
+    include: [{ model: Produit, as: 'produit', attributes: ['nom', 'prix_unitaire'] }],
+    order: [[{ model: Produit, as: 'produit' }, 'nom', 'ASC']],
+  });
+  const stockActuel = stockItems.map((s) => ({
+    nom: s.produit?.nom || '—',
+    quantite: s.quantite,
+    prix_unitaire: s.produit?.prix_unitaire || 0,
+    valeur_totale: s.quantite * (s.produit?.prix_unitaire || 0),
+  }));
+
   const infos = await chargerInfosCabinet();
-  const buffer = await genererBilanIndividuelPDF(exercice, delegue, achatsAppro, ventesDirectes, infos);
+  const buffer = await genererBilanIndividuelPDF(exercice, delegue, achatsAppro, ventesDirectes, stockActuel, infos);
   const nom = `${delegue.prenom}-${delegue.nom}`.toLowerCase().replace(/\s+/g, '-');
   envoyerPDF(res, buffer, `bilan-delegue-${nom}-${exercice.numero}.pdf`);
 };

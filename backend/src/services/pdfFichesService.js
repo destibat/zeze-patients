@@ -543,7 +543,7 @@ const genererRecapDeleguesPDF = (exercice, bilan, infos = {}) =>
 // ═══════════════════════════════════════════════════════════════════════════════
 // FICHE 3 — BILAN INDIVIDUEL DÉLÉGUÉ
 // ═══════════════════════════════════════════════════════════════════════════════
-const genererBilanIndividuelPDF = (exercice, delegue, achats, ventes, infos = {}) =>
+const genererBilanIndividuelPDF = (exercice, delegue, achats, ventes, stock = [], infos = {}) =>
   new Promise((resolve, reject) => {
     const doc = new PDFDocument({ margin: ML, size: 'A4', autoFirstPage: true });
     const chunks = [];
@@ -755,6 +755,63 @@ const genererBilanIndividuelPDF = (exercice, delegue, achats, ventes, infos = {}
         '', '', '',
         fmtMontant(totalVentes),
         fmtMontant(commVentes),
+      ], true);
+
+      doc.y = yRow;
+    }
+
+    // ── Section STOCK ACTUEL ─────────────────────────────────────────────────
+    if (stock.length > 0) {
+      const valeurStockTotal  = stock.reduce((s, p) => s + p.valeur_totale, 0);
+      const nbProduitsStock   = stock.reduce((s, p) => s + p.quantite, 0);
+
+      doc.y = (doc.y ?? yRow) + 6;
+      doc.moveDown(0.5);
+      titreSection(doc, 'STOCK ACTUEL (produits en ta possession)', '#37474F');
+
+      // Ligne de résumé
+      doc.fontSize(9).font('Helvetica').fillColor(NOIR)
+        .text(
+          `${stock.length} référence${stock.length > 1 ? 's' : ''} · ${nbProduitsStock} unité${nbProduitsStock > 1 ? 's' : ''} · Valeur totale estimée : `,
+          ML, doc.y, { continued: true }
+        );
+      doc.font('Helvetica-Bold').fillColor(VERT_FONCE)
+        .text(fmtMontant(valeurStockTotal));
+      doc.y = doc.y + 6;
+
+      const colsStock = [
+        { x: ML + 4,   width: 250, align: 'left'  },  // Produit
+        { x: ML + 258, width: 70,  align: 'right' },  // Qté en stock
+        { x: ML + 332, width: 90,  align: 'right' },  // Prix catalogue
+        { x: ML + 426, width: 59,  align: 'right' },  // Valeur totale
+      ];
+      const hdrsStock = ['Produit', 'Qté en stock', 'Prix catalogue', 'Valeur'];
+
+      const yThS = doc.y;
+      doc.rect(ML, yThS, PAGE_W, 14).fill('#CFD8DC');
+      doc.fontSize(8).font('Helvetica-Bold').fillColor('#37474F');
+      hdrsStock.forEach((h, i) => {
+        doc.text(h, colsStock[i].x, yThS + 3, { width: colsStock[i].width, align: colsStock[i].align });
+      });
+      doc.y = yThS + 16;
+      yRow = doc.y;
+
+      stock.forEach((p, idx) => {
+        if (yRow > PAGE_H - MB - 40) yRow = sautDePage(colsStock, hdrsStock);
+        yRow = ligneTableau(doc, yRow, colsStock, [
+          p.nom,
+          String(p.quantite),
+          fmtMontant(p.prix_unitaire),
+          fmtMontant(p.valeur_totale),
+        ], false, idx % 2 === 0 ? FOND_GRIS : null);
+      });
+
+      if (yRow > PAGE_H - MB - 20) yRow = sautDePage(colsStock, hdrsStock);
+      yRow = ligneTableau(doc, yRow, colsStock, [
+        `TOTAL (${stock.length} référence${stock.length > 1 ? 's' : ''})`,
+        String(nbProduitsStock),
+        '',
+        fmtMontant(valeurStockTotal),
       ], true);
 
       doc.y = yRow;
