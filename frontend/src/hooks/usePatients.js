@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import patientService from '../services/patientService';
+import api from '../services/api';
 
 const CLE = 'patients';
 
@@ -26,3 +27,11 @@ export const useArchiverPatient = () => {
   const qc = useQueryClient();
   return useMutation({ mutationFn: patientService.archiver, onSuccess: () => qc.invalidateQueries({ queryKey: [CLE] }) });
 };
+
+export const useRecherchePatients = (q) =>
+  useQuery({
+    queryKey: ['patients-recherche', q],
+    queryFn: () => api.get('/patients/recherche', { params: { q } }).then((r) => r.data.data ?? r.data),
+    enabled: (q || '').trim().length >= 2,
+    staleTime: 30_000,
+  });

@@ -1,16 +1,17 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import api from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import {
   useValiderOrdonnance, useSupprimerOrdonnance, useModifierOrdonnanceGlobal,
-  telechargerPDF,
+  useCreerOrdonnanceDirecte, useRenouvelerOrdonnance, telechargerPDF,
 } from '../hooks/useOrdonnances';
+import { useRecherchePatients } from '../hooks/usePatients';
 import ProduitPicker from '../components/ordonnances/ProduitPicker';
 import {
   FileText, Download, Search, Receipt, CheckCircle,
-  Pencil, Trash2, X, Save, Loader2,
+  Pencil, Trash2, X, Save, Loader2, Plus, RefreshCw, UserPlus,
 } from 'lucide-react';
 import { formatMontant } from '../utils/formatMontant';
 
@@ -33,6 +34,195 @@ const STATUT = {
   brouillon: { label: 'Brouillon', couleur: 'bg-gray-100 text-gray-600' },
   validee:   { label: 'Validée',   couleur: 'bg-green-100 text-green-700' },
   annulee:   { label: 'Annulée',   couleur: 'bg-red-100 text-red-700' },
+};
+
+// ── Combobox patient avec recherche + création rapide ────────────────────────
+const ComboboxPatient = ({ value, onChange }) => {
+  const [saisie, setSaisie] = useState('');
+  const [ouvert, setOuvert] = useState(false);
+  const ref = useRef(null);
+
+  const { data: suggestions = [], isFetching } = useRecherchePatients(saisie);
+
+  useEffect(() => {
+    const handler = (e) => { if (!ref.current?.contains(e.target)) setOuvert(false); };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const choisir = (patient) => {
+    onChange({ patient_id: patient.id, label: `${patient.prenom} ${patient.nom}` });
+    setSaisie(`${patient.prenom} ${patient.nom}`);
+    setOuvert(false);
+  };
+
+  const choisirNouveau = () => {
+    const parties = saisie.trim().split(/\s+/);
+    const prenom = parties.slice(0, -1).join(' ') || parties[0] || '';
+    const nom = parties.length > 1 ? parties[parties.length - 1] : '';
+    onChange({ patient_id: null, patient_nom: nom || saisie.trim(), patient_prenom: prenom, label: saisie.trim() });
+    setOuvert(false);
+  };
+
+  const effacer = () => { setSaisie(''); onChange(null); setOuvert(false); };
+
+  return (
+    <div ref={ref} className="relative">
+      <div className="relative">
+        <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-texte-secondaire pointer-events-none" />
+        <input
+          type="text"
+          value={saisie}
+          onChange={(e) => { setSaisie(e.target.value); setOuvert(true); onChange(null); }}
+          onFocus={() => saisie.length >= 2 && setOuvert(true)}
+          placeholder="Rechercher un patient ou saisir un nom..."
+          className="champ-input pl-9 pr-8 w-full text-sm"
+        />
+        {(saisie || value) && (
+          <button onClick={effacer} className="absolute right-2 top-1/2 -translate-y-1/2 text-texte-secondaire hover:text-texte-principal">
+            <X size={14} />
+          </button>
+        )}
+      </div>
+
+      {value && (
+        <div className="mt-1.5 flex items-center gap-2 text-sm text-zeze-vert">
+          {value.patient_id
+            ? <span className="font-medium">{value.label}</span>
+            : <span className="flex items-center gap-1.5 text-amber-600"><UserPlus size={13} /><span>Nouveau patient : <strong>{value.label}</strong></span></span>
+          }
+        </div>
+      )}
+
+      {ouvert && saisie.trim().length >= 2 && (
+        <div className="absolute z-50 mt-1 w-full bg-white border border-bordure rounded-bouton shadow-lg max-h-56 overflow-y-auto">
+          {isFetching && (
+            <div className="px-3 py-2 text-xs text-texte-secondaire flex items-center gap-1.5">
+              <Loader2 size={12} className="animate-spin" /> Recherche…
+            </div>
+          )}
+          {!isFetching && suggestions.length === 0 && (
+            <div className="px-3 py-2 text-xs text-texte-secondaire">Aucun patient trouvé</div>
+          )}
+          {suggestions.map((p) => (
+            <button
+              key={p.id}
+              onMouseDown={() => choisir(p)}
+              className="w-full text-left px-3 py-2 text-sm hover:bg-fond-secondaire flex items-center justify-between gap-2"
+            >
+              <span className="font-medium text-texte-principal">{p.prenom} {p.nom}</span>
+              <span className="text-xs text-texte-secondaire font-mono">{p.numero_dossier}</span>
+            </button>
+          ))}
+          <button
+            onMouseDown={choisirNouveau}
+            className="w-full text-left px-3 py-2 text-sm hover:bg-amber-50 flex items-center gap-2 border-t border-bordure text-amber-700"
+          >
+            <UserPlus size={13} />
+            <span>Créer le patient <strong>"{saisie.trim()}"</strong></span>
+          </button>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ── Modal nouvelle ordonnance sans consultation ───────────────────────────────
+const ModalNouvelleOrdonnance = ({ onFermer, onCreer, loading, erreur }) => {
+  const [patient, setPatient] = useState(null);
+  const [lignes, setLignes] = useState([]);
+  const [notes, setNotes] = useState('');
+  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+
+  const peutSoumettre = patient && lignes.length > 0;
+
+  const handleCreer = () => {
+    if (!peutSoumettre) return;
+    const payload = { lignes, notes, date_ordonnance: date };
+    if (patient.patient_id) {
+      payload.patient_id = patient.patient_id;
+    } else {
+      payload.patient_nom = patient.patient_nom;
+      payload.patient_prenom = patient.patient_prenom;
+    }
+    onCreer(payload);
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="bg-white rounded-carte shadow-xl w-full max-w-3xl max-h-[92vh] flex flex-col">
+        <div className="flex items-start justify-between p-5 border-b border-bordure">
+          <div>
+            <h3 className="text-base font-semibold text-texte-principal">Nouvelle ordonnance</h3>
+            <p className="text-sm text-texte-secondaire mt-0.5">Sans consultation préalable</p>
+          </div>
+          <button onClick={onFermer} className="text-texte-secondaire hover:text-texte-principal p-1"><X size={18} /></button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-5 space-y-5">
+          {erreur && (
+            <div className="bg-red-50 border border-red-200 text-red-700 text-sm px-3 py-2 rounded-bouton">{erreur}</div>
+          )}
+
+          <div>
+            <label className="block text-sm font-medium text-texte-principal mb-1.5">Patient</label>
+            <ComboboxPatient value={patient} onChange={setPatient} />
+            {patient && !patient.patient_id && (
+              <p className="mt-1.5 text-xs text-amber-600">
+                Un nouveau dossier patient sera créé. Vous pourrez compléter ses informations depuis sa fiche.
+              </p>
+            )}
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-texte-principal mb-1">Date</label>
+              <input
+                type="date"
+                value={date}
+                max={new Date().toISOString().split('T')[0]}
+                onChange={(e) => setDate(e.target.value)}
+                className="champ-input w-full text-sm"
+              />
+            </div>
+          </div>
+
+          <div>
+            <p className="text-sm font-medium text-texte-principal mb-2">Produits</p>
+            <ProduitPicker lignes={lignes} onChange={setLignes} />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-texte-principal mb-1">Notes</label>
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              rows={2}
+              className="champ-input w-full text-sm resize-none"
+              placeholder="Notes complémentaires..."
+            />
+          </div>
+        </div>
+
+        <div className="flex justify-end gap-2 px-5 py-4 border-t border-bordure">
+          <button
+            onClick={onFermer}
+            className="px-4 py-2 text-sm font-medium text-texte-secondaire hover:text-texte-principal border border-bordure rounded-bouton transition-colors"
+          >
+            Annuler
+          </button>
+          <button
+            onClick={handleCreer}
+            disabled={loading || !peutSoumettre}
+            className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-zeze-vert text-white rounded-bouton hover:bg-zeze-vert-fonce disabled:opacity-50 transition-colors"
+          >
+            {loading ? <Loader2 size={15} className="animate-spin" /> : <Plus size={15} />}
+            Créer l'ordonnance
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 };
 
 // ── Modal modification ────────────────────────────────────────────────────────
@@ -124,8 +314,11 @@ const OrdonnancesPage = () => {
   const [telechargement, setTelechargement] = useState(null);
   const [validation, setValidation] = useState(null);
   const [suppression, setSuppression] = useState(null);
+  const [renouvellement, setRenouvellement] = useState(null);
   const [ordAModifier, setOrdAModifier] = useState(null);
+  const [afficherNouvelle, setAfficherNouvelle] = useState(false);
   const [erreur, setErreur] = useState('');
+  const [erreurModal, setErreurModal] = useState('');
 
   const params = {};
   if (filtreStatut) params.statut = filtreStatut;
@@ -136,6 +329,8 @@ const OrdonnancesPage = () => {
   const validerOrd = useValiderOrdonnance();
   const supprimerOrd = useSupprimerOrdonnance();
   const modifierOrd = useModifierOrdonnanceGlobal();
+  const creerDirecte = useCreerOrdonnanceDirecte();
+  const renouvelerOrd = useRenouvelerOrdonnance();
 
   const utilisateursFiltres = utilisateurs.filter(
     (u) => u.role === 'stockiste' || u.role === 'delegue'
@@ -223,6 +418,29 @@ const OrdonnancesPage = () => {
     }
   };
 
+  const handleCreerDirecte = async (payload) => {
+    setErreurModal('');
+    try {
+      await creerDirecte.mutateAsync(payload);
+      setAfficherNouvelle(false);
+    } catch (err) {
+      setErreurModal(err?.response?.data?.message || 'Erreur lors de la création');
+    }
+  };
+
+  const handleRenouveler = async (e, ord) => {
+    e.stopPropagation();
+    if (!window.confirm(`Renouveler l'ordonnance ${ord.numero} pour ${ord.patient?.prenom} ${ord.patient?.nom} ?`)) return;
+    setRenouvellement(ord.id);
+    try {
+      await renouvelerOrd.mutateAsync(ord.id);
+    } catch (err) {
+      setErreur(err?.response?.data?.message || 'Erreur lors du renouvellement');
+    } finally {
+      setRenouvellement(null);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -230,6 +448,15 @@ const OrdonnancesPage = () => {
           <h1 className="text-2xl font-titres font-bold text-texte-principal">Ordonnances</h1>
           <p className="text-sm text-texte-secondaire mt-1">{filtrees.length} ordonnance{filtrees.length !== 1 ? 's' : ''}</p>
         </div>
+        {peutValider && (
+          <button
+            onClick={() => { setAfficherNouvelle(true); setErreurModal(''); }}
+            className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-zeze-vert text-white rounded-bouton hover:bg-zeze-vert-fonce transition-colors"
+          >
+            <Plus size={15} />
+            Nouvelle ordonnance
+          </button>
+        )}
       </div>
 
       {erreur && (
@@ -324,6 +551,18 @@ const OrdonnancesPage = () => {
                       </td>
                       <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-end gap-1">
+                          {peutValider && o.statut !== 'annulee' && (
+                            <button
+                              onClick={(e) => handleRenouveler(e, o)}
+                              disabled={renouvellement === o.id}
+                              className="p-1.5 text-texte-secondaire hover:text-indigo-600 rounded"
+                              title="Renouveler l'ordonnance"
+                            >
+                              {renouvellement === o.id
+                                ? <Loader2 size={15} className="animate-spin text-indigo-500" />
+                                : <RefreshCw size={15} />}
+                            </button>
+                          )}
                           {peutValider && o.statut === 'brouillon' && (
                             <button
                               onClick={(e) => handleValider(e, o)}
@@ -386,6 +625,16 @@ const OrdonnancesPage = () => {
           </div>
         )}
       </div>
+
+      {/* Modal nouvelle ordonnance */}
+      {afficherNouvelle && (
+        <ModalNouvelleOrdonnance
+          onFermer={() => { setAfficherNouvelle(false); setErreurModal(''); }}
+          onCreer={handleCreerDirecte}
+          loading={creerDirecte.isPending}
+          erreur={erreurModal}
+        />
+      )}
 
       {/* Modal modification */}
       {ordAModifier && (

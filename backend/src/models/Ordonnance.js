@@ -15,7 +15,7 @@ module.exports = (sequelize) => {
     {
       id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
       numero: { type: DataTypes.STRING(20), allowNull: false, unique: true },
-      consultation_id: { type: DataTypes.UUID, allowNull: false },
+      consultation_id: { type: DataTypes.UUID, allowNull: true },
       patient_id: { type: DataTypes.UUID, allowNull: false },
       medecin_id: { type: DataTypes.UUID, allowNull: false },
       date_ordonnance: { type: DataTypes.DATEONLY, allowNull: false },

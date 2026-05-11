@@ -24,16 +24,15 @@ module.exports = (sequelize) => {
     },
     sexe: {
       type: DataTypes.ENUM('masculin', 'feminin', 'autre'),
-      allowNull: false,
+      allowNull: true,
     },
     date_naissance: {
       type: DataTypes.DATEONLY,
-      allowNull: false,
+      allowNull: true,
     },
     telephone: {
       type: DataTypes.STRING(20),
-      allowNull: false,
-      validate: { notEmpty: true },
+      allowNull: true,
     },
     adresse:              { type: DataTypes.STRING(255), allowNull: true },
     commune:              { type: DataTypes.STRING(100), allowNull: true },

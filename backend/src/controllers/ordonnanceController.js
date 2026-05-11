@@ -2,6 +2,7 @@
 
 const { Ordonnance, Consultation, Patient, User, Facture, Produit, StockDelegue, MouvementDelegue, Exercice, sequelize } = require('../models');
 const { genererNumeroOrdonnance } = require('../services/numeroOrdonnanceService');
+const { genererNumeroDossier } = require('../services/numeroDossierService');
 const { getPosologie } = require('../services/posologieService');
 const pdfService = require('../services/pdfService');
 
@@ -50,87 +51,22 @@ const creer = async (req, res) => {
   const transaction = await sequelize.transaction();
 
   try {
-    for (const ligne of lignes.filter((l) => l.produit_id)) {
-      if (req.utilisateur.role === 'delegue' && ligne.source === 'stock') {
-        // Le délégué vend depuis son stock perso → décrémenter StockDelegue
-        const stockPerso = await StockDelegue.findOne({
-          where: { delegue_id: req.utilisateur.id, produit_id: ligne.produit_id },
-          transaction,
-          lock: true,
-        });
-        if (stockPerso && stockPerso.quantite > 0) {
-          const aDecrementer = Math.min(stockPerso.quantite, ligne.quantite);
-          await stockPerso.decrement('quantite', { by: aDecrementer, transaction });
-        }
-      } else {
-        // Stock cabinet (tous les autres rôles, ou source='achat' pour le délégué)
-        const produit = await Produit.findByPk(ligne.produit_id, { transaction, lock: true });
-        if (produit && produit.quantite_stock > 0) {
-          const aDecrementer = Math.min(produit.quantite_stock, ligne.quantite);
-          await produit.decrement('quantite_stock', { by: aDecrementer, transaction });
-        }
-      }
-    }
-
-    const montant_total = lignes.reduce((sum, l) => sum + (l.prix_unitaire * l.quantite), 0);
-    const numero = await genererNumeroOrdonnance();
-
-    // date_ordonnance : fournie par le client (saisie a posteriori) ou aujourd'hui par défaut
     let dateOrdonnance = new Date().toISOString().split('T')[0];
     if (req.body.date_ordonnance) {
       const parsed = new Date(req.body.date_ordonnance);
       if (!isNaN(parsed.getTime())) dateOrdonnance = req.body.date_ordonnance;
     }
 
-    const ordonnance = await Ordonnance.create({
-      numero,
-      consultation_id: consultationId,
-      patient_id: consultation.patient_id,
-      medecin_id: req.utilisateur.id,
-      date_ordonnance: dateOrdonnance,
-      lignes,
-      montant_total,
-      notes,
-      statut: 'brouillon',
-    }, { transaction });
+    await _appliquerStockEtMouvements(req, lignes, dateOrdonnance, transaction);
 
-    // Délégué avec lignes source='achat' : créer MouvementDelegue type='achat' pour tracer le gain
-    if (req.utilisateur.role === 'delegue') {
-      const { Op } = require('sequelize');
-      const lignesAchatDirect = lignes.filter((l) => l.produit_id && l.source === 'achat');
-      if (lignesAchatDirect.length > 0) {
-        const exercice = await Exercice.findOne({
-          where: { statut: { [Op.in]: ['ouvert', 'rouvert'] } },
-          transaction,
-        });
-        const delegueUser = await User.findByPk(req.utilisateur.id, {
-          attributes: ['commission_rate', 'stockiste_id'], transaction,
-        });
-        const tauxDelegue = parseFloat(delegueUser?.commission_rate ?? 15) / 100;
-        let tauxTotal = 0.25;
-        if (delegueUser?.stockiste_id) {
-          const stockisteUser = await User.findByPk(delegueUser.stockiste_id, {
-            attributes: ['commission_rate'], transaction,
-          });
-          tauxTotal = parseFloat(stockisteUser?.commission_rate ?? 25) / 100;
-        }
-        for (const ligne of lignesAchatDirect) {
-          const montant_ligne = ligne.prix_unitaire * ligne.quantite;
-          await MouvementDelegue.create({
-            delegue_id:           req.utilisateur.id,
-            type:                 'achat',
-            statut:               'valide',
-            produit_id:           ligne.produit_id,
-            quantite:             ligne.quantite,
-            montant_total:        montant_ligne,
-            gain_delegue:         Math.round(montant_ligne * tauxDelegue),
-            commission_stockiste: Math.round(montant_ligne * (tauxTotal - tauxDelegue)),
-            date_mouvement:       dateOrdonnance,
-            exercice_id:          exercice?.id ?? null,
-          }, { transaction });
-        }
-      }
-    }
+    const montant_total = lignes.reduce((sum, l) => sum + (l.prix_unitaire * l.quantite), 0);
+    const numero = await genererNumeroOrdonnance();
+
+    const ordonnance = await Ordonnance.create({
+      numero, consultation_id: consultationId,
+      patient_id: consultation.patient_id, medecin_id: req.utilisateur.id,
+      date_ordonnance: dateOrdonnance, lignes, montant_total, notes, statut: 'brouillon',
+    }, { transaction });
 
     await transaction.commit();
     res.status(201).json(ordonnance);
@@ -279,4 +215,136 @@ const valider = async (req, res) => {
   res.json(ordonnance);
 };
 
-module.exports = { lister, creer, obtenir, modifier, supprimer, genererPDF, valider };
+// ── Logique partagée stock + MouvementDelegue (utilisée par creer, creerDirecte, renouveler) ──
+const _appliquerStockEtMouvements = async (req, lignes, dateOrdonnance, transaction) => {
+  const { Op } = require('sequelize');
+  for (const ligne of lignes.filter((l) => l.produit_id)) {
+    if (req.utilisateur.role === 'delegue' && ligne.source === 'stock') {
+      const stockPerso = await StockDelegue.findOne({
+        where: { delegue_id: req.utilisateur.id, produit_id: ligne.produit_id },
+        transaction, lock: true,
+      });
+      if (stockPerso && stockPerso.quantite > 0) {
+        await stockPerso.decrement('quantite', { by: Math.min(stockPerso.quantite, ligne.quantite), transaction });
+      }
+    } else {
+      const produit = await Produit.findByPk(ligne.produit_id, { transaction, lock: true });
+      if (produit && produit.quantite_stock > 0) {
+        await produit.decrement('quantite_stock', { by: Math.min(produit.quantite_stock, ligne.quantite), transaction });
+      }
+    }
+  }
+
+  if (req.utilisateur.role === 'delegue') {
+    const lignesAchat = lignes.filter((l) => l.produit_id && l.source === 'achat');
+    if (lignesAchat.length > 0) {
+      const exercice = await Exercice.findOne({
+        where: { statut: { [Op.in]: ['ouvert', 'rouvert'] } }, transaction,
+      });
+      const delegueUser = await User.findByPk(req.utilisateur.id, { attributes: ['commission_rate', 'stockiste_id'], transaction });
+      const tauxDelegue = parseFloat(delegueUser?.commission_rate ?? 15) / 100;
+      let tauxTotal = 0.25;
+      if (delegueUser?.stockiste_id) {
+        const stockisteUser = await User.findByPk(delegueUser.stockiste_id, { attributes: ['commission_rate'], transaction });
+        tauxTotal = parseFloat(stockisteUser?.commission_rate ?? 25) / 100;
+      }
+      for (const ligne of lignesAchat) {
+        const montant_ligne = ligne.prix_unitaire * ligne.quantite;
+        await MouvementDelegue.create({
+          delegue_id: req.utilisateur.id, type: 'achat', statut: 'valide',
+          produit_id: ligne.produit_id, quantite: ligne.quantite,
+          montant_total: montant_ligne,
+          gain_delegue: Math.round(montant_ligne * tauxDelegue),
+          commission_stockiste: Math.round(montant_ligne * (tauxTotal - tauxDelegue)),
+          date_mouvement: dateOrdonnance, exercice_id: exercice?.id ?? null,
+        }, { transaction });
+      }
+    }
+  }
+};
+
+// ── POST /ordonnances/directe — créer une ordonnance sans consultation ─────────
+const creerDirecte = async (req, res) => {
+  const { patient_id, patient_nom, patient_prenom, lignes = [], notes } = req.body;
+
+  if (!patient_id && !patient_nom) {
+    return res.status(400).json({ message: 'patient_id ou patient_nom requis' });
+  }
+  if (lignes.length === 0) {
+    return res.status(400).json({ message: 'Au moins un produit est requis' });
+  }
+
+  const transaction = await sequelize.transaction();
+  try {
+    let patientId = patient_id;
+
+    if (!patientId) {
+      const numero_dossier = await genererNumeroDossier();
+      const nom = (patient_nom || '').trim();
+      const prenom = (patient_prenom || '').trim() || '—';
+      const nouveauPatient = await Patient.create({
+        numero_dossier, nom, prenom, created_by: req.utilisateur.id,
+      }, { transaction });
+      patientId = nouveauPatient.id;
+    }
+
+    const dateOrdonnance = req.body.date_ordonnance
+      ? req.body.date_ordonnance
+      : new Date().toISOString().split('T')[0];
+
+    await _appliquerStockEtMouvements(req, lignes, dateOrdonnance, transaction);
+
+    const montant_total = lignes.reduce((sum, l) => sum + (l.prix_unitaire * l.quantite), 0);
+    const numero = await genererNumeroOrdonnance();
+
+    const ordonnance = await Ordonnance.create({
+      numero, consultation_id: null, patient_id: patientId,
+      medecin_id: req.utilisateur.id, date_ordonnance: dateOrdonnance,
+      lignes, montant_total, notes, statut: 'brouillon',
+    }, { transaction });
+
+    await transaction.commit();
+    res.status(201).json(ordonnance);
+  } catch (e) {
+    await transaction.rollback();
+    throw e;
+  }
+};
+
+// ── POST /ordonnances/:id/renouveler ──────────────────────────────────────────
+const renouveler = async (req, res) => {
+  const original = await Ordonnance.findByPk(req.params.id);
+  if (!original) return res.status(404).json({ message: 'Ordonnance introuvable' });
+
+  if (!(await verifierPropriete(original, req.utilisateur))) {
+    return res.status(403).json({ message: 'Accès refusé' });
+  }
+
+  const lignes = Array.isArray(original.lignes) ? original.lignes : [];
+  if (lignes.length === 0) {
+    return res.status(400).json({ message: 'Aucun produit dans cette ordonnance' });
+  }
+
+  const dateOrdonnance = req.body.date_ordonnance || new Date().toISOString().split('T')[0];
+  const transaction = await sequelize.transaction();
+  try {
+    await _appliquerStockEtMouvements(req, lignes, dateOrdonnance, transaction);
+
+    const montant_total = lignes.reduce((sum, l) => sum + (l.prix_unitaire * l.quantite), 0);
+    const numero = await genererNumeroOrdonnance();
+
+    const nouvelleOrd = await Ordonnance.create({
+      numero, consultation_id: null, patient_id: original.patient_id,
+      medecin_id: req.utilisateur.id, date_ordonnance: dateOrdonnance,
+      lignes, montant_total, notes: original.notes, statut: 'brouillon',
+    }, { transaction });
+
+    await transaction.commit();
+    res.status(201).json(nouvelleOrd);
+  } catch (e) {
+    await transaction.rollback();
+    throw e;
+  }
+};
+
+module.exports = { lister, creer, creerDirecte, renouveler, obtenir, modifier, supprimer, genererPDF, valider };

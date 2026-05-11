@@ -1,7 +1,7 @@
 const express = require('express');
 const {
   listerPatients, obtenirPatient, creerPatient,
-  modifierPatient, archiverPatient, uploadPhoto,
+  modifierPatient, archiverPatient, uploadPhoto, rechercherPatients,
 } = require('../controllers/patientController');
 const { authentifier } = require('../middlewares/authenticate');
 const { adminOuMedecin, tousLesRoles } = require('../middlewares/authorize');
@@ -16,6 +16,7 @@ router.use(authentifier);
 
 // Lecture : tous les rôles
 router.get('/', tousLesRoles, asyncHandler(listerPatients));
+router.get('/recherche', tousLesRoles, asyncHandler(rechercherPatients));
 router.get('/:id', tousLesRoles, asyncHandler(obtenirPatient));
 
 // Création et modification : admin, médecin, secrétaire

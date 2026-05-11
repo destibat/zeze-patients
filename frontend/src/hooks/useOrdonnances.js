@@ -55,6 +55,27 @@ export const useModifierOrdonnance = (id, patientId) => {
   });
 };
 
+export const useCreerOrdonnanceDirecte = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data) => api.post('/ordonnances/directe', data).then((r) => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['ordonnances-global'] });
+      qc.invalidateQueries({ queryKey: ['patients'] });
+    },
+  });
+};
+
+export const useRenouvelerOrdonnance = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id) => api.post(`/ordonnances/${id}/renouveler`).then((r) => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['ordonnances-global'] });
+    },
+  });
+};
+
 export const telechargerPDF = async (id, numero) => {
   const response = await api.get(`/ordonnances/${id}/pdf`, { responseType: 'blob' });
   const url = URL.createObjectURL(response.data);

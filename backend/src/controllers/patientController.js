@@ -160,4 +160,26 @@ const uploadPhoto = async (req, res) => {
   return succes(res, { photo_url }, 'Photo mise à jour');
 };
 
-module.exports = { listerPatients, obtenirPatient, creerPatient, modifierPatient, archiverPatient, uploadPhoto };
+// GET /api/patients/recherche?q=xxx — recherche globale (tous patients, tous créateurs)
+const rechercherPatients = async (req, res) => {
+  const q = (req.query.q || '').trim();
+  if (q.length < 2) return succes(res, []);
+
+  const patients = await Patient.findAll({
+    where: {
+      archive: false,
+      [Op.or]: [
+        { nom: { [Op.like]: `%${q}%` } },
+        { prenom: { [Op.like]: `%${q}%` } },
+        { numero_dossier: { [Op.like]: `%${q}%` } },
+      ],
+    },
+    attributes: ['id', 'nom', 'prenom', 'numero_dossier', 'date_naissance'],
+    order: [['nom', 'ASC'], ['prenom', 'ASC']],
+    limit: 15,
+  });
+
+  return succes(res, patients);
+};
+
+module.exports = { listerPatients, obtenirPatient, creerPatient, modifierPatient, archiverPatient, uploadPhoto, rechercherPatients };
