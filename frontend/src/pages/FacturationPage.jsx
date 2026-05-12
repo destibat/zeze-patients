@@ -31,7 +31,7 @@ const useParametres = () =>
     staleTime: 5 * 60 * 1000,
   });
 
-const useEnregistrerPaiement = () => {
+const useEnregistrerPaiementFacture = () => {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ id, ...data }) => api.post(`/factures/${id}/paiement`, data).then((r) => r.data),
@@ -71,7 +71,7 @@ const ModalPaiement = ({ facture, onFermer }) => {
   const [montant, setMontant] = useState(restant);
   const [mode, setMode] = useState(facture.mode_paiement || 'especes');
   const [erreur, setErreur] = useState('');
-  const enregistrer = useEnregistrerPaiement();
+  const enregistrer = useEnregistrerPaiementFacture();
 
   const soumettre = async () => {
     if (!montant || montant <= 0) { setErreur('Montant invalide'); return; }
