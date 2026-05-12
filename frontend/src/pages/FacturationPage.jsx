@@ -39,6 +39,13 @@ const useEnregistrerPaiementFacture = () => {
   });
 };
 
+const useCreanciers = () =>
+  useQuery({
+    queryKey: ['factures-creanciers'],
+    queryFn: () => api.get('/factures/creanciers').then((r) => r.data),
+    refetchInterval: 60 * 1000,
+  });
+
 const useAnnulerFacture = () => {
   const qc = useQueryClient();
   return useMutation({
@@ -857,6 +864,144 @@ const VueFacturesAchat = ({ estDelegue }) => {
   );
 };
 
+// ── Vue Créanciers ────────────────────────────────────────────────────────────
+
+const VueCreanciers = ({ onPayer }) => {
+  const { data: factures = [], isLoading } = useCreanciers();
+
+  if (isLoading) {
+    return <div className="flex justify-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-4 border-zeze-vert border-t-transparent" /></div>;
+  }
+
+  // Regrouper par patient
+  const parPatient = factures.reduce((acc, f) => {
+    const id = f.patient_id;
+    if (!acc[id]) acc[id] = { patient: f.patient, factures: [] };
+    acc[id].factures.push(f);
+    return acc;
+  }, {});
+
+  const groupes = Object.values(parPatient).sort((a, b) => {
+    const restantA = a.factures.reduce((s, f) => s + f.montant_total - f.montant_paye, 0);
+    const restantB = b.factures.reduce((s, f) => s + f.montant_total - f.montant_paye, 0);
+    return restantB - restantA;
+  });
+
+  const totalDu = factures.reduce((s, f) => s + f.montant_total - f.montant_paye, 0);
+  const totalFacture = factures.reduce((s, f) => s + f.montant_total, 0);
+  const totalPaye = factures.reduce((s, f) => s + f.montant_paye, 0);
+
+  if (groupes.length === 0) {
+    return (
+      <div className="carte text-center py-12 text-texte-secondaire">
+        <CheckCircle size={32} className="mx-auto mb-3 text-zeze-vert opacity-60" />
+        <p className="font-medium text-texte-principal">Aucun créancier</p>
+        <p className="text-sm mt-1">Toutes les factures sont soldées.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Résumé global */}
+      <div className="grid grid-cols-3 gap-4">
+        <div className="carte text-center border-l-4 border-l-gray-300">
+          <p className="text-xs text-texte-secondaire uppercase tracking-wide mb-1">Total facturé</p>
+          <p className="text-lg font-bold text-texte-principal">{formatMontant(totalFacture)}</p>
+        </div>
+        <div className="carte text-center border-l-4 border-l-zeze-vert">
+          <p className="text-xs text-texte-secondaire uppercase tracking-wide mb-1">Acomptes reçus</p>
+          <p className="text-lg font-bold text-zeze-vert">{formatMontant(totalPaye)}</p>
+        </div>
+        <div className="carte text-center border-l-4 border-l-red-400">
+          <p className="text-xs text-texte-secondaire uppercase tracking-wide mb-1">Restant dû</p>
+          <p className="text-lg font-bold text-medical-critique">{formatMontant(totalDu)}</p>
+          <p className="text-xs text-texte-secondaire mt-0.5">{factures.length} facture{factures.length > 1 ? 's' : ''} · {groupes.length} patient{groupes.length > 1 ? 's' : ''}</p>
+        </div>
+      </div>
+
+      {/* Tableau des créanciers */}
+      <div className="overflow-x-auto rounded-carte border border-bordure">
+        <table className="w-full text-sm">
+          <thead className="bg-fond-secondaire">
+            <tr className="text-left text-xs text-texte-secondaire uppercase tracking-wide">
+              <th className="px-4 py-3">Patient</th>
+              <th className="px-4 py-3">Réf. facture</th>
+              <th className="px-4 py-3">Date</th>
+              <th className="px-4 py-3">Produits</th>
+              <th className="px-4 py-3 text-right">Total</th>
+              <th className="px-4 py-3 text-right">Payé</th>
+              <th className="px-4 py-3 text-right">Restant</th>
+              <th className="px-4 py-3 text-center">Statut</th>
+              <th className="px-4 py-3"></th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-bordure">
+            {groupes.map(({ patient, factures: facs }, gIdx) => {
+              const totalRestantPatient = facs.reduce((s, f) => s + f.montant_total - f.montant_paye, 0);
+              return facs.map((f, fIdx) => {
+                const lignes = parseLignes(f.lignes);
+                const restant = f.montant_total - f.montant_paye;
+                const partielle = f.statut === 'partiellement_payee';
+                return (
+                  <tr key={f.id} className={`hover:bg-fond-secondaire/40 ${fIdx === 0 ? 'border-t-2 border-t-bordure' : ''}`}>
+                    {fIdx === 0 && (
+                      <td className="px-4 py-3 align-top" rowSpan={facs.length}>
+                        <div>
+                          <p className="font-semibold text-texte-principal">{patient?.prenom} {patient?.nom}</p>
+                          <p className="text-xs text-texte-secondaire font-mono">{patient?.numero_dossier}</p>
+                          {facs.length > 1 && (
+                            <p className="text-xs text-medical-critique font-semibold mt-1">
+                              Total dû : {formatMontant(totalRestantPatient)}
+                            </p>
+                          )}
+                        </div>
+                      </td>
+                    )}
+                    <td className="px-4 py-3 font-mono text-xs text-texte-principal whitespace-nowrap">{f.numero}</td>
+                    <td className="px-4 py-3 text-xs text-texte-secondaire whitespace-nowrap">
+                      {new Date(f.date_facture).toLocaleDateString('fr-FR')}
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="space-y-0.5">
+                        {lignes.length > 0 ? lignes.map((l, i) => (
+                          <p key={i} className="text-xs text-texte-secondaire">
+                            {l.nom_produit} <span className="font-medium text-texte-principal">×{l.quantite}</span>
+                            <span className="ml-1 text-texte-secondaire">({formatMontant(l.prix_unitaire)} /u)</span>
+                          </p>
+                        )) : <span className="text-xs text-texte-secondaire italic">—</span>}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-right font-mono text-sm font-semibold text-texte-principal whitespace-nowrap">
+                      {formatMontant(f.montant_total)}
+                    </td>
+                    <td className="px-4 py-3 text-right font-mono text-sm text-zeze-vert whitespace-nowrap">
+                      {f.montant_paye > 0 ? formatMontant(f.montant_paye) : <span className="text-texte-secondaire">—</span>}
+                    </td>
+                    <td className="px-4 py-3 text-right font-mono text-sm font-bold text-medical-critique whitespace-nowrap">
+                      {formatMontant(restant)}
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <span className={`text-xs px-2 py-0.5 rounded-full border whitespace-nowrap ${partielle ? 'bg-orange-50 text-orange-700 border-orange-200' : 'bg-yellow-50 text-yellow-700 border-yellow-200'}`}>
+                        {partielle ? 'Acompte reçu' : 'Non payée'}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <Button variante="primaire" icone={CreditCard} onClick={() => onPayer(f)}>
+                        Payer
+                      </Button>
+                    </td>
+                  </tr>
+                );
+              });
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+};
+
 // ── Page principale ───────────────────────────────────────────────────────────
 
 const FacturationPage = () => {
@@ -930,6 +1075,17 @@ const FacturationPage = () => {
           <Bell size={14} /> Relances
           {nbRelances > 0 && (
             <span className={`text-xs px-1.5 py-0.5 rounded-full font-bold ${vue === 'relances' ? 'bg-white text-red-600' : 'bg-red-100 text-red-700'}`}>
+              {nbRelances}
+            </span>
+          )}
+        </button>
+        <button
+          onClick={() => setVue('creanciers')}
+          className={`flex items-center gap-2 px-4 py-2 text-sm transition-colors ${vue === 'creanciers' ? 'bg-red-800 text-white font-medium' : 'text-texte-secondaire hover:bg-fond-secondaire'}`}
+        >
+          <AlertCircle size={14} /> Créanciers
+          {nbRelances > 0 && (
+            <span className={`text-xs px-1.5 py-0.5 rounded-full font-bold ${vue === 'creanciers' ? 'bg-white text-red-800' : 'bg-red-100 text-red-900'}`}>
               {nbRelances}
             </span>
           )}
@@ -1023,6 +1179,8 @@ const FacturationPage = () => {
         <VueFacturesAchat estDelegue={estDelegue} />
       ) : vue === 'delegues' ? (
         <VueValidationDelegues />
+      ) : vue === 'creanciers' ? (
+        <VueCreanciers onPayer={setModalPaiement} />
       ) : isLoading ? (
         <div className="flex justify-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-4 border-zeze-vert border-t-transparent" /></div>
       ) : vue === 'relances' ? (

@@ -145,4 +145,25 @@ const annuler = async (req, res) => {
   res.json(facture);
 };
 
-module.exports = { lister, obtenir, creerDepuisOrdonnance, enregistrerPaiement, annuler };
+const listerCreanciers = async (req, res) => {
+  const estAdmin = req.utilisateur.role === 'administrateur';
+  const where = { statut: { [Op.in]: ['en_attente', 'partiellement_payee'] } };
+
+  if (!estAdmin) {
+    if (req.utilisateur.role === 'stockiste') {
+      const delegues = await User.findAll({ where: { stockiste_id: req.utilisateur.id }, attributes: ['id'] });
+      where.created_by = { [Op.in]: [req.utilisateur.id, ...delegues.map((d) => d.id)] };
+    } else {
+      where.created_by = req.utilisateur.id;
+    }
+  }
+
+  const factures = await Facture.findAll({
+    where,
+    include: INCLUDE_BASE,
+    order: [['patient_id', 'ASC'], ['date_facture', 'ASC']],
+  });
+  res.json(factures);
+};
+
+module.exports = { lister, obtenir, creerDepuisOrdonnance, enregistrerPaiement, annuler, listerCreanciers };

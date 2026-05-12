@@ -29,7 +29,7 @@ const calculerBilan = async (exerciceId, statut = null) => {
 
   // ── Toutes les Factures de l'exercice ─────────────────────────────────────
   const factures = await Facture.findAll({
-    where: { exercice_id: exerciceId, statut: { [Op.ne]: 'annulee' } },
+    where: { exercice_id: exerciceId, statut: { [Op.notIn]: ['annulee', 'partiellement_payee'] } },
     include: [{
       model: User, as: 'createur',
       attributes: ['id', 'nom', 'prenom', 'role', 'commission_rate', 'stockiste_id'],
@@ -410,7 +410,7 @@ const obtenirActuel = async (req, res) => {
     Facture.sum('montant_paye', {
       where: {
         exercice_id: exercice.id,
-        statut: { [Op.ne]: 'annulee' },
+        statut: { [Op.notIn]: ['annulee', 'partiellement_payee'] },
         ...(delegueIds.length > 0 ? { created_by: { [Op.notIn]: delegueIds } } : {}),
       },
     }),
