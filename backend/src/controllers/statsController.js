@@ -16,11 +16,21 @@ const obtenirStats = async (req, res) => {
   const debutJour = new Date(); debutJour.setHours(0, 0, 0, 0);
   const finJour   = new Date(); finJour.setHours(23, 59, 59, 999);
 
+  // Pour l'admin : exclure les factures des délégués du CA du mois
+  // (leurs ventes sont déjà comptées via MouvementDelegue type='achat' — double-compter créerait une inflation)
+  let delegueIdsArr = [];
+  if (estAdmin) {
+    const delegueUsers = await User.findAll({ where: { role: 'delegue' }, attributes: ['id'], raw: true });
+    delegueIdsArr = delegueUsers.map((u) => u.id);
+  }
+
   // Filtre CA selon le rôle
   const whereFacturesMois = {
     date_facture: { [Op.gte]: debutMois },
     statut: { [Op.ne]: 'annulee' },
-    ...(estAdmin ? {} : { created_by: userId }),
+    ...(estAdmin
+      ? (delegueIdsArr.length > 0 ? { created_by: { [Op.notIn]: delegueIdsArr } } : {})
+      : { created_by: userId }),
   };
   const whereRelances = {
     statut: { [Op.in]: ['en_attente', 'partiellement_payee'] },
@@ -90,11 +100,7 @@ const obtenirStats = async (req, res) => {
     // Données exercice pour la répartition
     // Admin : exclure les Factures des délégués (comptées séparément via gainsDelegues)
     // Stockiste : ses propres Factures directes uniquement
-    let delegueIdsArr = [];
-    if (estAdmin) {
-      const delegueUsers = await User.findAll({ where: { role: 'delegue' }, attributes: ['id'] });
-      delegueIdsArr = delegueUsers.map((u) => u.id);
-    }
+    // delegueIdsArr déjà calculé plus haut pour admin
 
     const filtreFacturesDirectes = {
       statut: { [Op.ne]: 'annulee' },

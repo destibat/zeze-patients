@@ -56,9 +56,15 @@ const acheter = async (req, res) => {
   const montant_total = produit.prix_unitaire * quantite;
   const today = new Date().toISOString().split('T')[0];
 
-  // Récupérer le stockiste parrain du revendeur
+  // Récupérer le stockiste parrain et les taux de commission
   const delegue = await User.findByPk(req.utilisateur.id, { attributes: ['stockiste_id'] });
   const stockiste_id = delegue?.stockiste_id;
+  const { tauxStockiste, tauxDelegue } = await getTaux(req.utilisateur.id);
+  const gain_delegue        = Math.round(montant_total * tauxDelegue);
+  const commission_stockiste = Math.round(montant_total * (tauxStockiste - tauxDelegue));
+
+  // Exercice courant (pour attacher le mouvement)
+  const exercice = await getExerciceOuvert();
 
   const transaction = await sequelize.transaction();
   try {
@@ -92,12 +98,14 @@ const acheter = async (req, res) => {
     const mouvement = await MouvementDelegue.create({
       delegue_id: req.utilisateur.id,
       type: 'achat',
+      statut: 'valide',
       produit_id,
       quantite,
       montant_total,
-      commission_stockiste: 0,
-      gain_delegue: 0,
+      gain_delegue,
+      commission_stockiste,
       date_mouvement: today,
+      exercice_id: exercice?.id ?? null,
     }, { transaction });
 
     if (stockiste_id) {

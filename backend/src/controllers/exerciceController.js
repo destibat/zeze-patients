@@ -418,7 +418,7 @@ const obtenirActuel = async (req, res) => {
       where: {
         type: 'achat',
         statut: 'valide',
-        date_mouvement: { [Op.gte]: exercice.date_ouverture },
+        date_mouvement: { [Op.gte]: new Date(exercice.date_ouverture).toISOString().split('T')[0] },
       },
     }),
   ]);

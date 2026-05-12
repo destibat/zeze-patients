@@ -532,24 +532,32 @@ const DashboardStandard = ({ utilisateur }) => {
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           <CarteKPI
             titre="Ventes exercice"
-            valeur={exerciceData?.exercice ? formatMontant(exerciceData.ca_accumule ?? 0) : '—'}
+            valeur={
+              exerciceData?.exercice
+                ? formatMontant(
+                    utilisateur?.role === 'stockiste' && r
+                      ? (r.ca_direct ?? 0) + (r.ca_appro_exercice ?? 0)
+                      : exerciceData.ca_accumule ?? 0
+                  )
+                : '—'
+            }
             icone={TrendingUp}
             couleur="bg-slate-600"
-            sous="CA cumulé depuis l'ouverture"
+            sous={utilisateur?.role === 'stockiste' ? 'Mon CA depuis l\'ouverture de l\'exercice' : 'CA cumulé depuis l\'ouverture'}
           />
           <CarteKPI
             titre="Commission stockiste"
             valeur={isLoading ? '…' : formatMontant(gainsTotaux)}
             icone={TrendingUp}
             couleur="bg-zeze-or"
-            sous="Gains directs + via revendeurs ce mois"
+            sous="Gains directs + via revendeurs (exercice)"
           />
           <CarteKPI
             titre="Commissions revendeurs"
             valeur={isLoading ? '…' : formatMontant(gainsDelegueMois)}
             icone={ShoppingBag}
             couleur="bg-blue-600"
-            sous="Part versée aux délégués ce mois"
+            sous="Part versée aux délégués (exercice)"
           />
           <CarteKPI
             titre="Net à verser MAPA"
