@@ -386,7 +386,7 @@ const VueGains = ({ factures, ventesDirectes = [], parametres, estAdmin }) => {
   // Agréger les ventes par créateur (ordonnances)
   const parCreateur = {};
   factures.forEach((f) => {
-    if (f.statut === 'annulee' || !f.createur) return;
+    if (f.statut === 'annulee' || f.statut === 'partiellement_payee' || !f.createur) return;
     const cId = f.createur.id;
     if (!parCreateur[cId]) {
       parCreateur[cId] = {
