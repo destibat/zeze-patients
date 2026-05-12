@@ -73,8 +73,21 @@ export const useVentesEnAttente = (enabled = true) =>
 export const useValiderVente = () => {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, mode_paiement }) =>
-      api.put(`/stock-delegue/${id}/valider`, { mode_paiement }).then((r) => r.data),
+    mutationFn: ({ id, mode_paiement, montant_paye }) =>
+      api.put(`/stock-delegue/${id}/valider`, { mode_paiement, montant_paye }).then((r) => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['ventes-en-attente'] });
+      qc.invalidateQueries({ queryKey: ['gains-delegues'] });
+      qc.invalidateQueries({ queryKey: ['ventes-directes-delegues'] });
+    },
+  });
+};
+
+export const useEnregistrerPaiement = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, montant_supplementaire, mode_paiement }) =>
+      api.put(`/stock-delegue/${id}/paiement`, { montant_supplementaire, mode_paiement }).then((r) => r.data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['ventes-en-attente'] });
       qc.invalidateQueries({ queryKey: ['gains-delegues'] });

@@ -11,11 +11,12 @@ module.exports = (sequelize) => {
     lignes: { type: DataTypes.JSON, allowNull: true },
     quantite: { type: DataTypes.INTEGER, allowNull: true },
     montant_total: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
+    montant_paye: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
     commission_stockiste: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
     gain_delegue: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
     client_nom: { type: DataTypes.STRING(200), allowNull: true },
     date_mouvement: { type: DataTypes.DATEONLY, allowNull: false },
-    statut: { type: DataTypes.ENUM('en_attente', 'valide', 'refuse'), allowNull: true },
+    statut: { type: DataTypes.ENUM('en_attente', 'valide', 'refuse', 'partiellement_payee'), allowNull: true },
     mode_paiement: { type: DataTypes.STRING(50), allowNull: true },
     exercice_id: { type: DataTypes.UUID, allowNull: true },
   }, {

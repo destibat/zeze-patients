@@ -9,7 +9,7 @@ import {
   Receipt, CreditCard, CheckCircle, Clock, AlertCircle,
   XCircle, Plus, X, ChevronDown, ChevronUp, Bell, Phone, User, TrendingUp, ShoppingBag, Check, Package,
 } from 'lucide-react';
-import { useVentesDirectesDelegues, useVentesEnAttente, useValiderVente, useRefuserVente } from '../hooks/useStockDelegue';
+import { useVentesDirectesDelegues, useVentesEnAttente, useValiderVente, useEnregistrerPaiement, useRefuserVente } from '../hooks/useStockDelegue';
 import { useFacturesAchat, useMarquerPaye } from '../hooks/useFacturesAchat';
 import { formatMontant } from '../utils/formatMontant';
 
@@ -594,18 +594,31 @@ const MODE_PAIEMENT_DELEGUE = {
 const VueValidationDelegues = () => {
   const { data: ventes = [], isLoading } = useVentesEnAttente(true);
   const valider = useValiderVente();
+  const payer   = useEnregistrerPaiement();
   const refuser = useRefuserVente();
-  const [modes, setModes] = useState({});
+  const [etats, setEtats] = useState({});
   const [erreur, setErreur] = useState('');
 
-  const handleValider = async (id) => {
-    const modeSelectionne = modes[id] || 'especes';
-    const mode_paiement = modeSelectionne === 'en_attente' ? null : modeSelectionne;
+  const getEtat = (v) => etats[v.id] || {
+    mode: 'especes',
+    montant: (v.montant_total - (v.montant_paye || 0)).toString(),
+  };
+  const setEtat = (id, patch) => setEtats((prev) => ({ ...prev, [id]: { ...getEtat({ id, montant_total: 0, montant_paye: 0 }), ...prev[id], ...patch } }));
+
+  const handleEnregistrer = async (v) => {
+    const { mode, montant } = getEtat(v);
+    const montantSaisi = parseInt(montant) || 0;
+    if (montantSaisi <= 0) return;
     setErreur('');
     try {
-      await valider.mutateAsync({ id, mode_paiement });
+      if (v.statut === 'partiellement_payee') {
+        await payer.mutateAsync({ id: v.id, montant_supplementaire: montantSaisi, mode_paiement: mode });
+      } else {
+        await valider.mutateAsync({ id: v.id, montant_paye: montantSaisi, mode_paiement: mode });
+      }
+      setEtats((prev) => { const n = { ...prev }; delete n[v.id]; return n; });
     } catch (e) {
-      setErreur(e?.response?.data?.message || 'Erreur lors de la validation');
+      setErreur(e?.response?.data?.message || 'Erreur lors de l\'enregistrement');
     }
   };
 
@@ -633,69 +646,121 @@ const VueValidationDelegues = () => {
     );
   }
 
-  return (
-    <div className="space-y-3">
-      {erreur && <div className="bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-2 rounded-carte">{erreur}</div>}
-      <p className="text-sm text-texte-secondaire">
-        {ventes.length} vente{ventes.length > 1 ? 's' : ''} en attente de validation — enregistrez le mode de paiement reçu par le revendeur.
-      </p>
-      {ventes.map((v) => {
-        const lignes = parseLignes(v.lignes);
-        return (
-          <div key={v.id} className="carte border-l-4 border-l-yellow-400 space-y-3">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-              <div>
-                <p className="text-sm font-semibold text-texte-principal">
-                  {v.delegue?.prenom} {v.delegue?.nom}
-                  <span className="ml-2 text-xs font-normal text-texte-secondaire">
-                    {new Date(v.date_mouvement).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })}
-                  </span>
-                </p>
-                {v.client_nom && <p className="text-xs text-texte-secondaire">Client : {v.client_nom}</p>}
-              </div>
-              <p className="text-sm font-bold text-texte-principal font-mono">{formatMontant(v.montant_total)}</p>
-            </div>
+  const enAttente       = ventes.filter((v) => v.statut === 'en_attente');
+  const partielles      = ventes.filter((v) => v.statut === 'partiellement_payee');
 
-            {lignes.length > 0 && (
-              <div className="bg-fond-secondaire rounded-bouton px-3 py-2 text-xs text-texte-secondaire">
-                {lignes.map((l) => `${l.nom_produit} ×${l.quantite} = ${formatMontant(l.prix_unitaire * l.quantite)}`).join(' · ')}
-              </div>
-            )}
+  const renderVente = (v) => {
+    const lignes   = parseLignes(v.lignes);
+    const restant  = v.montant_total - (v.montant_paye || 0);
+    const etat     = getEtat(v);
+    const partielle = v.statut === 'partiellement_payee';
+    const isPending = valider.isPending || payer.isPending;
 
-            <div className="flex flex-col sm:flex-row gap-2 items-end">
-              <div className="flex-1">
-                <label className="block text-xs font-medium text-texte-principal mb-1">Statut paiement</label>
-                <select
-                  className={`champ-input text-sm ${(modes[v.id] || 'especes') === 'en_attente' ? 'border-yellow-400 bg-yellow-50' : ''}`}
-                  value={modes[v.id] || 'especes'}
-                  onChange={(e) => setModes({ ...modes, [v.id]: e.target.value })}
-                >
-                  {Object.entries(MODE_PAIEMENT_DELEGUE).map(([val, label]) => (
-                    <option key={val} value={val}>{label}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="flex gap-2">
-                <Button
-                  variante="primaire"
-                  icone={Check}
-                  chargement={valider.isPending}
-                  onClick={() => handleValider(v.id)}
-                >
-                  Valider
-                </Button>
-                <Button
-                  variante="fantome"
-                  onClick={() => handleRefuser(v.id)}
-                  chargement={refuser.isPending}
-                >
-                  Refuser
-                </Button>
-              </div>
+    return (
+      <div key={v.id} className={`carte border-l-4 space-y-3 ${partielle ? 'border-l-orange-400' : 'border-l-yellow-400'}`}>
+        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2">
+          <div>
+            <div className="flex items-center gap-2">
+              <p className="text-sm font-semibold text-texte-principal">
+                {v.delegue?.prenom} {v.delegue?.nom}
+              </p>
+              {partielle && (
+                <span className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full font-medium">
+                  Paiement partiel
+                </span>
+              )}
             </div>
+            <p className="text-xs text-texte-secondaire">
+              {new Date(v.date_mouvement).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })}
+              {v.client_nom && ` · Client : ${v.client_nom}`}
+            </p>
           </div>
-        );
-      })}
+          <div className="text-right shrink-0">
+            <p className="text-sm font-bold text-texte-principal font-mono">{formatMontant(v.montant_total)}</p>
+            {partielle && (
+              <p className="text-xs text-orange-600 font-mono">
+                Reçu : {formatMontant(v.montant_paye)} · Reste : {formatMontant(restant)}
+              </p>
+            )}
+          </div>
+        </div>
+
+        {lignes.length > 0 && (
+          <div className="bg-fond-secondaire rounded-bouton px-3 py-2 text-xs text-texte-secondaire">
+            {lignes.map((l) => `${l.nom_produit} ×${l.quantite} = ${formatMontant(l.prix_unitaire * l.quantite)}`).join(' · ')}
+          </div>
+        )}
+
+        <div className="flex flex-col sm:flex-row gap-2 items-end">
+          <div className="w-full sm:w-36">
+            <label className="block text-xs font-medium text-texte-principal mb-1">
+              {partielle ? 'Complément reçu (F)' : 'Montant reçu (F)'}
+            </label>
+            <input
+              type="number"
+              min="1"
+              max={restant}
+              className="champ-input text-sm font-mono"
+              value={etat.montant}
+              onChange={(e) => setEtat(v.id, { montant: e.target.value })}
+            />
+          </div>
+          <div className="flex-1">
+            <label className="block text-xs font-medium text-texte-principal mb-1">Mode de paiement</label>
+            <select
+              className="champ-input text-sm"
+              value={etat.mode}
+              onChange={(e) => setEtat(v.id, { mode: e.target.value })}
+            >
+              <option value="especes">Espèces</option>
+              <option value="mobile_money">Mobile Money</option>
+              <option value="virement">Virement</option>
+              <option value="cheque">Chèque</option>
+            </select>
+          </div>
+          <div className="flex gap-2 shrink-0">
+            <Button
+              variante="primaire"
+              icone={Check}
+              chargement={isPending}
+              onClick={() => handleEnregistrer(v)}
+            >
+              {parseInt(etat.montant) >= restant ? 'Solder' : 'Acompte'}
+            </Button>
+            {!partielle && (
+              <Button variante="fantome" onClick={() => handleRefuser(v.id)} chargement={refuser.isPending}>
+                Refuser
+              </Button>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div className="space-y-4">
+      {erreur && <div className="bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-2 rounded-carte">{erreur}</div>}
+
+      {partielles.length > 0 && (
+        <div className="space-y-3">
+          <p className="text-xs font-semibold text-orange-600 uppercase tracking-wide">
+            Paiements partiels à solder ({partielles.length})
+          </p>
+          {partielles.map(renderVente)}
+        </div>
+      )}
+
+      {enAttente.length > 0 && (
+        <div className="space-y-3">
+          {partielles.length > 0 && (
+            <p className="text-xs font-semibold text-texte-secondaire uppercase tracking-wide">
+              Nouvelles ventes en attente ({enAttente.length})
+            </p>
+          )}
+          {enAttente.map(renderVente)}
+        </div>
+      )}
     </div>
   );
 };

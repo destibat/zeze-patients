@@ -22,6 +22,7 @@ router.get('/gains-delegues',    adminOuMedecin, asyncHandler(ctrl.obtenirGainsD
 router.get('/ventes-directes',   adminOuMedecin, asyncHandler(ctrl.ventesDirectesDelegues));
 router.get('/ventes-en-attente', adminOuMedecin, asyncHandler(ctrl.ventesEnAttente));
 router.put('/:id/valider',       adminOuMedecin, asyncHandler(ctrl.validerVente));
+router.put('/:id/paiement',      adminOuMedecin, asyncHandler(ctrl.enregistrerPaiement));
 router.put('/:id/refuser',       adminOuMedecin, asyncHandler(ctrl.refuserVente));
 
 module.exports = router;

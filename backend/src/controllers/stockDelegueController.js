@@ -351,16 +351,16 @@ const ventesEnAttente = async (req, res) => {
 
   const ids = delegues.map((d) => d.id);
   const ventes = await MouvementDelegue.findAll({
-    where: { delegue_id: { [Op.in]: ids }, type: 'vente', statut: 'en_attente' },
+    where: { delegue_id: { [Op.in]: ids }, type: 'vente', statut: { [Op.in]: ['en_attente', 'partiellement_payee'] } },
     include: [{ model: User, as: 'delegue', attributes: ['id', 'nom', 'prenom'] }],
     order: [['date_mouvement', 'ASC'], ['created_at', 'ASC']],
   });
   res.json(ventes);
 };
 
-// Valider une vente directe — stockiste enregistre le moyen de paiement
+// Valider ou enregistrer un premier paiement (complet ou partiel)
 const validerVente = async (req, res) => {
-  const { mode_paiement } = req.body;
+  const { mode_paiement, montant_paye } = req.body;
   const mouvement = await MouvementDelegue.findByPk(req.params.id, {
     include: [{ model: User, as: 'delegue', attributes: ['id', 'nom', 'prenom', 'stockiste_id'] }],
   });
@@ -374,7 +374,48 @@ const validerVente = async (req, res) => {
   if (!estAdmin && mouvement.delegue?.stockiste_id !== req.utilisateur.id) {
     return res.status(403).json({ message: 'Accès refusé' });
   }
-  await mouvement.update({ statut: 'valide', mode_paiement: mode_paiement || null });
+
+  const paye = Math.min(parseInt(montant_paye) || mouvement.montant_total, mouvement.montant_total);
+  const estComplet = paye >= mouvement.montant_total;
+
+  await mouvement.update({
+    montant_paye: paye,
+    statut: estComplet ? 'valide' : 'partiellement_payee',
+    mode_paiement: mode_paiement || null,
+  });
+  res.json(mouvement);
+};
+
+// Enregistrer un paiement complémentaire sur une vente partiellement payée
+const enregistrerPaiement = async (req, res) => {
+  const { montant_supplementaire, mode_paiement } = req.body;
+  const supplement = parseInt(montant_supplementaire) || 0;
+  if (supplement <= 0) {
+    return res.status(400).json({ message: 'montant_supplementaire doit être > 0' });
+  }
+
+  const mouvement = await MouvementDelegue.findByPk(req.params.id, {
+    include: [{ model: User, as: 'delegue', attributes: ['id', 'nom', 'prenom', 'stockiste_id'] }],
+  });
+  if (!mouvement || mouvement.type !== 'vente') {
+    return res.status(404).json({ message: 'Vente introuvable' });
+  }
+  if (mouvement.statut !== 'partiellement_payee') {
+    return res.status(409).json({ message: 'Cette vente n\'est pas en attente de complément' });
+  }
+  const estAdmin = req.utilisateur.role === 'administrateur';
+  if (!estAdmin && mouvement.delegue?.stockiste_id !== req.utilisateur.id) {
+    return res.status(403).json({ message: 'Accès refusé' });
+  }
+
+  const nouveauPaye = Math.min(mouvement.montant_paye + supplement, mouvement.montant_total);
+  const estComplet  = nouveauPaye >= mouvement.montant_total;
+
+  await mouvement.update({
+    montant_paye: nouveauPaye,
+    statut: estComplet ? 'valide' : 'partiellement_payee',
+    mode_paiement: mode_paiement || mouvement.mode_paiement,
+  });
   res.json(mouvement);
 };
 
@@ -386,7 +427,7 @@ const refuserVente = async (req, res) => {
   if (!mouvement || mouvement.type !== 'vente') {
     return res.status(404).json({ message: 'Vente introuvable' });
   }
-  if (mouvement.statut !== 'en_attente') {
+  if (!['en_attente', 'partiellement_payee'].includes(mouvement.statut)) {
     return res.status(409).json({ message: 'Cette vente a déjà été traitée' });
   }
   const estAdmin = req.utilisateur.role === 'administrateur';
@@ -550,6 +591,6 @@ const monBilan = async (req, res) => {
 module.exports = {
   listerMonStock, acheter, vendre, listerMesVentes, obtenirStatsStock,
   obtenirGainsDelegues, ventesDirectesDelegues,
-  ventesEnAttente, validerVente, refuserVente,
+  ventesEnAttente, validerVente, enregistrerPaiement, refuserVente,
   monBilan,
 };
