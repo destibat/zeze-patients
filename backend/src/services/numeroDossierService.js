@@ -5,11 +5,10 @@ const genererNumeroDossier = async () => {
   const annee = new Date().getFullYear();
   const prefixe = `ZZP-${annee}-`;
 
-  // Cherche le dernier numéro de l'année en cours
-  const dernier = await Patient.findOne({
+  // Cherche le dernier numéro de l'année en cours (archivés inclus pour éviter les doublons)
+  const dernier = await Patient.scope('avecArchives').findOne({
     where: { numero_dossier: { [require('sequelize').Op.like]: `${prefixe}%` } },
     order: [['numero_dossier', 'DESC']],
-    paranoid: false,
   });
 
   let sequence = 1;
