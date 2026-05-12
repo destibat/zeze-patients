@@ -1,7 +1,9 @@
 import { useRef, useState } from 'react';
 import { useFichiersPatient, useUploaderFichier, useSupprimerFichier } from '../../../hooks/useFichiersPatient';
-import { Upload, FileText, Trash2, Download, Loader2, FolderOpen } from 'lucide-react';
+import { Upload, Trash2, Download, Loader2, FolderOpen, Eye } from 'lucide-react';
 import Alert from '../../../components/ui/Alert';
+import Visualiseur from '../../../components/ui/Visualiseur';
+import { useAuth } from '../../../contexts/AuthContext';
 
 const CATEGORIES = {
   resultat_analyse: 'Résultat d\'analyse',
@@ -32,6 +34,9 @@ const SectionFichiers = ({ patientId, peutSupprimer = false }) => {
   const [categorie, setCategorie] = useState('autre');
   const [erreur, setErreur] = useState('');
   const [succes, setSucces] = useState('');
+  const [fichierActif, setFichierActif] = useState(null);
+  const { aLeRole } = useAuth();
+  const peutVisualiser = aLeRole('administrateur', 'stockiste');
 
   const { data: fichiers = [], isLoading } = useFichiersPatient(patientId);
   const uploader = useUploaderFichier(patientId);
@@ -140,12 +145,20 @@ const SectionFichiers = ({ patientId, peutSupprimer = false }) => {
                 </p>
               </div>
               <div className="flex items-center gap-1 flex-shrink-0">
+                {peutVisualiser && (
+                  <button
+                    onClick={() => setFichierActif(f)}
+                    className="p-1.5 text-texte-secondaire hover:text-zeze-vert rounded"
+                    title="Visualiser"
+                  >
+                    <Eye size={15} />
+                  </button>
+                )}
                 <a
                   href={`/uploads/${f.nom_stocke}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
+                  download={f.nom_original}
                   className="p-1.5 text-texte-secondaire hover:text-zeze-vert rounded"
-                  title="Ouvrir"
+                  title="Télécharger"
                 >
                   <Download size={15} />
                 </a>
@@ -162,6 +175,10 @@ const SectionFichiers = ({ patientId, peutSupprimer = false }) => {
             </div>
           ))}
         </div>
+      )}
+
+      {fichierActif && (
+        <Visualiseur fichier={fichierActif} onFermer={() => setFichierActif(null)} />
       )}
     </div>
   );
