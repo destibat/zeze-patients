@@ -204,13 +204,18 @@ const obtenirStats = async (req, res) => {
         mapa_indirects:         mapaApproExercice,
       };
     } else {
-      // Admin — tous les approvisionnements ce mois
-      const caApproMoisAdmin = await MouvementDelegue.sum('montant_total', {
-        where: { type: 'achat', statut: 'valide', date_mouvement: { [Op.gte]: debutMoisStr } },
-      });
+      // Admin — tous les approvisionnements ce mois (pour ca_mois)
+      const [caApproMoisAdmin, caApproExerciceAdmin] = await Promise.all([
+        MouvementDelegue.sum('montant_total', {
+          where: { type: 'achat', statut: 'valide', date_mouvement: { [Op.gte]: debutMoisStr } },
+        }),
+        MouvementDelegue.sum('montant_total', {
+          where: { type: 'achat', statut: 'valide', date_mouvement: { [Op.gte]: dateExercice } },
+        }),
+      ]);
       caMois += caApproMoisAdmin || 0;
 
-      // Admin — gains sur Factures directes (hors délégués)
+      // Admin — gains sur Factures directes (hors délégués) depuis l'ouverture exercice
       const excludeClause = delegueIdsArr.length > 0 ? 'AND f.created_by NOT IN (:delegueIds)' : '';
       const rowsConsult = await sequelize.query(
         `SELECT
@@ -233,6 +238,7 @@ const obtenirStats = async (req, res) => {
         taux_indirect:     null,
         taux_mapa:         null,
         ca_direct:         caDirectExercice,
+        ca_appro_exercice: caApproExerciceAdmin || 0,
         gains_directs:     Math.round(rowsConsult[0]?.gains || 0),
         part_mapa_direct:  Math.round(rowsConsult[0]?.mapa || 0),
       };
