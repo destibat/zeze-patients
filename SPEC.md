@@ -1,683 +1,590 @@
-# SPEC.md — Projet ZEZEPAGNON
+# Description de l'application — ZEZEPAGNON Dossiers Patients
 
-**Application de Gestion de Dossiers Patients**
+**Version 2.0 — Mai 2026**
 Marque : *ZEZEPAGNON — La richesse des plantes africaines au service du bien-être*
 Entité : *Maître Racine d'Afrique — ZEZEPAGNON Stockiste Alexis Brevet*
 Localisation : Abidjan, Côte d'Ivoire
-Site web de référence : [https://zezepagnon.com/](https://zezepagnon.com/)
 
-> 📍 **Chemins clés du projet**
-> - **Développement local** : `/home/alexis/Applis/Dossiers_patients/zeze_patients`
-> - **Production (serveur Debian)** : `/var/www/zezepagnon`
->
-> Voir la section **10. Environnements** pour le détail complet.
+---
+
+## Table des matières
+
+1. [Présentation générale](#1-présentation-générale)
+2. [Système de rôles et permissions](#2-système-de-rôles-et-permissions)
+3. [Module — Authentification](#3-module--authentification)
+4. [Module — Tableau de bord](#4-module--tableau-de-bord)
+5. [Module — Patients](#5-module--patients)
+6. [Module — Consultations](#6-module--consultations)
+7. [Module — Ordonnances](#7-module--ordonnances)
+8. [Module — Analyses NFS](#8-module--analyses-nfs)
+9. [Module — Fichiers patients](#9-module--fichiers-patients)
+10. [Module — Rendez-vous](#10-module--rendez-vous)
+11. [Module — Facturation](#11-module--facturation)
+12. [Module — Stock central](#12-module--stock-central)
+13. [Module — Stock délégué](#13-module--stock-délégué)
+14. [Module — Exercices comptables MAPA](#14-module--exercices-comptables-mapa)
+15. [Module — Prêts et emprunts](#15-module--prêts-et-emprunts)
+16. [Module — Statistiques](#16-module--statistiques)
+17. [Module — Administration](#17-module--administration)
+18. [Charte graphique](#18-charte-graphique)
+19. [Multi-tenant](#19-multi-tenant)
 
 ---
 
 ## 1. Présentation générale
 
-**ZEZEPAGNON Dossiers Patients** est une application web de gestion de dossiers patients destinée à un cabinet médical individuel. Elle permet de centraliser les informations patients, gérer les consultations, les ordonnances, les rendez-vous, la facturation, le stock de produits (notamment les tisanes et préparations ZEZEPAGNON), et d'effectuer des analyses biologiques (NFS, hématologie) à partir de fichiers importés.
+**ZEZEPAGNON Dossiers Patients** est une application web de gestion médicale et commerciale destinée aux cabinets du réseau MAPA (pharmacopée africaine). Elle couvre l'intégralité du cycle de vie d'un patient et d'un exercice commercial.
 
-L'application s'inscrit dans l'univers ZEZEPAGNON fondé par le **Pr Alain Tagro Kalou**, spécialiste en système immunitaire et chercheur en pharmacopée africaine (CEO MAPA Arizona / New York).
+### Objectifs
 
-L'application sera accessible **en ligne via un navigateur web**, avec une version **mobile prévue en phase ultérieure**.
+- Centraliser les dossiers patients de façon sécurisée et accessible depuis n'importe quel navigateur
+- Faciliter le travail quotidien du médecin, du stockiste, des délégués et de la secrétaire
+- Automatiser la génération d'ordonnances (PDF) et le suivi des factures en FCFA
+- Permettre l'analyse assistée des résultats NFS (OCR + comparaison aux normes)
+- Gérer le stock de produits ZEZEPAGNON et les ventes des délégués commerciaux
+- Produire les bilans d'exercice MAPA avec calcul automatique des commissions
 
----
+### Caractéristiques techniques
 
-## 2. Objectifs du projet
-
-- Centraliser les dossiers patients de façon sécurisée et accessible à distance
-- Faciliter le travail quotidien du médecin et de la secrétaire
-- Automatiser la génération d'ordonnances et de factures en FCFA
-- Permettre l'analyse assistée de résultats d'examens (NFS, hématologie)
-- Gérer un stock de produits/tisanes ZEZEPAGNON disponibles au cabinet
-- Proposer une interface moderne, multilingue (français en priorité), et responsive
-- Respecter l'identité visuelle et les valeurs de la marque ZEZEPAGNON (pharmacopée africaine, bien-être naturel)
-
----
-
-## 3. Utilisateurs et rôles
-
-L'application comporte **3 rôles utilisateurs** avec des permissions distinctes :
-
-### 3.1 Administrateur
-- Créer, modifier et supprimer les comptes utilisateurs (médecins, secrétaires)
-- Gérer le catalogue produits (ajout, modification, prix, stock)
-- Consulter toutes les statistiques
-- Configurer les paramètres de l'application (paiements, langues, logo, etc.)
-- Accéder au backoffice d'administration
-
-### 3.2 Médecin
-- Créer et consulter toutes les fiches patients
-- Rédiger des consultations, diagnostics, prescriptions
-- Générer et imprimer des ordonnances (PDF)
-- Importer et analyser des résultats d'examens (NFS, hématologie)
-- Consulter l'historique médical complet d'un patient
-- Accéder aux rendez-vous
-
-### 3.3 Secrétaire / Accueil
-- Créer et modifier les fiches patients (données administratives)
-- Gérer l'agenda et les rendez-vous
-- Émettre des factures et enregistrer les paiements
-- Consulter le stock disponible (pas de modification)
-- Ne peut pas accéder aux informations médicales confidentielles
-
-**Nombre d'utilisateurs simultanés estimé : 5**
+- Application web responsive (navigateur desktop et mobile)
+- Architecture SPA React + API REST Express + MariaDB
+- Multi-tenant : plusieurs cabinets sur le même serveur, bases de données séparées
+- Déploiement Docker sur serveur Debian, HTTPS via Let's Encrypt
 
 ---
 
-## 4. Fonctionnalités détaillées
+## 2. Système de rôles et permissions
 
-### 4.1 Gestion des patients
+L'application définit **4 rôles** avec des accès distincts.
 
-**Données obligatoires** (champs requis) :
-- Nom
-- Prénom
+### Administrateur
+
+- Accès complet à toutes les fonctionnalités
+- Seul à pouvoir : gérer les utilisateurs, rouvrir un exercice clôturé, accéder aux statistiques, configurer les paramètres du cabinet
+
+### Stockiste
+
+- Responsable commercial d'une zone géographique
+- Accès : patients, consultations, ordonnances, facturation, stock central, stock délégué (validation), exercices, bilans, prêts/emprunts
+- Ne peut pas : gérer les utilisateurs, configurer les paramètres, voir les statistiques globales, rouvrir un exercice
+
+### Délégué
+
+- Commercial terrain rattaché à un stockiste
+- Accès : patients (les siens), consultations, ordonnances directes, son stock personnel, ses ventes, son bilan, rendez-vous, facturation
+- Ne peut pas : gérer le stock central, voir les exercices globaux, consulter les analyses NFS, visualiser les fichiers
+
+### Secrétaire
+
+- Support administratif
+- Accès : patients, rendez-vous, facturation, stock (lecture seule)
+- Ne peut pas : consultations médicales, ordonnances, stock (écriture), exercices, statistiques
+
+---
+
+## 3. Module — Authentification
+
+### Connexion
+
+- Authentification par e-mail et mot de passe
+- Tokens JWT : access token (15 min) + refresh token (7 jours, HttpOnly cookie)
+- Renouvellement automatique transparent pour l'utilisateur
+- Déconnexion avec invalidation du refresh token côté serveur
+
+### Première connexion
+
+- À la création du compte, l'administrateur définit un mot de passe provisoire
+- À la première connexion, l'application force le changement de mot de passe
+- Le nouveau mot de passe doit faire au moins 8 caractères
+
+### Sécurité
+
+- Hachage bcrypt (coût 12)
+- Rate limiting sur les endpoints d'authentification
+- Audit log de chaque connexion et action critique
+
+---
+
+## 4. Module — Tableau de bord
+
+Page d'accueil après connexion, affichée pour tous les rôles.
+
+### KPI (Administrateur / Stockiste)
+
+- **Nombre de patients actifs** : total des dossiers non archivés
+- **Consultations du mois** : consultations enregistrées sur le mois calendaire en cours
+- **CA du mois** : chiffre d'affaires du mois (factures entièrement payées uniquement)
+- **CA de l'exercice** : chiffre d'affaires cumulé depuis l'ouverture de l'exercice en cours
+
+> Règle de calcul : les factures partiellement payées sont **exclues** du CA. Seules les factures au statut *payée* sont comptabilisées.
+
+### Alertes de stock
+
+- Liste des produits dont la quantité est inférieure au seuil d'alerte
+- Lien direct vers la page Stock
+- Badge rouge dans le menu latéral tant que des alertes sont actives
+
+### Gains délégués (Admin / Stockiste)
+
+- Récapitulatif des commissions générées par les délégués sur l'exercice en cours
+
+### Exercice en cours
+
+- Numéro d'exercice, date d'ouverture, durée en jours, CA cumulé
+- Affiché en permanence dans la barre supérieure de l'application
+
+---
+
+## 5. Module — Patients
+
+### Création d'un dossier patient
+
+Données **obligatoires** :
+- Prénom, Nom
 - Sexe (Masculin / Féminin / Autre)
 - Date de naissance
-- Numéro de téléphone
+- Téléphone
 
-**Données optionnelles** :
-- Adresse complète (rue, commune, ville, pays)
+Données **optionnelles** :
+- Adresse (rue, commune, ville, pays)
 - Profession
 - Groupe sanguin (A+, A-, B+, B-, AB+, AB-, O+, O-)
-- Allergies (texte libre + liste de tags)
+- Allergies (liste de tags, saisie libre)
 - Antécédents médicaux personnels
 - Antécédents médicaux familiaux
-- Personne à contacter en cas d'urgence (nom + téléphone + lien de parenté)
+- Contact d'urgence (nom, téléphone, lien de parenté)
 - Photo du patient (upload image)
 - Numéro d'assurance / mutuelle
 
-**Opérations disponibles** :
-- Création, consultation, modification, archivage (soft delete)
-- Recherche par nom, prénom, téléphone, numéro de dossier
-- Filtres (sexe, tranche d'âge, dernière consultation, etc.)
-- Export d'un dossier complet en PDF
+**Numéro de dossier** : généré automatiquement au format `ZZP-YYYY-NNNNN` (ex: `ZZP-2026-00001`). Séquentiel par année, unique, calculé en incluant les patients archivés pour éviter les doublons.
 
-### 4.2 Gestion des consultations
+### Consultation de la fiche patient
 
-- Création d'une consultation liée à un patient
-- Enregistrement : date, motif, symptômes, diagnostic, traitement prescrit, observations
-- Prise de constantes : poids, taille, tension artérielle, température, fréquence cardiaque
-- Historique chronologique des consultations par patient
-- Possibilité de joindre des documents (PDF, images)
+La fiche patient rassemble toutes les informations en sections :
+1. Informations personnelles + photo
+2. Allergies (étiquettes colorées) et antécédents
+3. Historique des consultations
+4. Ordonnances
+5. Fichiers joints
+6. Analyses NFS
 
-### 4.3 Ordonnances et prescriptions
+### Recherche et filtres
 
-- Création d'ordonnances avec sélection de produits depuis le catalogue (ou saisie libre)
-- Posologie, durée, remarques
-- Export PDF avec en-tête personnalisé du cabinet (logo ZEZEPAGNON, infos du médecin)
-- Archivage automatique dans le dossier patient
-- Possibilité de réimprimer une ordonnance ultérieurement
+- Recherche en temps réel par : nom, prénom, téléphone, numéro de dossier
+- Filtre par sexe
+- Filtre pour afficher les patients archivés
 
-### 4.4 Gestion des rendez-vous / agenda
+### Archivage (soft delete)
 
-- Vue calendrier (jour, semaine, mois)
-- Création de RDV : patient, médecin, date, heure, durée, motif
-- Statuts : programmé, confirmé, en cours, terminé, annulé, absent
-- Notifications visuelles (RDV du jour)
-- Envoi de rappels SMS / Email (phase 2, selon budget)
-
-### 4.5 Analyse de résultats d'examens (NFS et hématologie)
-
-**Fonctionnalité spécifique importante** :
-- Import de fichiers : **PDF, JPG, JPEG, PNG, GIF**
-- Extraction des valeurs biologiques (OCR pour les images, parsing pour PDF)
-- Comparaison automatique avec les normes de référence
-- Détection et mise en évidence des valeurs anormales
-- Suggestion de pathologies possibles selon les anomalies détectées (hors diagnostic définitif)
-- Affichage sous forme de tableau avec code couleur (normal / bas / élevé / critique)
-- Historisation des résultats dans le dossier patient
-- Possibilité de générer un compte-rendu PDF
-
-> ⚠️ Cette fonctionnalité est une **aide à l'analyse**, pas un diagnostic médical. Un avertissement doit être affiché à l'utilisateur.
-
-### 4.6 Facturation et paiements
-
-- Génération de factures en **FCFA (XOF)**
-- Items facturables : consultation, produits du stock (tisanes ZEZEPAGNON, etc.), actes médicaux
-- Export PDF de la facture avec en-tête du cabinet
-- Modes de paiement acceptés :
-  - Espèces
-  - **Orange Money**
-  - **MTN Mobile Money**
-  - **Wave**
-  - Virement bancaire
-  - Chèque
-- Suivi des paiements (payé, partiel, impayé)
-- Intégration future avec les API Mobile Money pour paiement automatisé
-
-### 4.7 Gestion du stock (backoffice administrateur)
-
-- Catalogue produits : nom, description, catégorie, prix unitaire (FCFA), quantité en stock, seuil d'alerte, image du produit
-- Catégories suggérées : Tisanes ZEZEPAGNON, Préparations, Compléments, Matériel médical, Divers
-- Ajout, modification, suppression de produits
-- Alertes automatiques en cas de stock faible
-- Historique des entrées/sorties
-- Déduction automatique du stock lors d'une prescription ou vente
-
-### 4.8 Statistiques et tableau de bord
-
-- Nombre de patients actifs
-- Nombre de consultations (jour, semaine, mois, année)
-- Chiffre d'affaires (FCFA)
-- Top produits vendus / prescrits
-- Taux de remplissage de l'agenda
-- Pathologies les plus fréquentes (basé sur les diagnostics)
-- Graphiques interactifs
-
-### 4.9 Multilingue
-
-- Langue par défaut : **Français**
-- Langue secondaire : **Anglais** (à l'image du site officiel zezepagnon.com qui propose FR/EN)
-- Système i18n permettant l'ajout facile de nouvelles langues
+- L'archivage masque le patient de la liste principale
+- Toutes ses données sont conservées
+- Un patient archivé peut être retrouvé via le filtre dédié
+- Réservé aux administrateurs et stockistes
 
 ---
 
-## 5. Identité visuelle et charte graphique
+## 6. Module — Consultations
 
-### 5.1 Inspiration
+### Création d'une consultation
 
-La charte graphique s'inspire directement du site officiel [zezepagnon.com](https://zezepagnon.com/), qui reflète l'univers de la pharmacopée africaine, du bien-être naturel et des plantes médicinales.
+Informations enregistrées :
+- Date de consultation (modifiable, par défaut aujourd'hui)
+- Motif de la visite
+- Symptômes observés
+- Diagnostic
+- Traitement prescrit et notes
+- **Signes vitaux** :
+  - Poids (kg), Taille (cm) → **IMC calculé automatiquement**
+  - Tension artérielle systolique / diastolique (mmHg)
+  - Fréquence cardiaque (bpm)
+  - Température (°C)
+  - Saturation en oxygène SpO₂ (%)
 
-### 5.2 Palette de couleurs
+### Flux de travail
 
-**Couleurs principales** (inspirées de la nature africaine et des tisanes) :
+- Consultation créée → possibilité d'y attacher une ordonnance
+- Historique chronologique des consultations dans la fiche patient
+- Modification et suppression réservées aux administrateurs et stockistes
+
+---
+
+## 7. Module — Ordonnances
+
+### Deux modes de création
+
+**Mode consultation** (flux classique) :
+- Depuis une consultation existante → ordonnance liée à cette consultation
+
+**Mode direct** (sans consultation préalable) :
+- Depuis la page Ordonnances → ordonnance sans consultation associée
+- Utile pour les ventes directes de produits, les renouvellements simples
+
+### Contenu d'une ordonnance
+
+- Sélection d'un patient
+- Lignes de prescription : produit, quantité, prix unitaire
+- Montant total calculé automatiquement
+- Statut : brouillon → validée → (annulée)
+
+### Renouvellement
+
+- Depuis une ordonnance existante, cliquer **Renouveler**
+- Crée une **nouvelle ordonnance distincte** (brouillon) avec les mêmes produits, quantités et prix
+- Modifiable avant validation
+
+### Validation et export PDF
+
+- Une ordonnance brouillon peut être modifiée librement
+- La validation finalise l'ordonnance — elle ne peut plus être modifiée
+- Export PDF avec en-tête personnalisé (logo cabinet, nom, adresse, signature)
+- Les exercices non clôturés portent la mention **PROVISOIRE**
+
+---
+
+## 8. Module — Analyses NFS
+
+> Réservé aux administrateurs et stockistes.
+
+### Objectif
+
+Permettre l'enregistrement et l'interprétation des résultats de Numération Formule Sanguine (NFS / hématologie) dans le dossier patient.
+
+### Saisie des valeurs
+
+**Mode manuel** : formulaire de saisie des valeurs biologiques :
+- Globules rouges, globules blancs, plaquettes
+- Formule leucocytaire : neutrophiles, lymphocytes, monocytes, éosinophiles, basophiles
+- Hémoglobine, hématocrite, VGM, TGMH, CCMH
+
+**Mode extraction automatique (OCR)** :
+- Upload d'une image (JPG, PNG) ou d'un PDF du résultat de laboratoire
+- Extraction automatique des valeurs via Tesseract.js
+- Les valeurs extraites sont pré-remplies et éditables avant enregistrement
+
+### Interprétation automatique
+
+- Comparaison de chaque valeur aux normes de référence (selon le sexe et l'âge du patient)
+- Code couleur : **Vert** (normal), **Orange** (bas/élevé), **Rouge** (critique)
+- Affichage sous forme de tableau dans la fiche patient
+
+> Il s'agit d'une aide à l'analyse. Le médecin reste seul responsable du diagnostic.
+
+---
+
+## 9. Module — Fichiers patients
+
+### Upload de documents
+
+- Formats acceptés : **PDF, JPG, JPEG, PNG, GIF**
+- Taille maximale : **20 Mo par fichier**
+- Catégories : résultat d'analyse, ordonnance externe, imagerie, autre
+- Stockage sur volume Docker persistant, servi par Express en statique
+
+### Visualiseur intégré
+
+> Réservé aux administrateurs et stockistes.
+
+Ouvre les fichiers directement dans l'application sans téléchargement :
+
+- **PDF** : rendu via `<iframe>` (lecteur natif du navigateur avec navigation pages, zoom, recherche)
+- **Images** : affichage avec zoom au scroll, panoramique par glissé, rotation gauche/droite
+- Mode **plein écran** (API Fullscreen)
+- Fermeture par bouton ✕ ou touche **Échap**
+- Bouton de **téléchargement** toujours disponible
+
+### Téléchargement direct
+
+Accessible à tous les rôles via le bouton Télécharger (⬇) dans la liste des fichiers.
+
+---
+
+## 10. Module — Rendez-vous
+
+### Vue calendrier
+
+- Vue hebdomadaire par défaut, vue mensuelle disponible
+- Rendez-vous du jour mis en avant
+- Navigation entre les semaines/mois
+
+### Gestion des rendez-vous
+
+- Création : patient, date, heure, durée, motif
+- Modification et suppression
+- **Statuts** : Programmé → Confirmé → Honoré / Absent / Annulé
+
+---
+
+## 11. Module — Facturation
+
+### Création d'une facture
+
+- Depuis une ordonnance validée (bouton **Créer une facture**)
+- La facture reprend les produits et montants de l'ordonnance
+
+### Enregistrement des paiements
+
+- Modes de paiement : espèces, Orange Money, MTN Mobile Money, Wave, virement bancaire, chèque
+- **Paiement total** → statut *Payée* → comptabilisée dans le CA
+- **Paiement partiel** → statut *Partiellement payée* → **non comptabilisée dans le CA**
+
+### Statuts et impact comptable
+
+| Statut | Impact CA | Impact commissions |
+|--------|-----------|-------------------|
+| En attente | ❌ | ❌ |
+| Partiellement payée | ❌ | ❌ |
+| Payée | ✅ | ✅ |
+| Annulée | ❌ | ❌ |
+
+### Tableau des créanciers
+
+- Onglet dédié dans la page Facturation
+- Liste tous les patients avec des factures impayées ou partiellement payées
+- Pour chaque facture : référence, date, produits, montant total, montant payé, **restant dû**
+- Bouton **Payer** pour enregistrer rapidement le solde
+- Filtré par rôle : l'administrateur voit tout, le stockiste voit ses délégués + ses propres factures
+
+### Onglets de la page Facturation
+
+- **Factures** : liste générale
+- **Gains** : répartition des commissions par commercial (admin/stockiste)
+- **Relances** : suivi des impayés
+- **Créanciers** : tableau des dettes patients (en_attente + partiellement_payee)
+- **Délégués** : ventes des délégués avec validation
+
+---
+
+## 12. Module — Stock central
+
+> Écriture réservée aux administrateurs. Lecture pour les secrétaires.
+
+### Catalogue produits
+
+- Nom, description, catégorie, prix unitaire (FCFA)
+- Quantité en stock en temps réel
+- Seuil d'alerte configurable par produit
+
+### Mouvements de stock
+
+- **Entrée** : réception de marchandises
+- **Sortie** : livraison, casse, dépréciation
+- **Ajustement** : correction d'inventaire avec motif
+
+Chaque mouvement est tracé dans l'historique avec date, type, quantité, motif et utilisateur.
+
+### Alertes
+
+- Badge rouge dans le menu latéral si au moins un produit est sous le seuil
+- Tableau des produits en alerte sur le dashboard
+
+---
+
+## 13. Module — Stock délégué
+
+### Principe
+
+Chaque délégué dispose d'un **stock personnel** distinct du stock central. Le flux est :
+
+```
+Stock central ──achat délégué (validé par stockiste)──▶ Stock délégué
+Stock délégué ──vente patient (validée par stockiste)──▶ Facture exercice
+```
+
+### Achats au stockiste
+
+1. Le délégué passe une demande d'achat (produit + quantité)
+2. Le stockiste valide ou refuse
+3. En cas de validation : stock central débité, stock délégué crédité, facture d'achat générée
+
+### Ventes directes
+
+1. Le délégué enregistre une vente (patient + produits + prix + paiement)
+2. La vente est en statut *En attente de validation*
+3. Le stockiste valide → la vente est comptabilisée dans l'exercice
+4. **Paiement partiel possible** : le délégué peut saisir un acompte ; le suivi du solde est conservé
+
+### Mon bilan (Délégué)
+
+- CA réalisé sur l'exercice en cours
+- Nombre de ventes validées
+- Gain délégué (15% du CA, ou taux personnalisé)
+- Commission reversée au stockiste
+
+### Gains délégués (Admin / Stockiste)
+
+- Vue consolidée de tous les délégués
+- CA par délégué, commissions versées, commissions restant dues
+- Filtré par exercice
+
+---
+
+## 14. Module — Exercices comptables MAPA
+
+### Concept
+
+Un **exercice** est une période comptable ouverte par le stockiste ou l'administrateur. Toutes les ventes sont rattachées à l'exercice ouvert. À sa clôture, le bilan est calculé et figé.
+
+### Cycle de vie
+
+```
+[Ouvert] ──clôturer──▶ [Clôturé] ──rouvrir (admin)──▶ [Rouvert] ──clôturer──▶ [Clôturé]
+```
+
+- Un seul exercice peut être ouvert à la fois
+- La clôture ouvre automatiquement un nouvel exercice
+- La réouverture exige un motif et l'absence d'autre exercice ouvert
+
+### Numérotation
+
+Format automatique : `EX-2026-001`, `EX-2026-002`…
+
+### Bilan d'exercice
+
+Le bilan calcule et affiche :
+
+**Chiffre d'affaires total**
+- CA issu des factures directes (entièrement payées)
+- CA issu des ventes délégués validées (entièrement payées)
+- Les partiellement payées sont **exclues**
+
+**Par stockiste**
+- CA ventes directes
+- CA via délégués
+- Commission totale perçue
+
+**Par délégué**
+- CA réalisé, nombre de ventes
+- Gain délégué (taux × CA)
+- Commission reversée au stockiste
+
+**Montant à verser à MAPA**
+```
+Montant MAPA = CA total − Σ commissions stockistes − Σ gains délégués
+```
+
+**Top 20 produits**
+- Classement par chiffre d'affaires
+
+### Fiches PDF
+
+5 documents PDF générables depuis le bilan :
+
+| Fiche | Destinataire |
+|-------|-------------|
+| Fiche MAPA | Parrain MAPA |
+| Détail produits | Usage interne |
+| Récap délégués | Stockiste |
+| Bilan stockiste | Stockiste individuel |
+| Bilan délégué | Délégué individuel (accessible au délégué via *Mon bilan*) |
+
+---
+
+## 15. Module — Prêts et emprunts
+
+> Réservé aux administrateurs et stockistes.
+
+### Objectif
+
+Tracer les mouvements de produits entre membres de l'équipe ou partenaires qui ne passent pas par le circuit de vente normal (prêt temporaire, dépôt-vente, emprunt d'urgence).
+
+### Fonctionnement
+
+- Enregistrement : type (prêt / emprunt), contrepartie, produit, quantité, date
+- Suivi du statut : en cours / remboursé
+- Historique des transactions
+
+---
+
+## 16. Module — Statistiques
+
+> Réservé aux administrateurs.
+
+### Indicateurs disponibles
+
+- Évolution du chiffre d'affaires par mois
+- Répartition des ventes par produit / catégorie
+- Nombre de patients créés et de consultations réalisées
+- Top produits par CA et par quantité
+- Top prescripteurs
+- Comparaison entre exercices
+
+### Filtres
+
+- Plage de dates personnalisée
+- Filtre par exercice comptable
+
+---
+
+## 17. Module — Administration
+
+> Réservé aux administrateurs.
+
+### Gestion des utilisateurs
+
+- Création : prénom, nom, e-mail, téléphone, ville, pays, rôle
+  - Stockiste : taux de commission négocié
+  - Délégué : rattachement au stockiste superviseur
+- Modification des informations (y compris l'e-mail / identifiant de connexion)
+- Réinitialisation du mot de passe (provisoire, à changer à la connexion suivante)
+- Désactivation (bloque la connexion, données conservées) / réactivation
+- Suppression définitive (irréversible)
+
+### Paramètres du cabinet
+
+| Paramètre | Description |
+|-----------|-------------|
+| Nom du cabinet | Affiché sur les ordonnances et fiches PDF |
+| Adresse complète | Affiché sur les ordonnances et fiches PDF |
+| Taux commission délégué | Taux global appliqué à toutes les ventes délégués (défaut 15%) |
+| Taux commission stockiste | Taux négocié par stockiste ; propageable à tous en un clic |
+| Logo | Image affichée en en-tête des ordonnances PDF |
+| Signature | Image affichée en pied des ordonnances PDF |
+
+---
+
+## 18. Charte graphique
+
+### Palette de couleurs
 
 | Nom | Code HEX | Usage |
-|---|---|---|
-| Vert ZEZEPAGNON (principal) | `#2E7D32` | Couleur dominante, boutons primaires, en-têtes |
-| Vert foncé | `#1B5E20` | Textes importants, hover, navigation |
-| Vert clair / naturel | `#81C784` | Accents, badges, survols |
-| Or / Jaune miel | `#F9A825` | Accents chauds, CTA secondaires, médailles |
-| Terre cuite / Orange africain | `#D84315` | Alertes douces, éléments de rappel |
-
-**Couleurs neutres** :
-
-| Nom | Code HEX | Usage |
-|---|---|---|
+|-----|----------|-------|
+| Vert ZEZEPAGNON | `#2E7D32` | Couleur dominante, boutons primaires |
+| Vert foncé | `#1B5E20` | Hover, navigation |
+| Vert clair | `#81C784` | Accents, badges |
+| Or / Jaune miel | `#F9A825` | Accents secondaires |
 | Blanc cassé | `#FAFAF7` | Fond principal |
 | Beige naturel | `#F5F1E8` | Fond secondaire, cartes |
 | Gris anthracite | `#263238` | Textes principaux |
 | Gris moyen | `#607D8B` | Textes secondaires |
 
-**Couleurs fonctionnelles** (pour les alertes médicales) :
+### Couleurs fonctionnelles (alertes médicales)
 
-| État | Code HEX | Usage |
-|---|---|---|
-| Succès / Normal | `#388E3C` | Valeurs normales, paiement réussi |
-| Info | `#0288D1` | Informations neutres |
-| Avertissement | `#F57C00` | Valeurs limites, attention |
-| Erreur / Critique | `#C62828` | Valeurs critiques, erreurs |
+| État | Code HEX |
+|------|----------|
+| Normal / Succès | `#388E3C` |
+| Bas / Attention | `#F57C00` |
+| Critique / Erreur | `#C62828` |
+| Information | `#0288D1` |
 
-### 5.3 Typographie
+### Typographie
 
-- **Titres** : `Poppins` (SemiBold / Bold) — moderne, bien lisible
-- **Corps de texte** : `Inter` ou `Open Sans` — sobre et professionnel
-- **Accents / citations** : `Merriweather` (optionnel, pour toucher éditorial)
-
-Toutes ces polices sont disponibles gratuitement via **Google Fonts**.
-
-### 5.4 Style général
-
-- **Épuré et professionnel** avec touches naturelles
-- **Cartes arrondies** (rayon 8-12 px) et ombres douces
-- **Icônes** : `Lucide React` ou `Heroicons` (style trait fin)
-- **Illustrations** : motifs végétaux discrets, feuilles, plantes médicinales (SVG)
-- **Boutons** : arrondis, pleins pour les actions primaires (vert principal), contournés pour les actions secondaires
-- **Respect de l'accessibilité** : contrastes WCAG AA minimum
-
-### 5.5 Logo
-
-- Logo officiel ZEZEPAGNON à récupérer depuis le site officiel (celui utilisé en en-tête)
-- Source : https://zezepagnon.com/wp-content/uploads/ (versions disponibles)
-- Le logo doit apparaître dans :
-  - L'en-tête de toutes les pages
-  - La page de connexion
-  - Les documents PDF générés (ordonnances, factures)
-  - Le favicon du navigateur
-
-### 5.6 Ton éditorial
-
-Chaleureux, professionnel, rassurant, ancré dans les valeurs africaines du bien-être et de la phytothérapie. Les textes doivent refléter le sérieux médical tout en restant accessibles.
+- Titres : **Playfair Display** (serif élégant)
+- Corps de texte : **Inter** (sans-serif lisible)
 
 ---
 
-## 6. Stack technique
+## 19. Multi-tenant
 
-### 6.1 Backend
-- **Node.js** (v20 LTS)
-- **Express.js** (framework web)
-- **MariaDB 10.11+** (base de données relationnelle, native sur Debian 12)
-- **Sequelize** (ORM, recommandé pour sa maturité)
-- **JWT** pour l'authentification
-- **bcrypt** pour le hashage des mots de passe
-- **Multer** pour l'upload de fichiers
-- **PDFKit** ou **Puppeteer** pour la génération de PDF
-- **Tesseract.js** pour l'OCR des images d'examens
-- **pdf-parse** pour l'extraction de texte des PDF
-- **Winston** pour la gestion des logs
-- **Joi** ou **Zod** pour la validation des entrées
+L'application supporte plusieurs **tenants** (cabinets indépendants) sur le même serveur, chacun avec :
+- Sa propre base de données MariaDB isolée
+- Son propre domaine (ex : `alice.zezepagnon.solutions`, `cisse.zezepagnon.solutions`)
+- Son propre volume de stockage pour les fichiers uploadés
+- Son propre fichier `.env` (credentials, JWT secrets)
 
-### 6.2 Frontend
-- **React** (v18+)
-- **Vite** (build tool)
-- **React Router v6** (navigation)
-- **TailwindCSS** (styles, avec configuration personnalisée aux couleurs ZEZEPAGNON)
-- **shadcn/ui** (composants UI modernes et personnalisables)
-- **React Hook Form** + **Zod** (formulaires et validation)
-- **TanStack Query** (gestion des requêtes API)
-- **react-i18next** (internationalisation)
-- **Recharts** (graphiques)
-- **FullCalendar** (agenda)
-- **Lucide React** (icônes)
+Chaque tenant est un ensemble de containers Docker (backend + frontend + db) géré par un fichier `docker-compose.XXX.yml` distinct.
 
-### 6.3 Outils et DevOps
-- **Git** + **GitHub** / **GitLab** pour le versionnement
-- **ESLint** + **Prettier** (qualité du code)
-- **PM2** pour la gestion des processus Node.js en production
-- **Nginx** comme reverse proxy
-- Tests : **Jest** (backend) et **Vitest** (frontend)
+Le reverse proxy Nginx route les requêtes vers le bon tenant selon le domaine.
 
 ---
 
-## 7. Architecture du projet
-
-```
-zezepagnon/
-├── backend/
-│   ├── src/
-│   │   ├── config/           # Configuration (DB, env, i18n)
-│   │   ├── controllers/      # Logique métier
-│   │   ├── models/           # Modèles Sequelize
-│   │   ├── routes/           # Routes Express
-│   │   ├── middlewares/      # Auth, validation, erreurs
-│   │   ├── services/         # Services (PDF, OCR, analyse NFS)
-│   │   ├── utils/            # Fonctions utilitaires
-│   │   └── app.js
-│   ├── uploads/              # Fichiers uploadés (examens, photos)
-│   ├── tests/
-│   ├── .env.example
-│   └── package.json
-│
-├── frontend/
-│   ├── src/
-│   │   ├── components/       # Composants réutilisables
-│   │   ├── pages/            # Pages de l'application
-│   │   ├── hooks/            # Hooks personnalisés
-│   │   ├── services/         # Appels API
-│   │   ├── contexts/         # Contextes React (Auth, etc.)
-│   │   ├── locales/          # Fichiers de traduction (fr, en)
-│   │   ├── assets/           # Logo, images
-│   │   ├── styles/           # Tailwind config, theme ZEZEPAGNON
-│   │   └── App.jsx
-│   ├── public/
-│   └── package.json
-│
-├── database/
-│   ├── migrations/
-│   ├── seeds/
-│   └── schema.sql
-│
-├── docs/
-│   ├── API.md
-│   ├── INSTALLATION.md
-│   ├── DEPLOYMENT.md
-│   └── USER_GUIDE.md
-│
-├── scripts/
-│   ├── backup.sh
-│   ├── deploy.sh
-│   └── install-prerequisites.sh
-│
-├── README.md
-└── SPEC.md                    # Ce fichier
-```
-
----
-
-## 8. Sécurité et conformité
-
-- **Authentification** JWT avec refresh tokens
-- **Autorisation** basée sur les rôles (RBAC)
-- Mots de passe hashés avec **bcrypt** (coût minimum 12)
-- **HTTPS** obligatoire en production (certificat Let's Encrypt)
-- Protection **CSRF**, **XSS**, **SQL injection** (validation stricte des entrées)
-- **Rate limiting** sur les endpoints sensibles (login, API publiques)
-- Logs d'audit (qui a accédé à quel dossier, quand)
-- Sauvegardes automatiques quotidiennes de la base de données
-- Chiffrement au repos des données médicales sensibles (phase 2)
-- Pare-feu (UFW) configuré sur le serveur
-- **Fail2Ban** pour protéger SSH et l'application contre les attaques par force brute
-- Mises à jour de sécurité régulières du système
-
----
-
-## 9. Hébergement — Auto-hébergement Debian
-
-### 9.1 Configuration du serveur
-
-**Serveur cible** : machine Debian Linux (auto-hébergement)
-**Version recommandée** : **Debian 12 (Bookworm)** — stable, LTS jusqu'en 2028
-
-### 9.2 Prérequis à installer sur la machine Debian
-
-Voici la liste complète des logiciels à installer. Un script `scripts/install-prerequisites.sh` sera fourni pour automatiser l'installation.
-
-#### Paquets système de base
-```bash
-sudo apt update && sudo apt upgrade -y
-sudo apt install -y curl wget git build-essential software-properties-common \
-    ca-certificates gnupg lsb-release ufw fail2ban unzip
-```
-
-#### Node.js (v20 LTS) via NodeSource
-```bash
-curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
-sudo apt install -y nodejs
-node --version  # doit afficher v20.x.x
-npm --version
-```
-
-#### MariaDB
-```bash
-sudo apt install -y mariadb-server mariadb-client
-sudo systemctl enable --now mariadb
-sudo mysql_secure_installation
-```
-
-#### Nginx (reverse proxy)
-```bash
-sudo apt install -y nginx
-sudo systemctl enable --now nginx
-```
-
-#### PM2 (gestionnaire de processus Node.js)
-```bash
-sudo npm install -g pm2
-pm2 startup systemd
-```
-
-#### Certbot (SSL Let's Encrypt)
-```bash
-sudo apt install -y certbot python3-certbot-nginx
-```
-
-#### Outils complémentaires
-```bash
-# Tesseract pour l'OCR (analyse NFS depuis images)
-sudo apt install -y tesseract-ocr tesseract-ocr-fra tesseract-ocr-eng
-
-# Chromium (requis pour Puppeteer si utilisé pour les PDF)
-sudo apt install -y chromium
-
-# Outils de monitoring (optionnels mais recommandés)
-sudo apt install -y htop iotop net-tools
-```
-
-### 9.3 Configuration du pare-feu (UFW)
-
-```bash
-sudo ufw default deny incoming
-sudo ufw default allow outgoing
-sudo ufw allow ssh
-sudo ufw allow 'Nginx Full'
-sudo ufw enable
-sudo ufw status
-```
-
-### 9.4 Architecture de déploiement
-
-```
-Internet
-   ↓
-[Nginx] (ports 80/443) — Reverse proxy + SSL
-   ↓
-[Backend Node.js via PM2] (port 3000, localhost uniquement)
-   ↓
-[MariaDB] (port 3306, localhost uniquement)
-
-[Frontend React buildé] → servi en statique par Nginx
-```
-
-### 9.5 Configuration Nginx (extrait)
-
-```nginx
-server {
-    listen 443 ssl http2;
-    server_name ton-domaine.com;
-
-    ssl_certificate /etc/letsencrypt/live/ton-domaine.com/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/ton-domaine.com/privkey.pem;
-
-    # Frontend React (buildé)
-    root /var/www/zezepagnon/frontend/dist;
-    index index.html;
-
-    location / {
-        try_files $uri $uri/ /index.html;
-    }
-
-    # API Backend
-    location /api {
-        proxy_pass http://localhost:3000;
-        proxy_http_version 1.1;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-
-    # Fichiers uploadés (photos patients, examens)
-    location /uploads {
-        alias /var/www/zezepagnon/backend/uploads;
-        expires 30d;
-    }
-
-    client_max_body_size 20M;  # Pour uploads d'examens PDF/images
-}
-
-server {
-    listen 80;
-    server_name ton-domaine.com;
-    return 301 https://$server_name$request_uri;
-}
-```
-
-### 9.6 Sauvegardes
-
-- Script `scripts/backup.sh` automatisé via `cron` (quotidien à 2h du matin)
-- Sauvegarde de :
-  - Base de données MariaDB (`mysqldump`)
-  - Dossier `uploads/`
-  - Fichiers de configuration
-- Rétention : 30 jours en local, idéalement synchronisé vers un stockage externe (NAS, cloud)
-
-### 9.7 Monitoring
-
-- **PM2** pour surveiller le processus Node.js
-- Logs Nginx dans `/var/log/nginx/`
-- Logs applicatifs via **Winston** dans `/var/log/zezepagnon/`
-- Surveillance manuelle via `htop`, `pm2 monit`, `journalctl`
-
-### 9.8 Ressources serveur recommandées
-
-| Composant | Minimum | Recommandé |
-|---|---|---|
-| CPU | 2 cœurs | 4 cœurs |
-| RAM | 4 Go | 8 Go |
-| Disque | 50 Go SSD | 100 Go SSD |
-| Bande passante | 10 Mbps symétrique | 50 Mbps symétrique |
-
----
-
-## 10. Environnements
-
-### 10.1 Développement local (poste Alexis)
-- **Chemin du projet** : `/home/alexis/Applis/Dossiers_patients/zeze_patients`
-- **Utilisateur système** : `alexis`
-- Machine Linux du développeur (PC personnel)
-- Base de données MariaDB locale (`zezepagnon_dev`)
-- Variables d'environnement dans `.env.development` (non commité)
-- Hot reload activé (Vite pour le front, nodemon pour le back)
-- Port backend de dev : `3000`
-- Port frontend de dev : `5173` (Vite par défaut)
-
-**Structure attendue sur le poste de dev :**
-```
-/home/alexis/Applis/Dossiers_patients/zeze_patients/
-├── backend/
-├── frontend/
-├── database/
-├── docs/
-├── scripts/
-├── SPEC.md
-└── README.md
-```
-
-### 10.2 Tests / Staging (optionnel)
-- Une VM ou conteneur Docker sur la même machine Debian
-- Permet de tester les déploiements avant la mise en production
-
-### 10.3 Production
-- **Chemin du projet** : `/var/www/zezepagnon`
-- **Utilisateur système dédié** : `zezepagnon` (à créer, sans shell de connexion)
-- Machine Debian auto-hébergée décrite en section 9
-- Base de données MariaDB (`zezepagnon_prod`)
-- Variables d'environnement dans `.env.production` (non commité, droits 600)
-- Déploiement via Git (pull depuis le dépôt)
-- Build du frontend et redémarrage PM2 du backend
-- Script `scripts/deploy.sh` pour automatiser
-
-**Structure attendue sur le serveur de production :**
-```
-/var/www/zezepagnon/
-├── backend/
-│   ├── src/
-│   ├── uploads/          # Fichiers patients (droits 750, owner zezepagnon)
-│   ├── .env.production
-│   └── node_modules/
-├── frontend/
-│   └── dist/             # Build de production servi par Nginx
-├── database/
-│   └── backups/          # Sauvegardes locales (droits 700)
-├── logs/                 # Logs applicatifs
-└── scripts/
-```
-
-### 10.4 Tableau comparatif des environnements
-
-| Aspect | Développement | Production |
-|---|---|---|
-| Chemin | `/home/alexis/Applis/Dossiers_patients/zeze_patients` | `/var/www/zezepagnon` |
-| Utilisateur | `alexis` | `zezepagnon` (dédié) |
-| Base de données | `zezepagnon_dev` | `zezepagnon_prod` |
-| Fichier .env | `.env.development` | `.env.production` |
-| URL d'accès | `http://localhost:5173` | `https://ton-domaine.com` |
-| HTTPS | Non | Oui (Let's Encrypt) |
-| Nginx | Non (Vite dev server) | Oui (reverse proxy) |
-| PM2 | Non (nodemon) | Oui |
-| Logs | Console | Fichiers + Winston |
-
-### 10.5 Synchronisation dev → production
-
-- Le code est versionné sur Git (poste dev pousse, serveur de prod tire)
-- Aucun fichier n'est copié directement entre les deux environnements
-- Les fichiers `.env` sont **différents** sur chaque environnement (jamais commités)
-- Le script `scripts/deploy.sh` exécuté sur le serveur de production doit :
-  1. Faire un `git pull` dans `/var/www/zezepagnon`
-  2. Installer les dépendances (`npm ci` dans backend et frontend)
-  3. Builder le frontend (`npm run build`)
-  4. Appliquer les migrations de base de données
-  5. Redémarrer le backend via PM2 (`pm2 restart zezepagnon-api`)
-
----
-
-## 11. Planning de développement
-
-Le développement se fera en **phases progressives**. Claude Code gère le rythme selon ses capacités, avec l'objectif de livrer un MVP fonctionnel le plus rapidement possible, puis d'enrichir l'application.
-
-### Phase 1 — Fondations (MVP partie 1)
-1. Initialisation du projet (Git, structure des dossiers, README)
-2. Configuration du thème Tailwind aux couleurs ZEZEPAGNON
-3. Base de données : schéma et migrations initiales
-4. Authentification (login, JWT, rôles)
-5. Layout principal (navbar, sidebar, theme ZEZEPAGNON)
-6. CRUD utilisateurs (backoffice admin)
-
-### Phase 2 — Patients et consultations (MVP partie 2)
-7. CRUD patients (données obligatoires + optionnelles)
-8. CRUD consultations
-9. Ordonnances + export PDF avec en-tête ZEZEPAGNON
-10. Recherche et filtres patients
-
-### Phase 3 — Agenda et stock (MVP partie 3)
-11. Agenda / rendez-vous (vue calendrier)
-12. Gestion du stock produits (backoffice admin)
-13. Catégories de produits avec focus sur tisanes ZEZEPAGNON
-
-### Phase 4 — Facturation
-14. Facturation en FCFA
-15. Gestion des paiements (manuel au départ)
-16. Export PDF des factures
-
-### Phase 5 — Analyse NFS et hématologie
-17. Upload des fichiers d'examens (PDF, images)
-18. OCR et extraction des valeurs
-19. Comparaison avec les normes de référence
-20. Affichage avec code couleur et suggestions
-
-### Phase 6 — Statistiques et multilingue
-21. Tableau de bord avec graphiques
-22. Système i18n (français + anglais)
-
-### Phase 7 — Optimisations et intégrations
-23. Rappels SMS/Email pour RDV
-24. Intégration paiements Orange Money / MTN / Wave
-25. Optimisations performances et accessibilité
-
-### Phase 8 — Mobile (future)
-26. Version mobile (PWA d'abord, React Native ensuite)
-
----
-
-## 12. Livrables attendus
-
-- Code source complet (backend + frontend) versionné sur Git
-- Base de données initiale avec schéma et données de test
-- **Scripts d'installation** automatisés (`install-prerequisites.sh`)
-- **Scripts de déploiement** (`deploy.sh`)
-- **Scripts de sauvegarde** (`backup.sh`)
-- Documentation technique complète :
-  - `README.md` (présentation, démarrage rapide)
-  - `docs/INSTALLATION.md` (installation sur Debian)
-  - `docs/DEPLOYMENT.md` (déploiement en production)
-  - `docs/API.md` (documentation des endpoints)
-  - `docs/USER_GUIDE.md` (guide utilisateur en français)
-- Un compte administrateur par défaut pour la première connexion
-- Configuration Nginx prête à l'emploi
-- Fichier `docker-compose.yml` optionnel pour développement
-
----
-
-## 13. Instructions pour Claude Code
-
-Lors du démarrage du projet, Claude doit :
-
-1. **Résumer sa compréhension** du projet et poser les questions restantes avant de coder
-2. **Proposer l'architecture détaillée** et attendre validation
-3. **Récupérer le logo ZEZEPAGNON** depuis le site officiel (ou demander à l'utilisateur de le fournir)
-4. **Configurer le thème Tailwind** avec les couleurs définies en section 5.2 dès le début
-5. **Procéder phase par phase** : commencer par la Phase 1, valider avec le client, puis passer aux phases suivantes
-6. **Écrire du code propre, commenté en français**, respectant les bonnes pratiques
-7. **Créer des tests** pour les fonctionnalités critiques
-8. **Demander confirmation** avant toute action destructive ou majeure
-9. **Committer régulièrement** sur Git avec des messages clairs et en français
-10. **Fournir les scripts shell** pour l'installation des prérequis sur Debian au fur et à mesure que les dépendances sont introduites
-11. **Documenter au fil de l'eau** (pas tout à la fin) dans les fichiers de `docs/`
-12. **Privilégier la simplicité** : ne pas sur-concevoir, préférer les solutions éprouvées
-
----
-
-*Document rédigé le 18 avril 2026 — Version 2.0*
-*Inspiration charte graphique : [zezepagnon.com](https://zezepagnon.com/)*
+*Description ZEZEPAGNON Dossiers Patients — Version 2.0 — Mai 2026*
