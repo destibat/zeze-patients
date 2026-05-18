@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { useProduits } from '../../hooks/useProduits';
 import { Search, Plus, X, Package } from 'lucide-react';
-import { formatMontant } from '../../utils/formatMontant';
+import useFormatMontant from '../../hooks/useFormatMontant';
 
 const ProduitPicker = ({ lignes = [], onChange, posologie, estDelegue = false, stockDelegue = [] }) => {
+  const { formatMontant } = useFormatMontant();
   const [recherche, setRecherche] = useState('');
   const [ouvert, setOuvert] = useState(false);
   const { data: produits = [] } = useProduits({ actif: 'actif' });

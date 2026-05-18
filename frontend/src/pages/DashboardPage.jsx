@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../contexts/AuthContext';
-import { formatMontant } from '../utils/formatMontant';
+import useFormatMontant from '../hooks/useFormatMontant';
 import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
 import { useStatsStockDelegue, useGainsDelegues, useVentesEnAttente } from '../hooks/useStockDelegue';
@@ -66,6 +66,7 @@ const CarteKPI = ({ titre, valeur, icone: Icone, couleur, sous, onClick, badge }
 // ── Widget exercice comptable (admin + stockiste) ─────────────────────────────
 const WidgetExercice = () => {
   const navigate = useNavigate();
+  const { formatMontant } = useFormatMontant();
   const { data, isLoading } = useExerciceActuel();
   const exercice = data?.exercice;
   const { data: bilanData, isLoading: bilanLoading } = useBilanExercice(exercice?.id);
@@ -182,6 +183,7 @@ const WidgetExercice = () => {
 // ── Dashboard revendeur ─────────────────────────────────────────────────────────
 const DashboardDelegue = ({ utilisateur }) => {
   const navigate = useNavigate();
+  const { formatMontant } = useFormatMontant();
   const { data: stats, isLoading } = useStats();
   const { data: stockStats, isLoading: stockLoading } = useStatsStockDelegue(true);
   const { data: rdvs = [], isLoading: rdvLoading } = useRdvAujourdhui();
@@ -477,6 +479,7 @@ const WidgetAlertesStock = () => {
 // ── Dashboard standard (admin, stockiste, secrétaire) ────────────────────────
 const DashboardStandard = ({ utilisateur }) => {
   const navigate = useNavigate();
+  const { formatMontant } = useFormatMontant();
   const { data: stats, isLoading } = useStats();
   const { data: rdvs = [], isLoading: rdvLoading } = useRdvAujourdhui();
   const estStockisteOuAdmin = ['administrateur', 'stockiste'].includes(utilisateur?.role);

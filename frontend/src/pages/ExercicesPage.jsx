@@ -11,7 +11,7 @@ import {
   BookOpen, BookMarked, Lock, Unlock, Plus, ChevronDown, ChevronUp,
   TrendingUp, Users, Wallet, Printer, Loader2, AlertTriangle, X,
 } from 'lucide-react';
-import { formatMontant } from '../utils/formatMontant';
+import useFormatMontant from '../hooks/useFormatMontant';
 
 // ── Utilitaires ──────────────────────────────────────────────────────────────
 
@@ -158,6 +158,7 @@ const ModalRouvrir = ({ exercice, onConfirm, onAnnuler, loading }) => {
 
 // ── Bloc résumé bilan (réutilisé dans modal clôture et page bilan) ───────────
 export const AperçuBilan = ({ bilan, exercice }) => {
+  const { formatMontant } = useFormatMontant();
   if (!bilan) return null;
   return (
     <div className="space-y-4">

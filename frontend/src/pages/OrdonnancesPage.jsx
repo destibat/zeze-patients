@@ -14,7 +14,7 @@ import {
   FileText, Download, Search, Receipt, CheckCircle,
   Pencil, Trash2, X, Save, Loader2, Plus, RefreshCw, UserPlus,
 } from 'lucide-react';
-import { formatMontant } from '../utils/formatMontant';
+import useFormatMontant from '../hooks/useFormatMontant';
 
 const useOrdonnancesGlobal = (params) =>
   useQuery({
@@ -380,6 +380,7 @@ const ModalModifier = ({ ordonnance, onFermer, onSauvegarder, loading }) => {
 const OrdonnancesPage = () => {
   const navigate = useNavigate();
   const { utilisateur, aLeRole } = useAuth();
+  const { formatMontant } = useFormatMontant();
   const estAdmin = aLeRole('administrateur');
   const estStockiste = aLeRole('stockiste');
   const estDelegue = aLeRole('delegue');

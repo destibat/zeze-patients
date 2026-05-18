@@ -49,7 +49,7 @@ const obtenirUtilisateur = async (req, res) => {
 
 // POST /api/users
 const creerUtilisateur = async (req, res) => {
-  const { nom, prenom, email, password, role, telephone, commission_rate, stockiste_id } = req.body;
+  const { nom, prenom, email, password, role, telephone, commission_rate, stockiste_id, devise } = req.body;
 
   if (!nom || !prenom || !email || !password || !role) {
     return erreur(res, 'Nom, prénom, email, mot de passe et rôle sont requis', 400);
@@ -75,6 +75,7 @@ const creerUtilisateur = async (req, res) => {
     telephone: telephone?.trim() || null,
     commission_rate: commission_rate != null ? parseFloat(commission_rate) : (role === 'delegue' ? 15 : 30),
     stockiste_id: role === 'delegue' ? stockiste_id : null,
+    devise: devise || 'XOF',
     doit_changer_mdp: true,
   });
 
@@ -95,7 +96,7 @@ const modifierUtilisateur = async (req, res) => {
     return erreur(res, 'Vous ne pouvez pas modifier votre propre rôle', 403);
   }
 
-  const { nom, prenom, email, role, telephone, ville, pays, nom_cabinet, actif, commission_rate, stockiste_id } = req.body;
+  const { nom, prenom, email, role, telephone, ville, pays, nom_cabinet, actif, commission_rate, stockiste_id, devise } = req.body;
 
   const nouveauRole = role || utilisateur.role;
   if (nouveauRole === 'delegue' && !stockiste_id && !utilisateur.stockiste_id) {
@@ -123,6 +124,7 @@ const modifierUtilisateur = async (req, res) => {
     stockiste_id: nouveauRole === 'delegue'
       ? (stockiste_id || utilisateur.stockiste_id)
       : null,
+    devise: devise || utilisateur.devise,
   });
 
   await journaliser('UPDATE_USER', req.utilisateur?.id, req, utilisateur.id);

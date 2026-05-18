@@ -10,7 +10,7 @@ import { useMarquerEnvoye, useMarquerPaye } from '../hooks/useFacturesAchat';
 import Button from '../components/ui/Button';
 import Alert from '../components/ui/Alert';
 import { ShoppingCart, Plus, X, Send, Check, Package, Clock, CheckCircle, XCircle, Trash2, Banknote } from 'lucide-react';
-import { formatMontant } from '../utils/formatMontant';
+import useFormatMontant from '../hooks/useFormatMontant';
 
 const STATUT_CFG = {
   brouillon:  { label: 'Brouillon',   couleur: 'bg-gray-100 text-gray-600',    icone: Clock },
@@ -21,6 +21,7 @@ const STATUT_CFG = {
 
 // ── Brouillon éditable (revendeur) ────────────────────────────────────────────
 const BrouillonEditeur = ({ produits }) => {
+  const { formatMontant } = useFormatMontant();
   const { data: brouillon, isLoading, isError, error } = useBrouillon();
   const mettreAJour = useMettreAJourLignes();
   const envoyer     = useEnvoyerCommande();
@@ -214,6 +215,7 @@ const PAIEMENT_CFG = {
 
 // ── Brouillon auto-généré depuis une ordonnance ───────────────────────────────
 const CarteBrouillonAuto = ({ commande }) => {
+  const { formatMontant } = useFormatMontant();
   const mettreAJour = useMettreAJourLignesParId();
   const envoyer     = useEnvoyerCommandeParId();
   const [lignes, setLignes]   = useState(Array.isArray(commande.lignes) ? commande.lignes : []);
@@ -326,6 +328,7 @@ const CarteBrouillonAuto = ({ commande }) => {
 
 // ── Carte commande (historique) ───────────────────────────────────────────────
 const CarteCommande = ({ commande, estStockiste, estDelegue }) => {
+  const { formatMontant } = useFormatMontant();
   const cfg  = STATUT_CFG[commande.statut] || STATUT_CFG.en_attente;
   const Icone = cfg.icone;
   const lignes = Array.isArray(commande.lignes) ? commande.lignes : [];

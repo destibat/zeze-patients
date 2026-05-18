@@ -6,7 +6,7 @@ import { useMettreAJourSeuil } from '../hooks/useStock';
 import Alert from '../components/ui/Alert';
 import Button from '../components/ui/Button';
 import { Package, TrendingUp, TrendingDown, AlertTriangle, X, Plus, Minus, RefreshCw, Bell, BellOff, Pencil } from 'lucide-react';
-import { formatMontant } from '../utils/formatMontant';
+import useFormatMontant from '../hooks/useFormatMontant';
 
 const useStock = () =>
   useQuery({ queryKey: ['stock'], queryFn: () => api.get('/stock').then((r) => r.data), refetchInterval: 60 * 1000 });
@@ -381,6 +381,7 @@ const MouvementModal = ({ produit, onFermer }) => {
 
 const StockPage = () => {
   const { aLeRole } = useAuth();
+  const { formatMontant } = useFormatMontant();
   const { data: produits = [], isLoading } = useStock();
   const [produitSelectionne, setProduitSelectionne] = useState(null);
   const [produitEdition, setProduitEdition]         = useState(null);

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useMonBilan } from '../hooks/useStockDelegue';
 import { useAuth } from '../contexts/AuthContext';
-import { formatMontant } from '../utils/formatMontant';
+import useFormatMontant from '../hooks/useFormatMontant';
 import { Printer, TrendingUp, ShoppingCart, ShoppingBag, ChevronDown, ChevronUp } from 'lucide-react';
 
 const aujourdhui = () => new Date().toISOString().split('T')[0];
@@ -59,6 +59,7 @@ const SectionCollapsible = ({ titre, count, children, defaultOpen = true }) => {
 
 const MonBilanPage = () => {
   const { utilisateur } = useAuth();
+  const { formatMontant } = useFormatMontant();
   const [periodeIdx, setPeriodeIdx] = useState(0);
   const [debutCustom, setDebutCustom] = useState(debutMoisCourant());
   const [finCustom, setFinCustom] = useState(aujourdhui());

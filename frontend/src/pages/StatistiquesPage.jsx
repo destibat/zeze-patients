@@ -4,7 +4,8 @@ import { useAuth } from '../contexts/AuthContext';
 import api from '../services/api';
 import { useExercices, useBilanExercice } from '../hooks/useExercices';
 import { TrendingUp, Users, Stethoscope, Package, ChevronLeft, ChevronRight, Printer, BookOpen } from 'lucide-react';
-import { formatMontant, formatNombre } from '../utils/formatMontant';
+import { formatNombre } from '../utils/formatMontant';
+import useFormatMontant from '../hooks/useFormatMontant';
 
 const PERIODES = [
   { val: 'annee',     label: 'Année' },
@@ -54,6 +55,7 @@ const BarreChart = ({ donnees, cleValeur, couleur, labelFormatter }) => {
 };
 
 const CAChart = ({ donnees }) => {
+  const { formatMontant } = useFormatMontant();
   const max = Math.max(...donnees.map((d) => d.facture || 0), 1);
   return (
     <div className="flex items-end gap-0.5 h-32 overflow-x-auto">
@@ -209,6 +211,7 @@ const KpiLigne = ({ label, valeur, emphasis, green, small }) => (
 );
 
 const ColonneExercice = ({ exercice, bilan, stats, isLoading }) => {
+  const { formatMontant } = useFormatMontant();
   if (!exercice) return null;
   const b = bilan?.bilan;
   const commissions = b ? (b.commissions_stockistes || 0) + (b.commissions_delegues || 0) : null;

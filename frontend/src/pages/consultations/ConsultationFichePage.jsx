@@ -13,7 +13,7 @@ import {
   ArrowLeft, FileText, Download, Plus, X, HeartPulse,
   Thermometer, Activity, Weight, Ruler, Droplets, Receipt, CheckCircle,
 } from 'lucide-react';
-import { formatMontant } from '../../utils/formatMontant';
+import useFormatMontant from '../../hooks/useFormatMontant';
 
 const fetchConsultation = (patientId, id) =>
   api.get(`/patients/${patientId}/consultations/${id}`).then((r) => r.data);
@@ -33,6 +33,7 @@ const ConsultationFichePage = () => {
   const { id: patientId, consultationId } = useParams();
   const navigate = useNavigate();
   const { aLeRole } = useAuth();
+  const { formatMontant } = useFormatMontant();
   const peutPrescrire = aLeRole('administrateur', 'stockiste', 'delegue');
   const estDelegue = aLeRole('delegue');
   const { data: stockDelegue = [] } = useMonStock(estDelegue);

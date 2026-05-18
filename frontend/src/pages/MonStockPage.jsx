@@ -4,7 +4,7 @@ import { useMonStock, useVendreStock, useMesVentes } from '../hooks/useStockDele
 import { Package, ShoppingCart, ShoppingBag, Plus, X, Clock, ArrowRight } from 'lucide-react';
 import Button from '../components/ui/Button';
 import Alert from '../components/ui/Alert';
-import { formatMontant } from '../utils/formatMontant';
+import useFormatMontant from '../hooks/useFormatMontant';
 
 const parseLignes = (lignes) => {
   if (!lignes) return [];
@@ -34,6 +34,7 @@ const LienApprovisionner = () => {
 
 // ── Formulaire de vente ───────────────────────────────────────────────────────
 const FormulaireVente = ({ stock }) => {
+  const { formatMontant } = useFormatMontant();
   const [lignes, setLignes] = useState([]);
   const [clientNom, setClientNom] = useState('');
   const [erreur, setErreur] = useState('');
@@ -191,6 +192,7 @@ const FormulaireVente = ({ stock }) => {
 
 // ── Page principale ───────────────────────────────────────────────────────────
 const MonStockPage = () => {
+  const { formatMontant } = useFormatMontant();
   const { data: stock = [], isLoading } = useMonStock();
   const { data: ventes = [] } = useMesVentes();
 

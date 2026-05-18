@@ -8,6 +8,7 @@ import Button from '../../components/ui/Button';
 import Alert from '../../components/ui/Alert';
 import api from '../../services/api';
 import { ArrowLeft, Save } from 'lucide-react';
+import { DEVISES } from '../../utils/devises';
 
 const ChampFormulaire = ({ label, erreur, children, obligatoire }) => (
   <div>
@@ -59,6 +60,7 @@ const UserFormPage = () => {
         telephone: utilisateurExistant.telephone || '',
         ville: utilisateurExistant.ville || '',
         pays: utilisateurExistant.pays || '',
+        devise: utilisateurExistant.devise || 'XOF',
         role: utilisateurExistant.role,
         commission_rate: utilisateurExistant.commission_rate ?? 25,
         stockiste_id: utilisateurExistant.stockiste_id || '',
@@ -160,6 +162,19 @@ const UserFormPage = () => {
               />
             </ChampFormulaire>
           </div>
+
+          <ChampFormulaire label="Devise de travail" erreur={errors.devise?.message} obligatoire>
+            <select
+              className="champ-input"
+              {...register('devise', { required: t('commun.requis') })}
+            >
+              {DEVISES.map((d) => (
+                <option key={d.code} value={d.code}>
+                  {d.drapeau} {d.nom} ({d.symbole})
+                </option>
+              ))}
+            </select>
+          </ChampFormulaire>
 
           <ChampFormulaire label={t('utilisateurs.role')} erreur={errors.role?.message} obligatoire>
             <select

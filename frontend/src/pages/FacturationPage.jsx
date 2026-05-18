@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 import { useVentesDirectesDelegues, useVentesEnAttente, useValiderVente, useEnregistrerPaiement, useRefuserVente } from '../hooks/useStockDelegue';
 import { useFacturesAchat, useMarquerPaye } from '../hooks/useFacturesAchat';
-import { formatMontant } from '../utils/formatMontant';
+import useFormatMontant from '../hooks/useFormatMontant';
 
 // ── Hooks ─────────────────────────────────────────────────────────────────────
 
@@ -74,6 +74,7 @@ const MODE_PAIEMENT = {
 // ── Modal paiement ────────────────────────────────────────────────────────────
 
 const ModalPaiement = ({ facture, onFermer }) => {
+  const { formatMontant } = useFormatMontant();
   const restant = facture.montant_total - facture.montant_paye;
   const [montant, setMontant] = useState(restant);
   const [mode, setMode] = useState(facture.mode_paiement || 'especes');
@@ -137,6 +138,7 @@ const parseLignes = (raw) => {
 };
 
 const LigneFacture = ({ facture, onPayer, onAnnuler }) => {
+  const { formatMontant } = useFormatMontant();
   const [ouverte, setOuverte] = useState(false);
   const cfg = STATUT[facture.statut] || STATUT.en_attente;
   const Icone = cfg.icone;
@@ -225,6 +227,7 @@ const LigneFacture = ({ facture, onPayer, onAnnuler }) => {
 // ── Vue Relances ──────────────────────────────────────────────────────────────
 
 const PatientRelance = ({ patient, factures, onPayer, onAnnuler }) => {
+  const { formatMontant } = useFormatMontant();
   const [ouverte, setOuverte] = useState(false);
   const totalRestant = factures.reduce((s, f) => s + (f.montant_total - f.montant_paye), 0);
   const totalFacture = factures.reduce((s, f) => s + f.montant_total, 0);
@@ -304,6 +307,7 @@ const PatientRelance = ({ patient, factures, onPayer, onAnnuler }) => {
 };
 
 const VueRelances = ({ factures, onPayer, onAnnuler }) => {
+  const { formatMontant } = useFormatMontant();
   const aRelancer = factures.filter((f) => f.statut === 'en_attente' || f.statut === 'partiellement_payee');
 
   const parPatient = aRelancer.reduce((acc, f) => {
@@ -360,12 +364,15 @@ const VueRelances = ({ factures, onPayer, onAnnuler }) => {
 
 // ── Gains ─────────────────────────────────────────────────────────────────────
 
-const LigneTotal = ({ label, montant, couleur = 'text-texte-principal', petit = false }) => (
-  <div className={`flex items-center justify-between ${petit ? 'py-1' : 'py-2'}`}>
-    <p className={`${petit ? 'text-xs text-texte-secondaire' : 'text-sm text-texte-principal'}`}>{label}</p>
-    <p className={`font-semibold font-mono ${petit ? 'text-xs' : 'text-sm'} ${couleur}`}>{formatMontant(montant)}</p>
-  </div>
-);
+const LigneTotal = ({ label, montant, couleur = 'text-texte-principal', petit = false }) => {
+  const { formatMontant } = useFormatMontant();
+  return (
+    <div className={`flex items-center justify-between ${petit ? 'py-1' : 'py-2'}`}>
+      <p className={`${petit ? 'text-xs text-texte-secondaire' : 'text-sm text-texte-principal'}`}>{label}</p>
+      <p className={`font-semibold font-mono ${petit ? 'text-xs' : 'text-sm'} ${couleur}`}>{formatMontant(montant)}</p>
+    </div>
+  );
+};
 
 // Vue gains simplifiée pour le revendeur — uniquement ses propres 15%
 const VueGainsDelegue = ({ totalEncaisse, tauxDelegue = 15 }) => {
@@ -388,6 +395,7 @@ const VueGainsDelegue = ({ totalEncaisse, tauxDelegue = 15 }) => {
 };
 
 const VueGains = ({ factures, ventesDirectes = [], parametres, estAdmin }) => {
+  const { formatMontant } = useFormatMontant();
   const tauxDelegue = parametres.commission_delegue ?? 15;
 
   // Agréger les ventes par créateur (ordonnances)
@@ -599,6 +607,7 @@ const MODE_PAIEMENT_DELEGUE = {
 
 // ── Vue validation ventes revendeurs ────────────────────────────────────────────
 const VueValidationDelegues = () => {
+  const { formatMontant } = useFormatMontant();
   const { data: ventes = [], isLoading } = useVentesEnAttente(true);
   const valider = useValiderVente();
   const payer   = useEnregistrerPaiement();
@@ -778,6 +787,7 @@ const MODES_PAIEMENT_ACHAT = ['especes', 'mobile_money', 'virement', 'cheque'];
 const LABELS_MODE = { especes: 'Espèces', mobile_money: 'Mobile Money', virement: 'Virement', cheque: 'Chèque', en_attente: 'En attente' };
 
 const VueFacturesAchat = ({ estDelegue }) => {
+  const { formatMontant } = useFormatMontant();
   const { data: factures = [], isLoading } = useFacturesAchat();
   const marquerPaye = useMarquerPaye();
   const [modes, setModes] = useState({});
@@ -867,6 +877,7 @@ const VueFacturesAchat = ({ estDelegue }) => {
 // ── Vue Créanciers ────────────────────────────────────────────────────────────
 
 const VueCreanciers = ({ onPayer }) => {
+  const { formatMontant } = useFormatMontant();
   const { data: factures = [], isLoading } = useCreanciers();
 
   if (isLoading) {
@@ -1006,6 +1017,7 @@ const VueCreanciers = ({ onPayer }) => {
 
 const FacturationPage = () => {
   const { utilisateur } = useAuth();
+  const { formatMontant } = useFormatMontant();
   const estAdmin = utilisateur?.role === 'administrateur';
   const estDelegue = utilisateur?.role === 'delegue';
   const estStockisteOuAdmin = ['administrateur', 'stockiste'].includes(utilisateur?.role);

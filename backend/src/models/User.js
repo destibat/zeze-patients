@@ -52,6 +52,11 @@ module.exports = (sequelize) => {
       type: DataTypes.STRING(100),
       allowNull: true,
     },
+    devise: {
+      type: DataTypes.STRING(3),
+      allowNull: false,
+      defaultValue: 'XOF',
+    },
     nom_cabinet: {
       type: DataTypes.STRING(200),
       allowNull: true,

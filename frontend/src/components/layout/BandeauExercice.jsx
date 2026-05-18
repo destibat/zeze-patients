@@ -2,10 +2,11 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useExerciceActuel } from '../../hooks/useExercices';
 import { BookOpen, AlertTriangle, TrendingUp, Clock } from 'lucide-react';
-import { formatMontant } from '../../utils/formatMontant';
+import useFormatMontant from '../../hooks/useFormatMontant';
 
 const BandeauExercice = () => {
   const { utilisateur } = useAuth();
+  const { formatMontant } = useFormatMontant();
   const navigate = useNavigate();
 
   // Visible uniquement pour admin et stockiste
