@@ -379,6 +379,7 @@ const CarteExercice = ({ exercice, estAdmin, onCloturer, onRouvrir, onVoirBilan 
 const ExercicesPage = () => {
   const { utilisateur } = useAuth();
   const navigate = useNavigate();
+  const { formatMontant } = useFormatMontant();
   const estAdmin = utilisateur?.role === 'administrateur';
 
   const [modalOuvrir, setModalOuvrir] = useState(false);
