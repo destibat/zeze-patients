@@ -8,11 +8,7 @@ const pdfService = require('../services/pdfService');
 
 const getMedecinIds = async (utilisateur) => {
   const { Op } = require('sequelize');
-  if (utilisateur.role === 'administrateur') return null;
-  if (utilisateur.role === 'stockiste') {
-    const delegues = await User.findAll({ where: { stockiste_id: utilisateur.id }, attributes: ['id'] });
-    return { [Op.in]: [utilisateur.id, ...delegues.map((d) => d.id)] };
-  }
+  if (['administrateur', 'stockiste'].includes(utilisateur.role)) return null;
   return utilisateur.id;
 };
 
@@ -98,12 +94,7 @@ const obtenir = async (req, res) => {
 
 const verifierPropriete = async (ordonnance, utilisateur) => {
   const { Op } = require('sequelize');
-  if (utilisateur.role === 'administrateur') return true;
-  if (utilisateur.role === 'stockiste') {
-    const delegues = await User.findAll({ where: { stockiste_id: utilisateur.id }, attributes: ['id'] });
-    const ids = [utilisateur.id, ...delegues.map((d) => d.id)];
-    return ids.includes(ordonnance.medecin_id);
-  }
+  if (['administrateur', 'stockiste'].includes(utilisateur.role)) return true;
   return ordonnance.medecin_id === utilisateur.id;
 };
 
@@ -118,7 +109,7 @@ const modifier = async (req, res) => {
   const ordonnance = await Ordonnance.findByPk(req.params.id);
   if (!ordonnance) return res.status(404).json({ message: 'Ordonnance introuvable' });
 
-  const estAdmin = req.utilisateur.role === 'administrateur';
+  const estAdmin = ['administrateur', 'stockiste'].includes(req.utilisateur.role);
   if (!(await verifierPropriete(ordonnance, req.utilisateur))) {
     return res.status(403).json({ message: 'Accès refusé : vous ne pouvez modifier que vos propres ordonnances' });
   }
@@ -145,7 +136,7 @@ const supprimer = async (req, res) => {
   const ordonnance = await Ordonnance.findByPk(req.params.id);
   if (!ordonnance) return res.status(404).json({ message: 'Ordonnance introuvable' });
 
-  const estAdmin = req.utilisateur.role === 'administrateur';
+  const estAdmin = ['administrateur', 'stockiste'].includes(req.utilisateur.role);
   if (!(await verifierPropriete(ordonnance, req.utilisateur))) {
     return res.status(403).json({ message: 'Accès refusé : vous ne pouvez supprimer que vos propres ordonnances' });
   }

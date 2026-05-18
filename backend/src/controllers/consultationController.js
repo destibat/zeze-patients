@@ -5,11 +5,7 @@ const { getPosologie } = require('../services/posologieService');
 
 const getMedecinIds = async (utilisateur) => {
   const { Op } = require('sequelize');
-  if (utilisateur.role === 'administrateur') return null; // pas de filtre
-  if (utilisateur.role === 'stockiste') {
-    const delegues = await User.findAll({ where: { stockiste_id: utilisateur.id }, attributes: ['id'] });
-    return { [Op.in]: [utilisateur.id, ...delegues.map((d) => d.id)] };
-  }
+  if (['administrateur', 'stockiste'].includes(utilisateur.role)) return null; // pas de filtre
   return utilisateur.id; // délégué ou autre : uniquement soi-même
 };
 

@@ -117,7 +117,7 @@ const valider = async (req, res) => {
     return res.status(409).json({ message: 'Cette commande a déjà été traitée.' });
   }
 
-  const estAdmin = req.utilisateur.role === 'administrateur';
+  const estAdmin = ['administrateur', 'stockiste'].includes(req.utilisateur.role);
   if (!estAdmin && commande.stockiste_id !== req.utilisateur.id) {
     return res.status(403).json({ message: 'Accès refusé.' });
   }
@@ -218,7 +218,7 @@ const refuser = async (req, res) => {
     return res.status(409).json({ message: 'Cette commande a déjà été traitée.' });
   }
 
-  const estAdmin = req.utilisateur.role === 'administrateur';
+  const estAdmin = ['administrateur', 'stockiste'].includes(req.utilisateur.role);
   if (!estAdmin && commande.stockiste_id !== req.utilisateur.id) {
     return res.status(403).json({ message: 'Accès refusé.' });
   }

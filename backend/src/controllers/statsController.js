@@ -174,7 +174,7 @@ const obtenirStats = async (req, res) => {
 const obtenirStatsDetaillees = async (req, res) => {
   const maintenant = new Date();
   const { periode = 'annee', annee, mois, semaine, jour, debut, fin } = req.query;
-  const estAdmin = req.utilisateur.role === 'administrateur';
+  const estAdmin = ['administrateur', 'stockiste'].includes(req.utilisateur.role);
   const userId = req.utilisateur.id;
 
   // ── Calcul de la plage de dates selon la période ──────────────────────────

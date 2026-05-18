@@ -22,7 +22,7 @@ const listerPatients = async (req, res) => {
   const page = parseInt(req.query.page, 10) || 1;
   const limite = parseInt(req.query.limite, 10) || 20;
   const { recherche, sexe, archive } = req.query;
-  const estAdmin = req.utilisateur.role === 'administrateur';
+  const estAdmin = ['administrateur', 'stockiste'].includes(req.utilisateur.role);
 
   const where = {};
 

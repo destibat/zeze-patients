@@ -30,7 +30,7 @@ const calculerStatut = (total, paye) => {
 
 const lister = async (req, res) => {
   const { statut, patient_id, debut, fin } = req.query;
-  const estAdmin = req.utilisateur.role === 'administrateur';
+  const estAdmin = ['administrateur', 'stockiste'].includes(req.utilisateur.role);
 
   const where = {};
   if (statut) where.statut = statut;
@@ -146,7 +146,7 @@ const annuler = async (req, res) => {
 };
 
 const listerCreanciers = async (req, res) => {
-  const estAdmin = req.utilisateur.role === 'administrateur';
+  const estAdmin = ['administrateur', 'stockiste'].includes(req.utilisateur.role);
   const where = { statut: { [Op.in]: ['en_attente', 'partiellement_payee'] } };
 
   if (!estAdmin) {

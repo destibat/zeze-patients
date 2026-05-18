@@ -256,7 +256,7 @@ const obtenirStatsStock = async (req, res) => {
 // (commandeAppro + lignes ordonnance source='achat'). Les ventes depuis stock perso ne génèrent pas
 // de nouvelle commission car elle a été prise lors de l'approvisionnement.
 const obtenirGainsDelegues = async (req, res) => {
-  const estAdmin = req.utilisateur.role === 'administrateur';
+  const estAdmin = ['administrateur', 'stockiste'].includes(req.utilisateur.role);
 
   const exercice = await getExerciceOuvert();
   if (!exercice) return res.json([]);
@@ -339,7 +339,7 @@ const obtenirGainsDelegues = async (req, res) => {
 
 // Ventes en attente de validation — stockiste voit les ventes de ses délégués à valider
 const ventesEnAttente = async (req, res) => {
-  const estAdmin = req.utilisateur.role === 'administrateur';
+  const estAdmin = ['administrateur', 'stockiste'].includes(req.utilisateur.role);
   const whereDelegue = { role: 'delegue', actif: true };
   if (!estAdmin) whereDelegue.stockiste_id = req.utilisateur.id;
 
@@ -370,7 +370,7 @@ const validerVente = async (req, res) => {
   if (mouvement.statut !== 'en_attente') {
     return res.status(409).json({ message: 'Cette vente a déjà été traitée' });
   }
-  const estAdmin = req.utilisateur.role === 'administrateur';
+  const estAdmin = ['administrateur', 'stockiste'].includes(req.utilisateur.role);
   if (!estAdmin && mouvement.delegue?.stockiste_id !== req.utilisateur.id) {
     return res.status(403).json({ message: 'Accès refusé' });
   }
@@ -403,7 +403,7 @@ const enregistrerPaiement = async (req, res) => {
   if (mouvement.statut !== 'partiellement_payee') {
     return res.status(409).json({ message: 'Cette vente n\'est pas en attente de complément' });
   }
-  const estAdmin = req.utilisateur.role === 'administrateur';
+  const estAdmin = ['administrateur', 'stockiste'].includes(req.utilisateur.role);
   if (!estAdmin && mouvement.delegue?.stockiste_id !== req.utilisateur.id) {
     return res.status(403).json({ message: 'Accès refusé' });
   }
@@ -430,7 +430,7 @@ const refuserVente = async (req, res) => {
   if (!['en_attente', 'partiellement_payee'].includes(mouvement.statut)) {
     return res.status(409).json({ message: 'Cette vente a déjà été traitée' });
   }
-  const estAdmin = req.utilisateur.role === 'administrateur';
+  const estAdmin = ['administrateur', 'stockiste'].includes(req.utilisateur.role);
   if (!estAdmin && mouvement.delegue?.stockiste_id !== req.utilisateur.id) {
     return res.status(403).json({ message: 'Accès refusé' });
   }
@@ -460,7 +460,7 @@ const refuserVente = async (req, res) => {
 
 // Ventes directes des délégués — admin et stockiste : toutes les ventes hors ordonnance
 const ventesDirectesDelegues = async (req, res) => {
-  const estAdmin = req.utilisateur.role === 'administrateur';
+  const estAdmin = ['administrateur', 'stockiste'].includes(req.utilisateur.role);
   const { debut, fin } = req.query;
 
   const whereDelegue = { role: 'delegue', actif: true };
