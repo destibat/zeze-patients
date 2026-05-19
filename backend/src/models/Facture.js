@@ -27,7 +27,7 @@ module.exports = (sequelize) => {
       montant_total: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
       montant_paye: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
       mode_paiement: {
-        type: DataTypes.ENUM('especes', 'mobile_money', 'virement', 'cheque', 'autre'),
+        type: DataTypes.ENUM('especes', 'orange_money', 'momo_mtn', 'wave', 'moov', 'western_union', 'moneygram', 'ria', 'virement', 'cheque', 'mobile_money', 'autre'),
         allowNull: true,
       },
       statut: {

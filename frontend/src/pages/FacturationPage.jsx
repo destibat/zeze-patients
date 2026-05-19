@@ -12,6 +12,7 @@ import {
 import { useVentesDirectesDelegues, useVentesEnAttente, useValiderVente, useEnregistrerPaiement, useRefuserVente } from '../hooks/useStockDelegue';
 import { useFacturesAchat, useMarquerPaye } from '../hooks/useFacturesAchat';
 import useFormatMontant from '../hooks/useFormatMontant';
+import { MODES_PAIEMENT, LABELS_MODES_PAIEMENT } from '../utils/modesPaiement';
 
 // ── Hooks ─────────────────────────────────────────────────────────────────────
 
@@ -63,13 +64,7 @@ const STATUT = {
   annulee:              { label: 'Annulée',              couleur: 'bg-gray-100 text-gray-500 border-gray-200',       icone: XCircle },
 };
 
-const MODE_PAIEMENT = {
-  especes:      'Espèces',
-  mobile_money: 'Mobile Money',
-  virement:     'Virement',
-  cheque:       'Chèque',
-  autre:        'Autre',
-};
+const MODE_PAIEMENT = LABELS_MODES_PAIEMENT;
 
 // ── Modal paiement ────────────────────────────────────────────────────────────
 
@@ -597,13 +592,7 @@ const VueGains = ({ factures, ventesDirectes = [], parametres, estAdmin }) => {
   );
 };
 
-const MODE_PAIEMENT_DELEGUE = {
-  especes:      'Espèces',
-  mobile_money: 'Mobile Money',
-  virement:     'Virement',
-  cheque:       'Chèque',
-  en_attente:   'Paiement en attente',
-};
+const MODE_PAIEMENT_DELEGUE = { ...LABELS_MODES_PAIEMENT, en_attente: 'Paiement en attente' };
 
 // ── Vue validation ventes revendeurs ────────────────────────────────────────────
 const VueValidationDelegues = () => {
@@ -728,10 +717,9 @@ const VueValidationDelegues = () => {
               value={etat.mode}
               onChange={(e) => setEtat(v.id, { mode: e.target.value })}
             >
-              <option value="especes">Espèces</option>
-              <option value="mobile_money">Mobile Money</option>
-              <option value="virement">Virement</option>
-              <option value="cheque">Chèque</option>
+              {MODES_PAIEMENT.map((m) => (
+                <option key={m.value} value={m.value}>{m.label}</option>
+              ))}
             </select>
           </div>
           <div className="flex gap-2 shrink-0">
@@ -783,8 +771,8 @@ const VueValidationDelegues = () => {
 
 // ── Vue Factures Achat (revendeur ↔ stockiste) ────────────────────────────────
 
-const MODES_PAIEMENT_ACHAT = ['especes', 'mobile_money', 'virement', 'cheque'];
-const LABELS_MODE = { especes: 'Espèces', mobile_money: 'Mobile Money', virement: 'Virement', cheque: 'Chèque', en_attente: 'En attente' };
+const MODES_PAIEMENT_ACHAT = MODES_PAIEMENT.map((m) => m.value);
+const LABELS_MODE = { ...LABELS_MODES_PAIEMENT, en_attente: 'En attente' };
 
 const VueFacturesAchat = ({ estDelegue }) => {
   const { formatMontant } = useFormatMontant();

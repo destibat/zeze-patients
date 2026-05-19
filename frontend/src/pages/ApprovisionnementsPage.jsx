@@ -11,6 +11,7 @@ import Button from '../components/ui/Button';
 import Alert from '../components/ui/Alert';
 import { ShoppingCart, Plus, X, Send, Check, Package, Clock, CheckCircle, XCircle, Trash2, Banknote } from 'lucide-react';
 import useFormatMontant from '../hooks/useFormatMontant';
+import { MODES_PAIEMENT } from '../utils/modesPaiement';
 
 const STATUT_CFG = {
   brouillon:  { label: 'Brouillon',   couleur: 'bg-gray-100 text-gray-600',    icone: Clock },
@@ -455,9 +456,9 @@ const CarteCommande = ({ commande, estStockiste, estDelegue }) => {
                       onChange={(e) => setMode(e.target.value)}
                       className="champ-input text-sm"
                     >
-                      <option value="especes">Espèces</option>
-                      <option value="mobile_money">Mobile Money</option>
-                      <option value="virement">Virement</option>
+                      {MODES_PAIEMENT.map((m) => (
+                        <option key={m.value} value={m.value}>{m.label}</option>
+                      ))}
                     </select>
                     <Button
                       variante="primaire" icone={Banknote}
