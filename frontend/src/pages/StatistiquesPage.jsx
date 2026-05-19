@@ -416,6 +416,7 @@ const StatsParExercice = () => {
 
 const StatistiquesPage = () => {
   const { utilisateur } = useAuth();
+  const { formatMontant } = useFormatMontant();
   const estAdmin = utilisateur?.role === 'administrateur';
   const now = new Date();
   const [mode, setMode] = useState('calendaire');
