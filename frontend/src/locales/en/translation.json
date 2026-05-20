@@ -11,6 +11,7 @@
     "ordonnances": "Prescriptions",
     "facturation": "Billing",
     "mon_stock": "My Stock",
+    "mon_bilan": "My Report",
     "approvisionnements": "Supply Orders",
     "stock": "Stock",
     "statistiques": "Statistics",
@@ -85,6 +86,13 @@
     "tous": "All",
     "page_introuvable": "Page not found",
     "retour_accueil": "Back to home"
+  },
+  "patients": {
+    "titre": "Patients",
+    "nouveau": "New patient",
+    "dossier": "File",
+    "age": "Age",
+    "aucun": "No patients found"
   },
   "tableau_de_bord": {
     "bienvenue": "Welcome",
