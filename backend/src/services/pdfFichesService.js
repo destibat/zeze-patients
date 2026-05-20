@@ -198,20 +198,8 @@ const genererFicheMAPAPDF = (exercice, bilan, parrain_nom = '', infos = {}) =>
 
     let yRow = doc.y;
     yRow = ligneTableau(doc, yRow, colsCA, [
-      'Factures directes (stockiste / secrétaire)',
-      `${bilan.nb_factures || 0} facture${(bilan.nb_factures || 0) > 1 ? 's' : ''}`,
-      fmtMontant(bilan.ca_factures),
-    ], false, FOND_GRIS);
-
-    yRow = ligneTableau(doc, yRow, colsCA, [
-      'Ventes délégués (validées)',
-      `${bilan.nb_ventes_delegues || 0} vente${(bilan.nb_ventes_delegues || 0) > 1 ? 's' : ''}`,
-      fmtMontant(bilan.ca_delegues),
-    ]);
-
-    yRow = ligneTableau(doc, yRow, colsCA, [
       'TOTAL VENDU SUR L\'EXERCICE',
-      '',
+      `${(bilan.nb_factures || 0) + (bilan.nb_ventes_delegues || 0)} vente${((bilan.nb_factures || 0) + (bilan.nb_ventes_delegues || 0)) > 1 ? 's' : ''}`,
       fmtMontant(ca_total),
     ], true);
 
@@ -284,42 +272,7 @@ const genererFicheMAPAPDF = (exercice, bilan, parrain_nom = '', infos = {}) =>
         ML, doc.y + 4, { width: PAGE_W }
       );
 
-    // ── Section 3 : Détail par stockiste ────────────────────────────────────
-    if (bilan.par_stockiste?.length > 0) {
-      doc.y = doc.y + 10;
-      titreSection(doc, '3. DÉTAIL PAR STOCKISTE');
-
-      const colsSt = [
-        { x: ML + 4,   width: 150, align: 'left'  },
-        { x: ML + 158, width: 50,  align: 'right' },
-        { x: ML + 212, width: 80,  align: 'right' },
-        { x: ML + 296, width: 80,  align: 'right' },
-        { x: ML + 380, width: 105, align: 'right' },
-      ];
-
-      const yThSt = doc.y;
-      doc.rect(ML, yThSt, PAGE_W, 14).fill('#CFD8DC');
-      doc.fontSize(8).font('Helvetica-Bold').fillColor('#37474F');
-      ['Stockiste', 'Taux', 'CA généré', 'Commission', 'Part MAPA générée'].forEach((h, i) => {
-        doc.text(h, colsSt[i].x, yThSt + 3, { width: colsSt[i].width, align: colsSt[i].align });
-      });
-      doc.y = yThSt + 16;
-
-      yRow = doc.y;
-      bilan.par_stockiste.forEach((st, i) => {
-        yRow = ligneTableau(doc, yRow, colsSt, [
-          st.nom,
-          `${st.taux} %`,
-          fmtMontant(st.ca_factures + st.ca_delegues),
-          fmtMontant(st.commission_totale),
-          fmtMontant(st.part_mapa_generee),
-        ], false, i % 2 === 0 ? FOND_GRIS : null);
-      });
-
-      doc.y = yRow;
-    }
-
-    // ── Section 4 : Détail des produits vendus (payés uniquement) ───────────
+    // ── Section 3 : Détail des produits vendus (payés uniquement) ───────────
     {
       const produits = [...(bilan.top_produits || [])].sort((a, b) => b.ca - a.ca);
       if (produits.length > 0) {
@@ -337,7 +290,7 @@ const genererFicheMAPAPDF = (exercice, bilan, parrain_nom = '', infos = {}) =>
           doc.y = doc.y + 10;
         }
 
-        titreSection(doc, '4. PRODUITS VENDUS (payés uniquement, triés par CA décroissant)');
+        titreSection(doc, '3. PRODUITS VENDUS (payés uniquement, triés par CA décroissant)');
 
         const colsProd = [
           { x: ML + 4,   width: 205, align: 'left'  },
