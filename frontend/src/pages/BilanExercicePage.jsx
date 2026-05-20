@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useBilanExercice, useExercice } from '../hooks/useExercices';
 import { AperçuBilan } from './ExercicesPage';
 import Button from '../components/ui/Button';
-import { ArrowLeft, Printer, Loader2, FileText, Download, Users, Package, User, TrendingUp } from 'lucide-react';
+import { ArrowLeft, Printer, Loader2, FileText, Download, Users, User, TrendingUp } from 'lucide-react';
 import api from '../services/api';
 import useFormatMontant from '../hooks/useFormatMontant';
 
@@ -30,8 +30,10 @@ const telechargerPDF = async (url, nomFichier, setChargement) => {
 };
 
 // ── Bilan MAPA (affichage écran) ──────────────────────────────────────────────
-const SectionBilanMapa = ({ bilan }) => {
+const SectionBilanMapa = ({ bilan, exerciceId, exerciceNumero }) => {
   const { formatMontant } = useFormatMontant();
+  const [parrainNom, setParrainNom] = useState('');
+  const [chargement, setChargementPdf] = useState(false);
 
   const gainBrut        = (bilan.commissions_stockistes || 0) + (bilan.commissions_delegues || 0);
   const partParrain     = Math.round(gainBrut * 0.10);
@@ -46,11 +48,36 @@ const SectionBilanMapa = ({ bilan }) => {
   const totalProduits = produits.reduce((s, p) => s + (p.ca || 0), 0);
 
   return (
-    <div className="carte space-y-5">
-      <h2 className="text-sm font-semibold text-texte-principal flex items-center gap-2">
-        <TrendingUp size={15} className="text-zeze-vert" />
-        Bilan MAPA
-      </h2>
+    <div className="carte space-y-5 print:hidden">
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <h2 className="text-sm font-semibold text-texte-principal flex items-center gap-2">
+          <TrendingUp size={15} className="text-zeze-vert" />
+          Bilan MAPA
+        </h2>
+        <div className="flex items-center gap-2 flex-wrap">
+          <input
+            type="text"
+            value={parrainNom}
+            onChange={(e) => setParrainNom(e.target.value)}
+            placeholder="Nom du parrain (optionnel)"
+            className="champ-input text-sm w-52"
+          />
+          <Button
+            variante="secondaire"
+            icone={Download}
+            chargement={chargement}
+            onClick={() =>
+              telechargerPDF(
+                `/exercices/${exerciceId}/fiches/mapa.pdf${parrainNom ? `?parrain=${encodeURIComponent(parrainNom)}` : ''}`,
+                `fiche-mapa-${exerciceNumero}.pdf`,
+                setChargementPdf,
+              )
+            }
+          >
+            Exporter PDF
+          </Button>
+        </div>
+      </div>
 
       {/* Tableau répartition financière */}
       <div>
@@ -155,7 +182,6 @@ const SectionBilanMapa = ({ bilan }) => {
 
 // ── Section fiches PDF ────────────────────────────────────────────────────────
 const SectionFichesPDF = ({ exerciceId, exerciceNumero, delegues = [], stockistes = [] }) => {
-  const [parrainNom, setParrainNom] = useState('');
   const [chargements, setChargements] = useState({});
 
   const setChargement = (cle, val) =>
@@ -167,51 +193,6 @@ const SectionFichesPDF = ({ exerciceId, exerciceNumero, delegues = [], stockiste
         <FileText size={15} className="text-zeze-vert" />
         Fiches exportables (PDF)
       </h2>
-
-      {/* Fiche MAPA */}
-      <div className="border border-bordure rounded-bouton p-3 space-y-2">
-        <p className="text-xs font-semibold text-texte-secondaire uppercase tracking-wide">Fiche MAPA</p>
-        <div className="flex flex-wrap items-end gap-3">
-          <div className="flex-1 min-w-0">
-            <label className="block text-xs text-texte-secondaire mb-1">Nom du parrain (optionnel)</label>
-            <input
-              type="text"
-              value={parrainNom}
-              onChange={(e) => setParrainNom(e.target.value)}
-              placeholder="Ex : Jean-Pierre Kouassi"
-              className="champ-input text-sm w-full"
-            />
-          </div>
-          <Button
-            variante="secondaire"
-            icone={Download}
-            chargement={chargements['mapa']}
-            onClick={() =>
-              telechargerPDF(
-                `/exercices/${exerciceId}/fiches/mapa.pdf${parrainNom ? `?parrain=${encodeURIComponent(parrainNom)}` : ''}`,
-                `fiche-mapa-${exerciceNumero}.pdf`,
-                (v) => setChargement('mapa', v)
-              )
-            }
-          >
-            Exporter fiche MAPA
-          </Button>
-          <Button
-            variante="fantome"
-            icone={Package}
-            chargement={chargements['produits']}
-            onClick={() =>
-              telechargerPDF(
-                `/exercices/${exerciceId}/fiches/detail-produits.pdf`,
-                `detail-produits-${exerciceNumero}.pdf`,
-                (v) => setChargement('produits', v)
-              )
-            }
-          >
-            Détail produits
-          </Button>
-        </div>
-      </div>
 
       {/* Bilan stockiste */}
       {stockistes.length > 0 && (
@@ -346,7 +327,7 @@ const BilanExercicePage = () => {
             <AperçuBilan bilan={bilan} exercice={exercice} />
           </div>
 
-          <SectionBilanMapa bilan={bilan} />
+          <SectionBilanMapa bilan={bilan} exerciceId={id} exerciceNumero={exercice?.numero ?? id} />
 
           <SectionFichesPDF
             exerciceId={id}
