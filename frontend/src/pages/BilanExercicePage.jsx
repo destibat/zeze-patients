@@ -3,8 +3,9 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useBilanExercice, useExercice } from '../hooks/useExercices';
 import { AperçuBilan } from './ExercicesPage';
 import Button from '../components/ui/Button';
-import { ArrowLeft, Printer, Loader2, FileText, Download, Users, Package, User } from 'lucide-react';
+import { ArrowLeft, Printer, Loader2, FileText, Download, Users, Package, User, TrendingUp } from 'lucide-react';
 import api from '../services/api';
+import useFormatMontant from '../hooks/useFormatMontant';
 
 const fmtDate = (d) =>
   d ? new Date(d).toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' }) : '—';
@@ -26,6 +27,130 @@ const telechargerPDF = async (url, nomFichier, setChargement) => {
   } finally {
     setChargement(false);
   }
+};
+
+// ── Bilan MAPA (affichage écran) ──────────────────────────────────────────────
+const SectionBilanMapa = ({ bilan }) => {
+  const { formatMontant } = useFormatMontant();
+
+  const gainBrut        = (bilan.commissions_stockistes || 0) + (bilan.commissions_delegues || 0);
+  const partParrain     = Math.round(gainBrut * 0.10);
+  const beneficeNet     = gainBrut - partParrain;
+  const montantMapa     = bilan.net_mapa || 0;
+  const caTotal         = bilan.ca_total || 0;
+
+  const lignesPct = (val) =>
+    caTotal > 0 ? `${((val / caTotal) * 100).toFixed(1)} %` : '—';
+
+  const produits = [...(bilan.top_produits || [])].sort((a, b) => b.ca - a.ca);
+  const totalProduits = produits.reduce((s, p) => s + (p.ca || 0), 0);
+
+  return (
+    <div className="carte space-y-5">
+      <h2 className="text-sm font-semibold text-texte-principal flex items-center gap-2">
+        <TrendingUp size={15} className="text-zeze-vert" />
+        Bilan MAPA
+      </h2>
+
+      {/* Tableau répartition financière */}
+      <div>
+        <p className="text-xs font-semibold text-texte-secondaire uppercase tracking-wide mb-2">Répartition financière</p>
+        <div className="overflow-x-auto rounded-bouton border border-bordure">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-gray-100 text-xs text-texte-secondaire uppercase tracking-wide">
+                <th className="px-4 py-2 text-left font-semibold">Ligne</th>
+                <th className="px-4 py-2 text-right font-semibold">% du CA</th>
+                <th className="px-4 py-2 text-right font-semibold">Montant</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-bordure">
+              <tr className="bg-gray-50">
+                <td className="px-4 py-2.5 text-texte-principal">Montant total vendu</td>
+                <td className="px-4 py-2.5 text-right text-texte-secondaire font-mono text-xs">100,0 %</td>
+                <td className="px-4 py-2.5 text-right font-semibold font-mono text-texte-principal">{formatMontant(caTotal)}</td>
+              </tr>
+              <tr>
+                <td className="px-4 py-2.5 text-texte-principal">
+                  Bénéfice brut stockiste
+                  <span className="ml-1 text-xs text-texte-secondaire">(commissions stockistes + délégués)</span>
+                </td>
+                <td className="px-4 py-2.5 text-right text-texte-secondaire font-mono text-xs">{lignesPct(gainBrut)}</td>
+                <td className="px-4 py-2.5 text-right font-mono text-texte-principal">{formatMontant(gainBrut)}</td>
+              </tr>
+              <tr className="bg-orange-50">
+                <td className="px-4 py-2.5 text-texte-principal">
+                  Part du parrain direct
+                  <span className="ml-1 text-xs text-texte-secondaire">(10 % du bénéfice brut)</span>
+                </td>
+                <td className="px-4 py-2.5 text-right text-texte-secondaire font-mono text-xs">{lignesPct(partParrain)}</td>
+                <td className="px-4 py-2.5 text-right font-mono text-orange-700">{formatMontant(partParrain)}</td>
+              </tr>
+              <tr>
+                <td className="px-4 py-2.5 text-texte-principal">
+                  Bénéfice net stockiste
+                  <span className="ml-1 text-xs text-texte-secondaire">(brut − part parrain)</span>
+                </td>
+                <td className="px-4 py-2.5 text-right text-texte-secondaire font-mono text-xs">{lignesPct(beneficeNet)}</td>
+                <td className="px-4 py-2.5 text-right font-mono text-texte-principal">{formatMontant(beneficeNet)}</td>
+              </tr>
+              <tr className="bg-zeze-vert-fonce text-white">
+                <td className="px-4 py-3 font-bold">Montant total versé à MAPA</td>
+                <td className="px-4 py-3 text-right font-mono text-sm text-white/80">{lignesPct(montantMapa)}</td>
+                <td className="px-4 py-3 text-right font-bold font-mono text-base">{formatMontant(montantMapa)}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p className="text-xs text-texte-secondaire mt-1.5 italic">
+          Vérification : CA total ({formatMontant(caTotal)}) = Bénéfice brut ({formatMontant(gainBrut)}) + Montant MAPA ({formatMontant(montantMapa)})
+        </p>
+      </div>
+
+      {/* Liste des produits vendus (payés uniquement) */}
+      {produits.length > 0 && (
+        <div>
+          <p className="text-xs font-semibold text-texte-secondaire uppercase tracking-wide mb-2">
+            Produits vendus — payés uniquement
+          </p>
+          <div className="overflow-x-auto rounded-bouton border border-bordure">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-gray-100 text-xs text-texte-secondaire uppercase tracking-wide">
+                  <th className="px-4 py-2 text-left font-semibold">Produit</th>
+                  <th className="px-4 py-2 text-right font-semibold">Qté</th>
+                  <th className="px-4 py-2 text-right font-semibold">CA</th>
+                  <th className="px-4 py-2 text-right font-semibold">% CA</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-bordure">
+                {produits.map((p, i) => (
+                  <tr key={p.nom} className={i % 2 === 0 ? 'bg-gray-50' : ''}>
+                    <td className="px-4 py-2 text-texte-principal">{p.nom}</td>
+                    <td className="px-4 py-2 text-right font-mono text-texte-secondaire">{p.quantite}</td>
+                    <td className="px-4 py-2 text-right font-mono">{formatMontant(p.ca)}</td>
+                    <td className="px-4 py-2 text-right font-mono text-xs text-texte-secondaire">
+                      {totalProduits > 0 ? `${((p.ca / totalProduits) * 100).toFixed(1)} %` : '—'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr className="bg-gray-100 font-semibold text-sm">
+                  <td className="px-4 py-2.5 text-texte-principal">TOTAL</td>
+                  <td className="px-4 py-2.5 text-right font-mono">
+                    {produits.reduce((s, p) => s + (p.quantite || 0), 0)}
+                  </td>
+                  <td className="px-4 py-2.5 text-right font-mono">{formatMontant(totalProduits)}</td>
+                  <td className="px-4 py-2.5 text-right font-mono text-xs text-texte-secondaire">100,0 %</td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 };
 
 // ── Section fiches PDF ────────────────────────────────────────────────────────
@@ -220,6 +345,8 @@ const BilanExercicePage = () => {
           <div className="carte">
             <AperçuBilan bilan={bilan} exercice={exercice} />
           </div>
+
+          <SectionBilanMapa bilan={bilan} />
 
           <SectionFichesPDF
             exerciceId={id}

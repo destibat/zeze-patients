@@ -153,7 +153,7 @@ const calculerBilan = async (exerciceId, statut = null) => {
       continue;
     }
 
-    ajouterProduits(f.lignes);
+    if (montant > 0) ajouterProduits(f.lignes);
 
     // Canal direct (secrétaire / stockiste / admin) : commission 100 % au stockiste
     let tauxComm = 0, stockisteId = null, stockisteNom = '';
