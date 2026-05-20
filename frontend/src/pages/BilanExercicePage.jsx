@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useBilanExercice, useExercice } from '../hooks/useExercices';
 import { AperçuBilan } from './ExercicesPage';
 import Button from '../components/ui/Button';
-import { ArrowLeft, Printer, Loader2, FileText, Download, Users, User, TrendingUp } from 'lucide-react';
+import { ArrowLeft, Printer, Loader2, FileText, Download, Users, User, TrendingUp, BarChart3 } from 'lucide-react';
 import api from '../services/api';
 import useFormatMontant from '../hooks/useFormatMontant';
 
@@ -320,7 +320,12 @@ const BilanExercicePage = () => {
 
       {!isLoading && bilan && (
         <>
-          <div className="carte">
+          <div className="carte space-y-4">
+            <h2 className="text-sm font-semibold text-texte-principal flex items-center gap-2">
+              <BarChart3 size={15} className="text-zeze-vert" />
+              Bilan du Cabinet
+              <span className="ml-1 text-xs font-normal text-texte-secondaire">(vue interne — revendeurs et stockistes)</span>
+            </h2>
             <AperçuBilan bilan={bilan} exercice={exercice} />
           </div>
 
