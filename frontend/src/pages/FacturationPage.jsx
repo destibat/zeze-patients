@@ -927,6 +927,7 @@ const VueCreanciers = ({ onPayer }) => {
               <th className="px-4 py-3">Patient</th>
               <th className="px-4 py-3">Réf. facture</th>
               <th className="px-4 py-3">Date</th>
+              <th className="px-4 py-3">Exercice</th>
               <th className="px-4 py-3">Produits</th>
               <th className="px-4 py-3 text-right">Total</th>
               <th className="px-4 py-3 text-right">Payé</th>
@@ -960,6 +961,14 @@ const VueCreanciers = ({ onPayer }) => {
                     <td className="px-4 py-3 font-mono text-xs text-texte-principal whitespace-nowrap">{f.numero}</td>
                     <td className="px-4 py-3 text-xs text-texte-secondaire whitespace-nowrap">
                       {new Date(f.date_facture).toLocaleDateString('fr-FR')}
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      {f.exercice ? (
+                        <span className={`text-xs px-2 py-0.5 rounded-full border font-mono ${f.exercice.statut === 'cloture' ? 'bg-gray-100 text-gray-600 border-gray-200' : 'bg-green-50 text-green-700 border-green-200'}`}>
+                          {f.exercice.numero}
+                          {f.exercice.statut === 'cloture' && ' · Clôturé'}
+                        </span>
+                      ) : <span className="text-xs text-texte-secondaire italic">—</span>}
                     </td>
                     <td className="px-4 py-3">
                       <div className="space-y-0.5">

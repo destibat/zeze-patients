@@ -367,6 +367,47 @@ const DashboardDelegue = ({ utilisateur }) => {
   );
 };
 
+// ── Widget créances patients (admin + stockiste) ──────────────────────────────
+const WidgetCreances = () => {
+  const navigate = useNavigate();
+  const { formatMontant } = useFormatMontant();
+  const { data: factures = [], isLoading } = useQuery({
+    queryKey: ['factures-creanciers'],
+    queryFn: () => api.get('/factures/creanciers').then((r) => r.data),
+  });
+
+  if (isLoading || factures.length === 0) return null;
+
+  const totalDu = factures.reduce((s, f) => s + f.montant_total - f.montant_paye, 0);
+  const nbPatients = new Set(factures.map((f) => f.patient_id)).size;
+  const hasAnciennesCreances = factures.some((f) => f.exercice?.statut === 'cloture');
+
+  return (
+    <button
+      onClick={() => navigate('/facturation')}
+      className="w-full text-left rounded-carte px-4 py-3 flex items-center justify-between transition-colors bg-red-50 border border-red-300 hover:bg-red-100"
+    >
+      <div className="flex items-center gap-3">
+        <div className="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
+          <AlertCircle size={15} className="text-red-700" />
+        </div>
+        <div>
+          <p className="text-sm font-semibold text-red-800">
+            {formatMontant(totalDu)} dus par {nbPatients} patient{nbPatients > 1 ? 's' : ''}
+            {hasAnciennesCreances && (
+              <span className="ml-2 text-xs font-normal text-red-600">dont dettes d'exercices clôturés</span>
+            )}
+          </p>
+          <p className="text-xs text-red-700">
+            {factures.length} facture{factures.length > 1 ? 's' : ''} non soldée{factures.length > 1 ? 's' : ''} — voir onglet Créanciers
+          </p>
+        </div>
+      </div>
+      <span className="text-xs font-semibold text-red-700">Gérer →</span>
+    </button>
+  );
+};
+
 // ── Widget prêts et emprunts (admin + stockiste) ─────────────────────────────
 const WidgetPretsEmprunts = () => {
   const navigate = useNavigate();
@@ -599,6 +640,9 @@ const DashboardStandard = ({ utilisateur }) => {
 
       {/* Widget exercice comptable */}
       {estStockisteOuAdmin && <WidgetExercice />}
+
+      {/* Widget créances patients non soldées */}
+      {estStockisteOuAdmin && <WidgetCreances />}
 
       {/* Widget prêts et emprunts en cours */}
       {estStockisteOuAdmin && <WidgetPretsEmprunts />}

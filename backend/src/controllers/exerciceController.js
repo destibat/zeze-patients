@@ -27,9 +27,16 @@ const calculerBilan = async (exerciceId, statut = null) => {
   const dateCloture    = ex?.date_cloture;
   const recalculer = ['ouvert', 'rouvert'].includes(exerciceStatut);
 
-  // ── Toutes les Factures de l'exercice ─────────────────────────────────────
+  // ── Toutes les Factures de l'exercice (normales + recouvrements de créances) ──
+  // Cas 1 : facture créée dans cet exercice, non transférée à un autre exercice
+  // Cas 2 : créance d'un ancien exercice soldée intégralement dans cet exercice
   const factures = await Facture.findAll({
-    where: { exercice_id: exerciceId, statut: { [Op.notIn]: ['annulee', 'partiellement_payee'] } },
+    where: {
+      [Op.or]: [
+        { exercice_id: exerciceId, recouvrement_exercice_id: null, statut: { [Op.notIn]: ['annulee', 'partiellement_payee'] } },
+        { recouvrement_exercice_id: exerciceId, statut: 'payee' },
+      ],
+    },
     include: [{
       model: User, as: 'createur',
       attributes: ['id', 'nom', 'prenom', 'role', 'commission_rate', 'stockiste_id'],
@@ -405,13 +412,18 @@ const obtenirActuel = async (req, res) => {
   const delegueUsers = await User.findAll({ where: { role: 'delegue' }, attributes: ['id'], raw: true });
   const delegueIds = delegueUsers.map((u) => u.id);
 
-  // CA accumulé : ventes directes stockiste + achats des délégués (commandeAppro + ordonnances source='achat')
+  // CA accumulé : ventes directes stockiste + recouvrements + achats des délégués
+  const exclusionDelegues = delegueIds.length > 0 ? { created_by: { [Op.notIn]: delegueIds } } : {};
   const [caFactures, caApprovisionnements] = await Promise.all([
     Facture.sum('montant_paye', {
       where: {
-        exercice_id: exercice.id,
-        statut: { [Op.notIn]: ['annulee', 'partiellement_payee'] },
-        ...(delegueIds.length > 0 ? { created_by: { [Op.notIn]: delegueIds } } : {}),
+        ...exclusionDelegues,
+        [Op.or]: [
+          // Factures normales de cet exercice (non transférées)
+          { exercice_id: exercice.id, recouvrement_exercice_id: null, statut: { [Op.notIn]: ['annulee', 'partiellement_payee'] } },
+          // Créances d'anciens exercices soldées dans cet exercice
+          { recouvrement_exercice_id: exercice.id, statut: 'payee' },
+        ],
       },
     }),
     MouvementDelegue.sum('montant_total', {

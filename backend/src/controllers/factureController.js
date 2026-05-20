@@ -128,13 +128,26 @@ const enregistrerPaiement = async (req, res) => {
 
   const { montant, mode_paiement } = req.body;
   const nouveauPaye = Math.min(facture.montant_paye + (parseInt(montant) || 0), facture.montant_total);
+  const nouveauStatut = calculerStatut(facture.montant_total, nouveauPaye);
 
-  await facture.update({
+  const updateData = {
     montant_paye: nouveauPaye,
     mode_paiement: mode_paiement || facture.mode_paiement,
-    statut: calculerStatut(facture.montant_total, nouveauPaye),
-  });
+    statut: nouveauStatut,
+  };
 
+  // Créance soldée dans un exercice différent de celui d'origine → recouvrement
+  if (nouveauStatut === 'payee' && !facture.recouvrement_exercice_id) {
+    const exerciceActuel = await Exercice.findOne({
+      where: { statut: { [Op.in]: ['ouvert', 'rouvert'] } },
+      attributes: ['id'],
+    });
+    if (exerciceActuel && exerciceActuel.id !== facture.exercice_id) {
+      updateData.recouvrement_exercice_id = exerciceActuel.id;
+    }
+  }
+
+  await facture.update(updateData);
   res.json(facture);
 };
 
@@ -160,7 +173,10 @@ const listerCreanciers = async (req, res) => {
 
   const factures = await Facture.findAll({
     where,
-    include: INCLUDE_BASE,
+    include: [
+      ...INCLUDE_BASE,
+      { model: Exercice, as: 'exercice', attributes: ['id', 'numero', 'statut'] },
+    ],
     order: [['patient_id', 'ASC'], ['date_facture', 'ASC']],
   });
   res.json(factures);
