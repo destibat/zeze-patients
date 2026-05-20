@@ -133,7 +133,7 @@ const obtenirStats = async (req, res) => {
          COALESCE(SUM(f.montant_paye * COALESCE(u.commission_rate, 0) / 100), 0) AS gains,
          COALESCE(SUM(f.montant_paye * (100 - COALESCE(u.commission_rate, 0)) / 100), 0) AS mapa
        FROM factures f
-       LEFT JOIN users u ON f.created_by = u.id AND u.role = 'stockiste'
+       LEFT JOIN users u ON f.created_by = u.id AND u.role IN ('stockiste', 'administrateur')
        WHERE f.date_facture >= :debut AND f.statut NOT IN ('annulee', 'partiellement_payee') ${excludeClause}`,
       {
         replacements: {
