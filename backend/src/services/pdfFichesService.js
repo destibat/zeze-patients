@@ -171,11 +171,12 @@ const genererFicheMAPAPDF = (exercice, bilan, parrain_nom = '', infos = {}) =>
     dessinerEntete(doc, 'FICHE RÉCAPITULATIVE MAPA', exercice, infos);
 
     // ── Calculs dérivés ──────────────────────────────────────────────────────
-    const gain_stockiste_brut = (bilan.commissions_stockistes || 0) + (bilan.commissions_delegues || 0);
+    // gain brut = commission stockiste uniquement (commissions délégués = affaire interne du cabinet)
+    const gain_stockiste_brut = bilan.commissions_stockistes || 0;
     const commission_parrain  = Math.round(gain_stockiste_brut * 0.10);
     const gain_stockiste_net  = gain_stockiste_brut - commission_parrain;
-    const net_mapa            = bilan.net_mapa || 0;
     const ca_total            = bilan.ca_total || 0;
+    const net_mapa            = ca_total - gain_stockiste_brut;
 
     // ── Section 1 : Volume d'activité ────────────────────────────────────────
     titreSection(doc, '1. VOLUME D\'ACTIVITÉ');
@@ -242,43 +243,10 @@ const genererFicheMAPAPDF = (exercice, bilan, parrain_nom = '', infos = {}) =>
     ], false, FOND_GRIS);
 
     yRow = ligneTableau(doc, yRow, colsFin, [
-      'Gain brut stockiste (commissions stockistes + délégués)',
+      'Bénéfice brut stockiste',
       fmtPourcent(gain_stockiste_brut, ca_total),
       fmtMontant(gain_stockiste_brut),
     ]);
-
-    // Sous-détails du gain brut (en retrait)
-    const colsFin2 = [
-      { x: ML + 16,  width: 248, align: 'left'  },
-      { x: ML + 265, width: 80,  align: 'right' },
-      { x: ML + 355, width: 130, align: 'right' },
-    ];
-
-    const yDet1 = yRow;
-    doc.rect(ML, yDet1, PAGE_W, 14).fill('#FAFAFA');
-    doc.fontSize(8).font('Helvetica').fillColor(GRIS)
-      .text('dont commissions stockistes (sur factures directes)',
-            colsFin2[0].x, yDet1 + 3, { width: colsFin2[0].width });
-    doc.text(fmtPourcent(bilan.commissions_stockistes, ca_total),
-             colsFin2[1].x, yDet1 + 3, { width: colsFin2[1].width, align: 'right' });
-    doc.text(fmtMontant(bilan.commissions_stockistes),
-             colsFin2[2].x, yDet1 + 3, { width: colsFin2[2].width, align: 'right' });
-    doc.moveTo(ML, yDet1 + 14).lineTo(ML + PAGE_W, yDet1 + 14)
-      .strokeColor('#E0E0E0').lineWidth(0.3).stroke();
-    yRow = yDet1 + 14;
-
-    const yDet2 = yRow;
-    doc.rect(ML, yDet2, PAGE_W, 14).fill('#FAFAFA');
-    doc.fontSize(8).font('Helvetica').fillColor(GRIS)
-      .text('dont commissions délégués (ventes directes)',
-            colsFin2[0].x, yDet2 + 3, { width: colsFin2[0].width });
-    doc.text(fmtPourcent(bilan.commissions_delegues, ca_total),
-             colsFin2[1].x, yDet2 + 3, { width: colsFin2[1].width, align: 'right' });
-    doc.text(fmtMontant(bilan.commissions_delegues),
-             colsFin2[2].x, yDet2 + 3, { width: colsFin2[2].width, align: 'right' });
-    doc.moveTo(ML, yDet2 + 14).lineTo(ML + PAGE_W, yDet2 + 14)
-      .strokeColor('#E0E0E0').lineWidth(0.3).stroke();
-    yRow = yDet2 + 14;
 
     // Commission parrain
     const parrainLabel = parrain_nom
@@ -349,6 +317,77 @@ const genererFicheMAPAPDF = (exercice, bilan, parrain_nom = '', infos = {}) =>
       });
 
       doc.y = yRow;
+    }
+
+    // ── Section 4 : Détail des produits vendus (payés uniquement) ───────────
+    {
+      const produits = [...(bilan.top_produits || [])].sort((a, b) => b.ca - a.ca);
+      if (produits.length > 0) {
+        const qte_total_prod = produits.reduce((s, p) => s + (p.quantite || 0), 0);
+        const ca_produits    = produits.reduce((s, p) => s + (p.ca || 0), 0);
+
+        // Nouvelle page si pas assez de place pour l'en-tête + 3 lignes mini
+        if (doc.y > PAGE_H - MB - 100) {
+          dessinerPiedDePage(doc);
+          doc.addPage();
+          if (exercice.statut !== 'cloture') dessinerFiligrane(doc);
+          doc.rect(0, 0, 595, 6).fill(VERT);
+          doc.y = MT + 10;
+        } else {
+          doc.y = doc.y + 10;
+        }
+
+        titreSection(doc, '4. PRODUITS VENDUS (payés uniquement, triés par CA décroissant)');
+
+        const colsProd = [
+          { x: ML + 4,   width: 205, align: 'left'  },
+          { x: ML + 213, width: 70,  align: 'right' },
+          { x: ML + 287, width: 80,  align: 'right' },
+          { x: ML + 371, width: 114, align: 'right' },
+        ];
+
+        const yThProd = doc.y;
+        doc.rect(ML, yThProd, PAGE_W, 14).fill('#CFD8DC');
+        doc.fontSize(8).font('Helvetica-Bold').fillColor('#37474F');
+        ['Produit', 'Quantité', '% du CA', 'Montant (CA)'].forEach((h, i) => {
+          doc.text(h, colsProd[i].x, yThProd + 3, { width: colsProd[i].width, align: colsProd[i].align });
+        });
+        doc.y = yThProd + 16;
+
+        let yProd = doc.y;
+        produits.forEach((p, i) => {
+          if (yProd > PAGE_H - MB - 60) {
+            dessinerPiedDePage(doc);
+            doc.addPage();
+            if (exercice.statut !== 'cloture') dessinerFiligrane(doc);
+            doc.rect(0, 0, 595, 6).fill(VERT);
+            doc.y = MT + 10;
+            yProd = doc.y;
+            doc.rect(ML, yProd, PAGE_W, 14).fill('#CFD8DC');
+            doc.fontSize(8).font('Helvetica-Bold').fillColor('#37474F');
+            ['Produit', 'Quantité', '% du CA', 'Montant (CA)'].forEach((h, j) => {
+              doc.text(h, colsProd[j].x, yProd + 3, { width: colsProd[j].width, align: colsProd[j].align });
+            });
+            yProd += 16;
+            doc.y = yProd;
+          }
+          yProd = ligneTableau(doc, yProd, colsProd, [
+            p.nom,
+            `${p.quantite}`,
+            fmtPourcent(p.ca, ca_produits),
+            fmtMontant(p.ca),
+          ], false, i % 2 === 0 ? FOND_GRIS : null);
+        });
+
+        yProd = ligneTableau(doc, yProd, colsProd, [
+          `TOTAL (${produits.length} produit${produits.length > 1 ? 's' : ''})`,
+          `${qte_total_prod}`,
+          '100,0 %',
+          fmtMontant(ca_produits),
+        ], true);
+
+        doc.y = yProd + 4;
+      }
     }
 
     // ── Zone signature ───────────────────────────────────────────────────────

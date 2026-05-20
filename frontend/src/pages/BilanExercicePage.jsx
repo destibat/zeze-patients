@@ -35,11 +35,11 @@ const SectionBilanMapa = ({ bilan, exerciceId, exerciceNumero }) => {
   const [parrainNom, setParrainNom] = useState('');
   const [chargement, setChargementPdf] = useState(false);
 
-  const gainBrut        = (bilan.commissions_stockistes || 0) + (bilan.commissions_delegues || 0);
+  const gainBrut        = bilan.commissions_stockistes || 0;
   const partParrain     = Math.round(gainBrut * 0.10);
   const beneficeNet     = gainBrut - partParrain;
-  const montantMapa     = bilan.net_mapa || 0;
   const caTotal         = bilan.ca_total || 0;
+  const montantMapa     = caTotal - gainBrut;
 
   const lignesPct = (val) =>
     caTotal > 0 ? `${((val / caTotal) * 100).toFixed(1)} %` : '—';
@@ -98,10 +98,7 @@ const SectionBilanMapa = ({ bilan, exerciceId, exerciceNumero }) => {
                 <td className="px-4 py-2.5 text-right font-semibold font-mono text-texte-principal">{formatMontant(caTotal)}</td>
               </tr>
               <tr>
-                <td className="px-4 py-2.5 text-texte-principal">
-                  Bénéfice brut stockiste
-                  <span className="ml-1 text-xs text-texte-secondaire">(commissions stockistes + délégués)</span>
-                </td>
+                <td className="px-4 py-2.5 text-texte-principal">Bénéfice brut stockiste</td>
                 <td className="px-4 py-2.5 text-right text-texte-secondaire font-mono text-xs">{lignesPct(gainBrut)}</td>
                 <td className="px-4 py-2.5 text-right font-mono text-texte-principal">{formatMontant(gainBrut)}</td>
               </tr>
