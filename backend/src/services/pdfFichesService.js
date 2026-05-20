@@ -171,12 +171,12 @@ const genererFicheMAPAPDF = (exercice, bilan, parrain_nom = '', infos = {}) =>
     dessinerEntete(doc, 'FICHE RÉCAPITULATIVE MAPA', exercice, infos);
 
     // ── Calculs dérivés ──────────────────────────────────────────────────────
-    // gain brut = commission stockiste uniquement (commissions délégués = affaire interne du cabinet)
-    const gain_stockiste_brut = bilan.commissions_stockistes || 0;
+    // gain brut = commissions stockistes + délégués (ligne délégué non affichée, mais incluse dans le total)
+    const gain_stockiste_brut = (bilan.commissions_stockistes || 0) + (bilan.commissions_delegues || 0);
     const commission_parrain  = Math.round(gain_stockiste_brut * 0.10);
     const gain_stockiste_net  = gain_stockiste_brut - commission_parrain;
     const ca_total            = bilan.ca_total || 0;
-    const net_mapa            = ca_total - gain_stockiste_brut;
+    const net_mapa            = bilan.net_mapa || 0;
 
     // ── Section 1 : Volume d'activité ────────────────────────────────────────
     titreSection(doc, '1. VOLUME D\'ACTIVITÉ');

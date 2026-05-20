@@ -35,11 +35,11 @@ const SectionBilanMapa = ({ bilan, exerciceId, exerciceNumero }) => {
   const [parrainNom, setParrainNom] = useState('');
   const [chargement, setChargementPdf] = useState(false);
 
-  const gainBrut        = bilan.commissions_stockistes || 0;
+  const gainBrut        = (bilan.commissions_stockistes || 0) + (bilan.commissions_delegues || 0);
   const partParrain     = Math.round(gainBrut * 0.10);
   const beneficeNet     = gainBrut - partParrain;
   const caTotal         = bilan.ca_total || 0;
-  const montantMapa     = caTotal - gainBrut;
+  const montantMapa     = bilan.net_mapa || 0;
 
   const lignesPct = (val) =>
     caTotal > 0 ? `${((val / caTotal) * 100).toFixed(1)} %` : '—';
