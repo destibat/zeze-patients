@@ -110,11 +110,11 @@ const dessinerEntete = (doc, titre, exercice, infos = {}) => {
 
 // ── Pied de page commun ───────────────────────────────────────────────────────
 const dessinerPiedDePage = (doc, mention = 'Document généré automatiquement') => {
-  const y = PAGE_H - MB + 10;
+  const y = PAGE_H - MB - 22;
   doc.moveTo(ML, y).lineTo(ML + PAGE_W, y).strokeColor(GRIS_CLAIR).lineWidth(0.5).stroke();
   doc.fontSize(7).font('Helvetica').fillColor(GRIS)
     .text(`${mention} — le ${fmtDate(new Date())}`, ML, y + 5, {
-      width: PAGE_W, align: 'center',
+      width: PAGE_W, align: 'center', lineBreak: false,
     });
 };
 
