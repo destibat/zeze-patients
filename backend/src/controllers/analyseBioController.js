@@ -1,7 +1,7 @@
 'use strict';
 
 const { AnalyseBiologique, Patient } = require('../models');
-const { extraireNFS } = require('../services/extractionNFSService');
+const { extraireNFS, fusionnerValeurs } = require('../services/extractionNFSService');
 
 const PANELS_VALIDES = ['nfs', 'renal', 'glycemie', 'lipidique', 'ionogramme'];
 
@@ -92,15 +92,18 @@ const modifierAnalyse = async (req, res) => {
 };
 
 const extraireEtSauvegarder = async (req, res) => {
-  if (!req.file) return res.status(400).json({ message: 'Aucun fichier fourni' });
+  const fichiers = req.files || (req.file ? [req.file] : []);
+  if (!fichiers.length) return res.status(400).json({ message: 'Aucun fichier fourni' });
 
   const { patientId } = req.params;
-  const patient = await Patient.findByPk(patientId, {
-    attributes: ['id', 'sexe', 'date_naissance'],
-  });
+  const patient = await Patient.findByPk(patientId, { attributes: ['id', 'sexe', 'date_naissance'] });
   if (!patient) return res.status(404).json({ message: 'Patient introuvable' });
 
-  const { texte, valeurs } = await extraireNFS(req.file.buffer, req.file.mimetype);
+  // Extraire chaque fichier puis fusionner
+  const resultats = await Promise.all(
+    fichiers.map((f) => extraireNFS(f.buffer, f.mimetype))
+  );
+  const { valeurs, texte } = fusionnerValeurs(resultats);
 
   const age = patient.date_naissance
     ? Math.floor((Date.now() - new Date(patient.date_naissance)) / (365.25 * 864e5))
@@ -108,6 +111,8 @@ const extraireEtSauvegarder = async (req, res) => {
   const sexe = patient.sexe || valeurs.sexe_patient || null;
 
   const { sexe_patient, age_patient, date_analyse, ...valeursNFS } = valeurs;
+
+  const source = fichiers.some((f) => f.mimetype === 'application/pdf') ? 'upload_pdf' : 'upload_image';
 
   const analyse = await AnalyseBiologique.create({
     patient_id:      patientId,
@@ -117,7 +122,7 @@ const extraireEtSauvegarder = async (req, res) => {
     age_patient:     age,
     panels_demandes: ['nfs'],
     valeurs_brutes:  { nfs: valeursNFS },
-    source:          req.file.mimetype === 'application/pdf' ? 'upload_pdf' : 'upload_image',
+    source,
   });
 
   const result = await AnalyseBiologique.findByPk(analyse.id, {

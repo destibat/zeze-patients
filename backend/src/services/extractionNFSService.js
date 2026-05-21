@@ -2,6 +2,7 @@
 
 const pdfParse = require('pdf-parse');
 const Tesseract = require('tesseract.js');
+const Jimp = require('jimp');
 
 // Patterns de reconnaissance des valeurs NFS dans le texte extrait
 const PATTERNS = {
@@ -29,48 +30,47 @@ const PATTERNS = {
   date_analyse:      [/date[^\d]*(\d{2}[\/\-]\d{2}[\/\-]\d{4})/i, /(\d{2}[\/\-]\d{2}[\/\-]\d{4})/],
 };
 
-const parseValeur = (valeur) => {
-  if (!valeur) return null;
-  return parseFloat(valeur.replace(',', '.'));
-};
-
-const parseSexe = (valeur) => {
-  if (!valeur) return null;
-  const v = valeur.toLowerCase();
-  if (v === 'm' || v === 'masculin' || v === 'homme') return 'M';
-  if (v === 'f' || v === 'féminin' || v === 'feminin' || v === 'femme') return 'F';
+const parseValeur   = (v) => v ? parseFloat(v.replace(',', '.')) : null;
+const parseSexe     = (v) => {
+  if (!v) return null;
+  const s = v.toLowerCase();
+  if (s === 'm' || s === 'masculin' || s === 'homme') return 'M';
+  if (s === 'f' || s === 'féminin' || s === 'feminin' || s === 'femme') return 'F';
   return null;
 };
-
-const parseDate = (valeur) => {
-  if (!valeur) return null;
-  const parts = valeur.split(/[\/\-]/);
-  if (parts.length !== 3) return null;
-  return `${parts[2]}-${parts[1]}-${parts[0]}`;
+const parseDate = (v) => {
+  if (!v) return null;
+  const p = v.split(/[\/\-]/);
+  return p.length === 3 ? `${p[2]}-${p[1]}-${p[0]}` : null;
 };
 
 const extraireValeurs = (texte) => {
-  const resultat = {};
-
+  const res = {};
   for (const [champ, patterns] of Object.entries(PATTERNS)) {
-    for (const pattern of patterns) {
-      const match = texte.match(pattern);
-      if (match && match[1]) {
-        if (champ === 'sexe_patient') {
-          resultat[champ] = parseSexe(match[1]);
-        } else if (champ === 'age_patient') {
-          resultat[champ] = parseInt(match[1]) || null;
-        } else if (champ === 'date_analyse') {
-          resultat[champ] = parseDate(match[1]);
-        } else {
-          resultat[champ] = parseValeur(match[1]);
-        }
+    for (const pat of patterns) {
+      const m = texte.match(pat);
+      if (m && m[1]) {
+        if (champ === 'sexe_patient')  res[champ] = parseSexe(m[1]);
+        else if (champ === 'age_patient')  res[champ] = parseInt(m[1]) || null;
+        else if (champ === 'date_analyse') res[champ] = parseDate(m[1]);
+        else res[champ] = parseValeur(m[1]);
         break;
       }
     }
   }
+  return res;
+};
 
-  return resultat;
+// Convertit une image JPEG/PNG en PNG via Jimp pour compatibilité Tesseract WASM
+const normaliserImage = async (buffer) => {
+  try {
+    const image = await Jimp.read(buffer);
+    // Amélioration contraste pour meilleur OCR
+    image.greyscale().contrast(0.3);
+    return await image.getBufferAsync(Jimp.MIME_PNG);
+  } catch {
+    return buffer; // en cas d'échec, on tente quand même
+  }
 };
 
 const extraireDepuisPDF = async (buffer) => {
@@ -78,18 +78,28 @@ const extraireDepuisPDF = async (buffer) => {
   return { texte: data.text, valeurs: extraireValeurs(data.text) };
 };
 
-const extraireDepuisImage = async (buffer, mimetype) => {
-  const { data: { text } } = await Tesseract.recognize(buffer, 'fra+eng', {
-    logger: () => {},
-  });
+const extraireDepuisImage = async (buffer) => {
+  const png = await normaliserImage(buffer);
+  const { data: { text } } = await Tesseract.recognize(png, 'fra+eng', { logger: () => {} });
   return { texte: text, valeurs: extraireValeurs(text) };
 };
 
 const extraireNFS = async (buffer, mimetype) => {
-  if (mimetype === 'application/pdf') {
-    return extraireDepuisPDF(buffer);
-  }
-  return extraireDepuisImage(buffer, mimetype);
+  if (mimetype === 'application/pdf') return extraireDepuisPDF(buffer);
+  return extraireDepuisImage(buffer);
 };
 
-module.exports = { extraireNFS };
+// Fusionne plusieurs résultats d'extraction (garde les valeurs non-nulles)
+const fusionnerValeurs = (resultats) => {
+  const merged = { valeurs: {}, texte: resultats.map((r) => r.texte).join('\n\n---\n\n') };
+  for (const r of resultats) {
+    for (const [k, v] of Object.entries(r.valeurs)) {
+      if (v !== null && v !== undefined && merged.valeurs[k] == null) {
+        merged.valeurs[k] = v;
+      }
+    }
+  }
+  return merged;
+};
+
+module.exports = { extraireNFS, fusionnerValeurs };

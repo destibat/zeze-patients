@@ -60,8 +60,10 @@ const BarreProgression = ({ pct, etape }) => (
 );
 
 // ── Zone d'upload ─────────────────────────────────────────────────────────────
+const TYPES_ACCEPTES = ['application/pdf', 'image/png', 'image/jpeg', 'image/jpg'];
+
 const ZoneUpload = ({ patientId, onTermine, onAnnuler }) => {
-  const [fichier, setFichier] = useState(null);
+  const [fichiers, setFichiers] = useState([]);
   const [survol, setSurvol] = useState(false);
   const [pct, setPct] = useState(0);
   const [etape, setEtape] = useState('');
@@ -76,32 +78,31 @@ const ZoneUpload = ({ patientId, onTermine, onAnnuler }) => {
 
   useEffect(() => () => nettoyer(), []);
 
-  const accepterFichier = (f) => {
-    if (!f) return;
-    const types = ['application/pdf', 'image/png', 'image/jpeg', 'image/jpg'];
-    if (!types.includes(f.type)) {
-      setErreur('Format non supporté. Utilisez PDF, PNG ou JPEG.');
-      return;
-    }
-    if (f.size > 15 * 1024 * 1024) {
-      setErreur('Fichier trop volumineux (15 Mo max).');
-      return;
-    }
+  const ajouterFichiers = (nouveaux) => {
+    const liste = Array.from(nouveaux);
+    const invalides = liste.filter((f) => !TYPES_ACCEPTES.includes(f.type));
+    if (invalides.length) { setErreur('Format non supporté. Utilisez PDF, PNG ou JPEG.'); return; }
+    const tropGrands = liste.filter((f) => f.size > 15 * 1024 * 1024);
+    if (tropGrands.length) { setErreur('Un fichier dépasse 15 Mo.'); return; }
     setErreur('');
-    setFichier(f);
+    setFichiers((prev) => {
+      const noms = new Set(prev.map((f) => f.name));
+      return [...prev, ...liste.filter((f) => !noms.has(f.name))];
+    });
   };
 
+  const retirerFichier = (nom) => setFichiers((prev) => prev.filter((f) => f.name !== nom));
+
   const lancerAnalyse = async () => {
-    if (!fichier) return;
+    if (!fichiers.length) return;
     setErreur('');
 
-    // Progression simulée
     const etapes = [
-      { pct: 10, msg: 'Envoi du fichier…',           delai: 100 },
-      { pct: 30, msg: 'Lecture du document…',         delai: 800 },
-      { pct: 55, msg: 'Extraction du texte…',         delai: 2500 },
-      { pct: 75, msg: 'Analyse des valeurs…',         delai: 5000 },
-      { pct: 88, msg: 'Interprétation en cours…',     delai: 8000 },
+      { pct: 10, msg: 'Envoi des fichiers…',       delai: 100 },
+      { pct: 30, msg: 'Lecture des documents…',     delai: 800 },
+      { pct: 55, msg: 'Extraction du texte…',       delai: 2500 },
+      { pct: 75, msg: 'Analyse des valeurs…',       delai: 5000 },
+      { pct: 88, msg: 'Interprétation en cours…',   delai: 8000 },
     ];
     etapes.forEach(({ pct: p, msg, delai }) => {
       const t = setTimeout(() => { setPct(p); setEtape(msg); }, delai);
@@ -109,7 +110,7 @@ const ZoneUpload = ({ patientId, onTermine, onAnnuler }) => {
     });
 
     try {
-      const resultat = await extraire.mutateAsync(fichier);
+      const resultat = await extraire.mutateAsync(fichiers);
       nettoyer();
       setPct(100);
       setEtape('Analyse terminée !');
@@ -118,13 +119,11 @@ const ZoneUpload = ({ patientId, onTermine, onAnnuler }) => {
       nettoyer();
       setPct(0);
       setEtape('');
-      setErreur("Erreur lors de l'analyse. Vérifiez que le fichier est lisible et réessayez.");
+      setErreur("Erreur lors de l'analyse. Vérifiez que les fichiers sont lisibles et réessayez.");
     }
   };
 
-  const icone = fichier
-    ? fichier.type === 'application/pdf' ? FileText : Image
-    : Upload;
+  const aFichiers = fichiers.length > 0;
 
   return (
     <div className="space-y-4">
@@ -132,12 +131,12 @@ const ZoneUpload = ({ patientId, onTermine, onAnnuler }) => {
       <div
         onDragOver={(e) => { e.preventDefault(); setSurvol(true); }}
         onDragLeave={() => setSurvol(false)}
-        onDrop={(e) => { e.preventDefault(); setSurvol(false); accepterFichier(e.dataTransfer.files[0]); }}
+        onDrop={(e) => { e.preventDefault(); setSurvol(false); ajouterFichiers(e.dataTransfer.files); }}
         onClick={() => !enAnalyse && inputRef.current?.click()}
-        className={`border-2 border-dashed rounded-carte p-8 text-center cursor-pointer transition-all ${
+        className={`border-2 border-dashed rounded-carte p-6 text-center cursor-pointer transition-all ${
           survol
             ? 'border-zeze-vert bg-green-50'
-            : fichier
+            : aFichiers
             ? 'border-zeze-vert/40 bg-green-50/30'
             : 'border-bordure hover:border-gray-400 hover:bg-fond-secondaire'
         } ${enAnalyse ? 'pointer-events-none' : ''}`}
@@ -147,33 +146,42 @@ const ZoneUpload = ({ patientId, onTermine, onAnnuler }) => {
           type="file"
           className="hidden"
           accept=".pdf,.png,.jpg,.jpeg"
-          onChange={(e) => accepterFichier(e.target.files[0])}
+          multiple
+          onChange={(e) => ajouterFichiers(e.target.files)}
         />
-        {React.createElement(icone, { size: 32, className: `mx-auto mb-3 ${fichier ? 'text-zeze-vert' : 'text-texte-secondaire'}` })}
-        {fichier ? (
-          <div>
-            <p className="text-sm font-medium text-texte-principal">{fichier.name}</p>
-            <p className="text-xs text-texte-secondaire mt-0.5">
-              {(fichier.size / 1024).toFixed(0)} Ko · {fichier.type === 'application/pdf' ? 'PDF' : 'Image'}
-            </p>
-            {!enAnalyse && (
-              <button
-                type="button"
-                onClick={(e) => { e.stopPropagation(); setFichier(null); }}
-                className="mt-2 text-xs text-texte-secondaire hover:text-medical-critique flex items-center gap-1 mx-auto"
-              >
-                <X size={12} /> Changer de fichier
-              </button>
-            )}
-          </div>
+        <Upload size={28} className={`mx-auto mb-2 ${aFichiers ? 'text-zeze-vert' : 'text-texte-secondaire'}`} />
+        {aFichiers ? (
+          <p className="text-xs text-zeze-vert font-medium">Cliquez ou déposez pour ajouter d&apos;autres fichiers</p>
         ) : (
           <div>
-            <p className="text-sm font-medium text-texte-principal">Déposez votre fichier ici</p>
+            <p className="text-sm font-medium text-texte-principal">Déposez vos fichiers ici</p>
             <p className="text-xs text-texte-secondaire mt-1">ou cliquez pour sélectionner</p>
-            <p className="text-xs text-texte-secondaire mt-0.5">PDF, PNG, JPEG · 15 Mo max</p>
+            <p className="text-xs text-texte-secondaire mt-0.5">PDF, PNG, JPEG · 15 Mo max · plusieurs fichiers acceptés</p>
           </div>
         )}
       </div>
+
+      {/* Liste des fichiers sélectionnés */}
+      {aFichiers && !enAnalyse && (
+        <div className="space-y-1.5">
+          {fichiers.map((f) => (
+            <div key={f.name} className="flex items-center gap-2 px-3 py-2 bg-fond-secondaire rounded-bouton">
+              {f.type === 'application/pdf'
+                ? <FileText size={14} className="text-zeze-vert flex-shrink-0" />
+                : <Image size={14} className="text-zeze-vert flex-shrink-0" />}
+              <span className="flex-1 truncate text-texte-principal text-xs">{f.name}</span>
+              <span className="text-xs text-texte-secondaire flex-shrink-0">{(f.size / 1024).toFixed(0)} Ko</span>
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); retirerFichier(f.name); }}
+                className="text-texte-secondaire hover:text-medical-critique flex-shrink-0"
+              >
+                <X size={14} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Barre de progression */}
       {enAnalyse && <BarreProgression pct={pct} etape={etape} />}
@@ -194,10 +202,10 @@ const ZoneUpload = ({ patientId, onTermine, onAnnuler }) => {
         <Button
           icone={FlaskConical}
           onClick={lancerAnalyse}
-          disabled={!fichier || enAnalyse}
+          disabled={!aFichiers || enAnalyse}
           chargement={enAnalyse}
         >
-          {enAnalyse ? 'Analyse en cours…' : 'Lancer l\'analyse'}
+          {enAnalyse ? 'Analyse en cours…' : `Lancer l'analyse${fichiers.length > 1 ? ` (${fichiers.length} fichiers)` : ''}`}
         </Button>
       </div>
     </div>
@@ -334,7 +342,7 @@ const SectionAnalyseBio = ({ patientId, patient }) => {
         <div className="border border-zeze-vert/30 rounded-carte p-4 bg-green-50/20">
           <p className="text-sm font-medium text-texte-principal mb-4 flex items-center gap-2">
             <Upload size={14} className="text-zeze-vert" />
-            Charger un résultat d'analyse
+            Charger un résultat d&apos;analyse
           </p>
           <ZoneUpload
             patientId={patientId}

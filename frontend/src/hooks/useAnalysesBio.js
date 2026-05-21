@@ -14,9 +14,10 @@ export function useAnalysesBio(patientId) {
 export function useExtraireAnalyseBio(patientId) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (fichier) => {
+    mutationFn: (fichiers) => {
       const form = new FormData();
-      form.append('fichier', fichier);
+      const liste = Array.isArray(fichiers) ? fichiers : [fichiers];
+      liste.forEach((f) => form.append('fichiers', f));
       return api.post(`/patients/${patientId}/analyses-bio/extraire`, form, {
         headers: { 'Content-Type': 'multipart/form-data' },
         timeout: 120000,
