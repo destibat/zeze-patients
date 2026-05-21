@@ -16,11 +16,12 @@ const upload = multer({
   },
 });
 
-router.get('/',                                 tousLesRoles,   asyncHandler(ctrl.listerAnalyses));
-router.get('/:analyseId',                       tousLesRoles,   asyncHandler(ctrl.obtenirAnalyse));
+router.get('/',                                      tousLesRoles,   asyncHandler(ctrl.listerAnalyses));
+router.get('/:analyseId',                            tousLesRoles,   asyncHandler(ctrl.obtenirAnalyse));
 router.post('/extraire', upload.array('fichiers', 10), tousLesRoles, asyncHandler(ctrl.extraireEtSauvegarder));
-router.post('/',                                tousLesRoles,   asyncHandler(ctrl.creerAnalyse));
-router.put('/:analyseId',                       tousLesRoles,   asyncHandler(ctrl.modifierAnalyse));
-router.delete('/:analyseId',                    adminOuMedecin, asyncHandler(ctrl.supprimerAnalyse));
+router.post('/',                                      tousLesRoles,   asyncHandler(ctrl.creerAnalyse));
+router.post('/:analyseId/analyser',                   tousLesRoles,   asyncHandler(ctrl.analyserAvecIA));
+router.put('/:analyseId',                             tousLesRoles,   asyncHandler(ctrl.modifierAnalyse));
+router.delete('/:analyseId',                          adminOuMedecin, asyncHandler(ctrl.supprimerAnalyse));
 
 module.exports = router;

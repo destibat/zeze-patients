@@ -1,8 +1,8 @@
 import { useState, useMemo, useRef, useEffect, Component } from 'react';
-import { useAnalysesBio, useExtraireAnalyseBio, useSupprimerAnalyseBio } from '../../../hooks/useAnalysesBio';
+import { useAnalysesBio, useExtraireAnalyseBio, useSupprimerAnalyseBio, useAnalyserAvecIA } from '../../../hooks/useAnalysesBio';
 import { interpreterPanels, couleurSeverite, iconesSeverite, SEVERITE } from '../../../utils/interpretationBio';
 import Button from '../../../components/ui/Button';
-import { Plus, Trash2, ChevronDown, ChevronUp, FlaskConical, Upload, FileText, Image, Loader2, CheckCircle2, X } from 'lucide-react';
+import { Plus, Trash2, ChevronDown, ChevronUp, FlaskConical, Upload, FileText, Image, Loader2, CheckCircle2, X, Sparkles, RefreshCw } from 'lucide-react';
 
 // ── ErrorBoundary — empêche un crash d'une carte de vider toute la page ───────
 class CarteErreur extends Component {
@@ -81,6 +81,34 @@ const BarreProgression = ({ pct, etape }) => (
     </div>
   </div>
 );
+
+// ── Rendu du texte IA ─────────────────────────────────────────────────────────
+const RenderTexteIA = ({ texte }) => {
+  if (!texte) return null;
+  const lignes = texte.split('\n');
+  return (
+    <div className="space-y-0.5 text-sm leading-relaxed">
+      {lignes.map((ligne, i) => {
+        if (!ligne.trim()) return <div key={i} className="h-2" />;
+        // Titres de section (commencent par emoji ou chiffre+point)
+        if (/^[📊⚠️🧠📋💬🩺⚖️✍️]/.test(ligne) || /^\d+\.\s/.test(ligne)) {
+          return <p key={i} className="font-semibold text-texte-principal mt-3 mb-1">{ligne}</p>;
+        }
+        // Rendu bold **texte**
+        const parts = ligne.split(/(\*\*[^*]+\*\*)/);
+        return (
+          <p key={i} className="text-texte-principal">
+            {parts.map((p, j) =>
+              p.startsWith('**') && p.endsWith('**')
+                ? <strong key={j}>{p.slice(2, -2)}</strong>
+                : p
+            )}
+          </p>
+        );
+      })}
+    </div>
+  );
+};
 
 // ── Zone d'upload ─────────────────────────────────────────────────────────────
 const TYPES_ACCEPTES = ['application/pdf', 'image/png', 'image/jpeg', 'image/jpg'];
@@ -239,6 +267,7 @@ const ZoneUpload = ({ patientId, onTermine, onAnnuler }) => {
 const CarteAnalyseInterne = ({ analyse }) => {
   const [ouverte, setOuverte] = useState(false);
   const supprimer = useSupprimerAnalyseBio(analyse.patient_id);
+  const analyserIA = useAnalyserAvecIA(analyse.patient_id);
 
   const panels = useMemo(() => parseJSON(analyse.panels_demandes, []), [analyse.panels_demandes]);
   const valeurs = useMemo(() => parseJSON(analyse.valeurs_brutes, {}), [analyse.valeurs_brutes]);
@@ -312,6 +341,54 @@ const CarteAnalyseInterne = ({ analyse }) => {
               <p className="text-sm text-texte-principal whitespace-pre-wrap">{analyse.conclusion}</p>
             </div>
           )}
+
+          {/* Analyse IA */}
+          <div className="border border-purple-200 rounded-carte overflow-hidden">
+            <div className="flex items-center justify-between px-3 py-2 bg-purple-50">
+              <span className="text-xs font-semibold text-purple-700 flex items-center gap-1.5">
+                <Sparkles size={12} />
+                Analyse IA — Médecin biologiste
+              </span>
+              <Button
+                variante="fantome"
+                icone={analyse.analyse_ia_texte ? RefreshCw : Sparkles}
+                taille="petit"
+                chargement={analyserIA.isPending}
+                onClick={() => analyserIA.mutate(analyse.id)}
+                disabled={analyserIA.isPending}
+                className="text-purple-700 hover:bg-purple-100 text-xs"
+              >
+                {analyserIA.isPending
+                  ? 'Analyse en cours…'
+                  : analyse.analyse_ia_texte ? 'Ré-analyser' : 'Lancer l\'analyse IA'}
+              </Button>
+            </div>
+
+            {analyserIA.isPending && (
+              <div className="px-4 py-6 flex items-center gap-3 text-purple-700 bg-purple-50/50">
+                <Loader2 size={16} className="animate-spin flex-shrink-0" />
+                <span className="text-sm">L&apos;IA analyse les résultats… (30–60 secondes)</span>
+              </div>
+            )}
+
+            {analyserIA.isError && !analyserIA.isPending && (
+              <div className="px-4 py-3 text-sm text-red-700 bg-red-50">
+                Erreur : {analyserIA.error?.response?.data?.message || 'Impossible de contacter l\'IA. Vérifiez la clé API.'}
+              </div>
+            )}
+
+            {analyse.analyse_ia_texte && !analyserIA.isPending && (
+              <div className="px-4 py-4 bg-white">
+                <RenderTexteIA texte={analyse.analyse_ia_texte} />
+                {analyse.analyse_ia_modele && (
+                  <p className="mt-3 text-xs text-texte-secondaire border-t border-bordure pt-2">
+                    Modèle : {analyse.analyse_ia_modele}
+                    {analyse.cout_estime_usd ? ` · Coût estimé : $${parseFloat(analyse.cout_estime_usd).toFixed(4)}` : ''}
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
 
           <div className="flex justify-between items-center pt-2 border-t border-bordure">
             <span className="text-xs text-texte-secondaire">

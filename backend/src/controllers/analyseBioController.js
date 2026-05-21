@@ -2,6 +2,7 @@
 
 const { AnalyseBiologique, Patient } = require('../models');
 const { extraireNFS, fusionnerValeurs } = require('../services/extractionNFSService');
+const { analyserBilanAvecIA } = require('../services/analyseIAService');
 
 const PANELS_VALIDES = ['nfs', 'renal', 'glycemie', 'lipidique', 'ionogramme'];
 
@@ -139,4 +140,24 @@ const supprimerAnalyse = async (req, res) => {
   res.json({ message: 'Analyse supprimée' });
 };
 
-module.exports = { listerAnalyses, obtenirAnalyse, creerAnalyse, modifierAnalyse, supprimerAnalyse, extraireEtSauvegarder };
+const analyserAvecIA = async (req, res) => {
+  const analyse = await AnalyseBiologique.findByPk(req.params.analyseId);
+  if (!analyse) return res.status(404).json({ message: 'Analyse introuvable' });
+
+  const resultat = await analyserBilanAvecIA(analyse);
+
+  await analyse.update({
+    analyse_ia_texte:  resultat.texte,
+    analyse_ia_modele: resultat.modele,
+    tokens_input:      resultat.tokens_input,
+    tokens_output:     resultat.tokens_output,
+    cout_estime_usd:   resultat.cout_estime_usd,
+  });
+
+  const result = await AnalyseBiologique.findByPk(analyse.id, {
+    include: [{ association: 'auteur', attributes: ['id', 'nom', 'prenom'] }],
+  });
+  res.json(result);
+};
+
+module.exports = { listerAnalyses, obtenirAnalyse, creerAnalyse, modifierAnalyse, supprimerAnalyse, extraireEtSauvegarder, analyserAvecIA };

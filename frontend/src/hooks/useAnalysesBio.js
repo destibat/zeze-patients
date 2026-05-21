@@ -42,3 +42,15 @@ export function useSupprimerAnalyseBio(patientId) {
     onSuccess: () => qc.invalidateQueries({ queryKey: cle(patientId) }),
   });
 }
+
+export function useAnalyserAvecIA(patientId) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (analyseId) => api.post(
+      `/patients/${patientId}/analyses-bio/${analyseId}/analyser`,
+      {},
+      { timeout: 120000 },
+    ).then((r) => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: cle(patientId) }),
+  });
+}
