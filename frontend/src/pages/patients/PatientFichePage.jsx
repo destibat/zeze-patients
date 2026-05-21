@@ -8,7 +8,7 @@ import Badge from '../../components/ui/Badge';
 import Alert from '../../components/ui/Alert';
 import { ArrowLeft, Pencil, User, HeartPulse, Phone, Stethoscope, Plus, Trash2, FileText, FolderOpen, FlaskConical } from 'lucide-react';
 import SectionFichiers from './components/SectionFichiers';
-import SectionAnalyseNFS from './components/SectionAnalyseNFS';
+import SectionAnalyseBio from './components/SectionAnalyseBio';
 
 const Onglet = ({ actif, onClick, children }) => (
   <button
@@ -229,9 +229,9 @@ const PatientFichePage = () => {
         </div>
       )}
 
-      {/* Onglet Analyse NFS — stockiste et admin uniquement */}
+      {/* Onglet Analyses biologiques */}
       {ongletActif === 'nfs' && peutVoirMedical && (
-        <SectionAnalyseNFS patientId={id} patient={patient} />
+        <SectionAnalyseBio patientId={id} patient={patient} />
       )}
     </div>
   );

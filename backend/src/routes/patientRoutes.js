@@ -32,8 +32,9 @@ router.delete('/:id', adminOuMedecin, asyncHandler(archiverPatient));
 // Consultations imbriquées
 router.use('/:patientId/consultations', consultationRoutes);
 
-// Fichiers et analyses NFS imbriqués
+// Fichiers et analyses imbriqués
 router.use('/:patientId/fichiers', require('./fichierPatientRoutes'));
 router.use('/:patientId/analyses-nfs', require('./analyseNFSRoutes'));
+router.use('/:patientId/analyses-bio', require('./analyseBioRoutes'));
 
 module.exports = router;

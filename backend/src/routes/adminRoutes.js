@@ -20,6 +20,7 @@ router.post('/reset', asyncHandler(async (req, res) => {
       'audit_logs',
       'fichiers_patient',
       'analyses_nfs',
+      'analyses_biologiques',
       'factures_achat',
       'commandes_approvisionnement',
       'mouvements_delegue',
