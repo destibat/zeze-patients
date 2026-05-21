@@ -10,12 +10,15 @@ const LANGUES = [
 ];
 
 const changerLangueGoogle = (code) => {
-  const select = document.querySelector('.goog-te-combo');
-  if (select) {
-    select.value = code === 'fr' ? 'fr' : 'en';
-    select.dispatchEvent(new Event('change'));
-  }
   localStorage.setItem('langue_ui', code);
+  if (code === 'fr') {
+    document.cookie = 'googtrans=; max-age=0; path=/';
+    document.cookie = `googtrans=; max-age=0; path=/; domain=.${location.hostname}`;
+  } else {
+    document.cookie = `googtrans=/fr/${code}; path=/`;
+    document.cookie = `googtrans=/fr/${code}; path=/; domain=.${location.hostname}`;
+  }
+  window.location.reload();
 };
 
 const TopBar = ({ onOuvrirSidebar }) => {

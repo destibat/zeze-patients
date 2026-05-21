@@ -14,15 +14,16 @@
       rel="stylesheet"
     />
   <style>
-    /* Masquer tous les éléments injectés par Google Translate */
-    .goog-te-banner-frame, #goog-gt-tt, .goog-te-balloon-frame,
-    .goog-te-menu-frame, #goog-gt-votingframe { display: none !important; }
-    .skiptranslate { display: none !important; }
+    /* Masquer la barre de notification Google Translate sans bloquer le widget */
+    iframe.goog-te-banner-frame { display: none !important; }
+    #goog-gt-tt, .goog-te-balloon-frame, #goog-gt-votingframe { display: none !important; }
     body { top: 0 !important; }
+    /* Cacher le conteneur du widget (positionné hors écran) */
+    #google_translate_element { position: absolute; top: -9999px; left: -9999px; }
   </style>
   </head>
   <body class="bg-fond-principal font-corps text-texte-principal">
-    <div id="google_translate_element" style="display:none"></div>
+    <div id="google_translate_element"></div>
     <div id="root"></div>
     <script>
       function googleTranslateElementInit() {
@@ -33,6 +34,14 @@
           autoDisplay: false,
         }, 'google_translate_element');
       }
+      // Applique la langue mémorisée au chargement
+      (function() {
+        var lang = localStorage.getItem('langue_ui') || 'fr';
+        if (lang !== 'fr') {
+          document.cookie = 'googtrans=/fr/' + lang + '; path=/';
+          document.cookie = 'googtrans=/fr/' + lang + '; path=/; domain=.' + location.hostname;
+        }
+      })();
     </script>
     <script src="//translate.google.com/translate_a/element.js?cb=googleTranslateElementInit" async></script>
     <script type="module" src="/src/main.jsx"></script>
