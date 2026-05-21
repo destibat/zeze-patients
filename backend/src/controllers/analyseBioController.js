@@ -110,7 +110,8 @@ const extraireEtSauvegarder = async (req, res) => {
   const age = patient.date_naissance
     ? Math.floor((Date.now() - new Date(patient.date_naissance)) / (365.25 * 864e5))
     : (valeurs.age_patient || null);
-  const sexe = patient.sexe || valeurs.sexe_patient || null;
+  const sexePatient = patient.sexe === 'masculin' ? 'M' : patient.sexe === 'feminin' ? 'F' : null;
+  const sexe = sexePatient || valeurs.sexe_patient || null;
 
   const { sexe_patient, age_patient, date_analyse, ...valeursNFS } = valeurs;
 
