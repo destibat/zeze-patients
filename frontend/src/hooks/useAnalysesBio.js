@@ -11,19 +11,25 @@ export function useAnalysesBio(patientId) {
   });
 }
 
-export function useCreerAnalyseBio(patientId) {
+export function useExtraireAnalyseBio(patientId) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (data) => api.post(`/patients/${patientId}/analyses-bio`, data).then((r) => r.data),
+    mutationFn: (fichier) => {
+      const form = new FormData();
+      form.append('fichier', fichier);
+      return api.post(`/patients/${patientId}/analyses-bio/extraire`, form, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        timeout: 120000,
+      }).then((r) => r.data);
+    },
     onSuccess: () => qc.invalidateQueries({ queryKey: cle(patientId) }),
   });
 }
 
-export function useModifierAnalyseBio(patientId) {
+export function useCreerAnalyseBio(patientId) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, data }) =>
-      api.put(`/patients/${patientId}/analyses-bio/${id}`, data).then((r) => r.data),
+    mutationFn: (data) => api.post(`/patients/${patientId}/analyses-bio`, data).then((r) => r.data),
     onSuccess: () => qc.invalidateQueries({ queryKey: cle(patientId) }),
   });
 }

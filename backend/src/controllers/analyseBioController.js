@@ -1,6 +1,7 @@
 'use strict';
 
 const { AnalyseBiologique, Patient } = require('../models');
+const { extraireNFS } = require('../services/extractionNFSService');
 
 const PANELS_VALIDES = ['nfs', 'renal', 'glycemie', 'lipidique', 'ionogramme'];
 
@@ -90,6 +91,42 @@ const modifierAnalyse = async (req, res) => {
   res.json(result);
 };
 
+const extraireEtSauvegarder = async (req, res) => {
+  if (!req.file) return res.status(400).json({ message: 'Aucun fichier fourni' });
+
+  const { patientId } = req.params;
+  const patient = await Patient.findByPk(patientId, {
+    attributes: ['id', 'sexe', 'date_naissance'],
+  });
+  if (!patient) return res.status(404).json({ message: 'Patient introuvable' });
+
+  const { texte, valeurs } = await extraireNFS(req.file.buffer, req.file.mimetype);
+
+  const age = patient.date_naissance
+    ? Math.floor((Date.now() - new Date(patient.date_naissance)) / (365.25 * 864e5))
+    : (valeurs.age_patient || null);
+  const sexe = patient.sexe || valeurs.sexe_patient || null;
+
+  const { sexe_patient, age_patient, date_analyse, ...valeursNFS } = valeurs;
+
+  const analyse = await AnalyseBiologique.create({
+    patient_id:      patientId,
+    created_by:      req.utilisateur.id,
+    date_analyse:    date_analyse || new Date().toISOString().slice(0, 10),
+    sexe_patient:    sexe,
+    age_patient:     age,
+    panels_demandes: ['nfs'],
+    valeurs_brutes:  { nfs: valeursNFS },
+    source:          req.file.mimetype === 'application/pdf' ? 'upload_pdf' : 'upload_image',
+  });
+
+  const result = await AnalyseBiologique.findByPk(analyse.id, {
+    include: [{ association: 'auteur', attributes: ['id', 'nom', 'prenom'] }],
+  });
+
+  res.status(201).json({ analyse: result, texte_brut: texte });
+};
+
 const supprimerAnalyse = async (req, res) => {
   const analyse = await AnalyseBiologique.findByPk(req.params.analyseId);
   if (!analyse) return res.status(404).json({ message: 'Analyse introuvable' });
@@ -97,4 +134,4 @@ const supprimerAnalyse = async (req, res) => {
   res.json({ message: 'Analyse supprimée' });
 };
 
-module.exports = { listerAnalyses, obtenirAnalyse, creerAnalyse, modifierAnalyse, supprimerAnalyse };
+module.exports = { listerAnalyses, obtenirAnalyse, creerAnalyse, modifierAnalyse, supprimerAnalyse, extraireEtSauvegarder };
