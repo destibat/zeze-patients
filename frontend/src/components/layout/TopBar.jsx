@@ -2,18 +2,34 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../contexts/AuthContext';
-import { Menu, ChevronDown, LogOut, User, Globe } from 'lucide-react';
+import { Menu, ChevronDown, LogOut, User } from 'lucide-react';
+
+const LANGUES = [
+  { code: 'fr', drapeau: '🇫🇷', label: 'Français' },
+  { code: 'en', drapeau: '🇬🇧', label: 'English' },
+];
+
+const changerLangueGoogle = (code) => {
+  const select = document.querySelector('.goog-te-combo');
+  if (select) {
+    select.value = code === 'fr' ? 'fr' : 'en';
+    select.dispatchEvent(new Event('change'));
+  }
+  localStorage.setItem('langue_ui', code);
+};
 
 const TopBar = ({ onOuvrirSidebar }) => {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const { utilisateur, deconnexion } = useAuth();
   const navigate = useNavigate();
   const [menuOuvert, setMenuOuvert] = useState(false);
+  const [langueActive, setLangueActive] = useState(
+    localStorage.getItem('langue_ui') || 'fr'
+  );
 
-  const changerLangue = () => {
-    const nouvelleLangue = i18n.language === 'fr' ? 'en' : 'fr';
-    i18n.changeLanguage(nouvelleLangue);
-    localStorage.setItem('langue', nouvelleLangue);
+  const changerLangue = (code) => {
+    changerLangueGoogle(code);
+    setLangueActive(code);
   };
 
   const gererDeconnexion = async () => {
@@ -43,13 +59,23 @@ const TopBar = ({ onOuvrirSidebar }) => {
 
       <div className="flex items-center gap-3">
         {/* Sélecteur de langue */}
-        <button
-          onClick={changerLangue}
-          className="flex items-center gap-1 px-3 py-1.5 text-sm text-texte-secondaire hover:text-zeze-vert rounded-bouton hover:bg-fond-secondaire transition-colors"
-        >
-          <Globe size={16} />
-          <span className="uppercase font-medium">{i18n.language}</span>
-        </button>
+        <div className="flex items-center gap-1 bg-fond-secondaire rounded-bouton px-1 py-1">
+          {LANGUES.map(({ code, drapeau, label }) => (
+            <button
+              key={code}
+              onClick={() => changerLangue(code)}
+              title={label}
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-sm font-medium transition-colors ${
+                langueActive === code
+                  ? 'bg-white shadow-sm text-texte-principal'
+                  : 'text-texte-secondaire hover:text-texte-principal'
+              }`}
+            >
+              <span className="text-base leading-none">{drapeau}</span>
+              <span className="hidden sm:inline">{code.toUpperCase()}</span>
+            </button>
+          ))}
+        </div>
 
         {/* Menu utilisateur */}
         <div className="relative">
