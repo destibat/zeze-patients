@@ -3,6 +3,7 @@
 const { AnalyseBiologique, Patient } = require('../models');
 const { extraireNFS, fusionnerValeurs } = require('../services/extractionNFSService');
 const { analyserBilanAvecIA } = require('../services/analyseIAService');
+const { genererPdfAnalyse } = require('../services/pdfAnalyseService');
 
 const PANELS_VALIDES = ['nfs', 'renal', 'glycemie', 'lipidique', 'ionogramme'];
 
@@ -160,4 +161,20 @@ const analyserAvecIA = async (req, res) => {
   res.json(result);
 };
 
-module.exports = { listerAnalyses, obtenirAnalyse, creerAnalyse, modifierAnalyse, supprimerAnalyse, extraireEtSauvegarder, analyserAvecIA };
+const telechargerPdf = async (req, res) => {
+  const analyse = await AnalyseBiologique.findByPk(req.params.analyseId);
+  if (!analyse) return res.status(404).json({ message: 'Analyse introuvable' });
+
+  const patient = await Patient.findByPk(analyse.patient_id, {
+    attributes: ['id', 'nom', 'prenom', 'sexe', 'date_naissance', 'numero_dossier'],
+  });
+
+  const pdfBuffer = await genererPdfAnalyse(analyse, patient);
+
+  const nomFichier = `analyse_${patient ? patient.nom.toLowerCase() : 'patient'}_${analyse.date_analyse}.pdf`;
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `attachment; filename="${nomFichier}"`);
+  res.send(pdfBuffer);
+};
+
+module.exports = { listerAnalyses, obtenirAnalyse, creerAnalyse, modifierAnalyse, supprimerAnalyse, extraireEtSauvegarder, analyserAvecIA, telechargerPdf };

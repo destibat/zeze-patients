@@ -17,6 +17,7 @@ const upload = multer({
 });
 
 router.get('/',                                      tousLesRoles,   asyncHandler(ctrl.listerAnalyses));
+router.get('/:analyseId/pdf',                        tousLesRoles,   asyncHandler(ctrl.telechargerPdf));
 router.get('/:analyseId',                            tousLesRoles,   asyncHandler(ctrl.obtenirAnalyse));
 router.post('/extraire', upload.array('fichiers', 10), tousLesRoles, asyncHandler(ctrl.extraireEtSauvegarder));
 router.post('/',                                      tousLesRoles,   asyncHandler(ctrl.creerAnalyse));

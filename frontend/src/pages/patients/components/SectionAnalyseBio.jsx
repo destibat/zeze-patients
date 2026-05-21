@@ -1,8 +1,8 @@
 import { useState, useMemo, useRef, useEffect, Component } from 'react';
-import { useAnalysesBio, useExtraireAnalyseBio, useSupprimerAnalyseBio, useAnalyserAvecIA } from '../../../hooks/useAnalysesBio';
+import { useAnalysesBio, useExtraireAnalyseBio, useSupprimerAnalyseBio, useAnalyserAvecIA, useTelechargePdfAnalyse } from '../../../hooks/useAnalysesBio';
 import { interpreterPanels, couleurSeverite, iconesSeverite, SEVERITE } from '../../../utils/interpretationBio';
 import Button from '../../../components/ui/Button';
-import { Plus, Trash2, ChevronDown, ChevronUp, FlaskConical, Upload, FileText, Image, Loader2, CheckCircle2, X, Sparkles, RefreshCw } from 'lucide-react';
+import { Plus, Trash2, ChevronDown, ChevronUp, FlaskConical, Upload, FileText, Image, Loader2, CheckCircle2, X, Sparkles, RefreshCw, Download } from 'lucide-react';
 
 // ── ErrorBoundary — empêche un crash d'une carte de vider toute la page ───────
 class CarteErreur extends Component {
@@ -268,6 +268,7 @@ const CarteAnalyseInterne = ({ analyse }) => {
   const [ouverte, setOuverte] = useState(false);
   const supprimer = useSupprimerAnalyseBio(analyse.patient_id);
   const analyserIA = useAnalyserAvecIA(analyse.patient_id);
+  const telechargerPdf = useTelechargePdfAnalyse(analyse.patient_id);
 
   const panels = useMemo(() => parseJSON(analyse.panels_demandes, []), [analyse.panels_demandes]);
   const valeurs = useMemo(() => parseJSON(analyse.valeurs_brutes, {}), [analyse.valeurs_brutes]);
@@ -395,16 +396,29 @@ const CarteAnalyseInterne = ({ analyse }) => {
               {analyse.sexe_patient && `${analyse.sexe_patient === 'M' ? 'Masculin' : 'Féminin'}`}
               {analyse.age_patient  && ` · ${analyse.age_patient} ans`}
             </span>
-            <Button
-              variante="fantome"
-              icone={Trash2}
-              taille="petit"
-              chargement={supprimer.isPending}
-              onClick={() => { if (window.confirm('Supprimer cette analyse ?')) supprimer.mutate(analyse.id); }}
-              className="text-medical-critique hover:bg-red-50"
-            >
-              Supprimer
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                variante="fantome"
+                icone={Download}
+                taille="petit"
+                chargement={telechargerPdf.isPending}
+                onClick={() => telechargerPdf.mutate(analyse.id)}
+                disabled={telechargerPdf.isPending}
+                className="text-bleu-primaire hover:bg-blue-50"
+              >
+                Rapport PDF
+              </Button>
+              <Button
+                variante="fantome"
+                icone={Trash2}
+                taille="petit"
+                chargement={supprimer.isPending}
+                onClick={() => { if (window.confirm('Supprimer cette analyse ?')) supprimer.mutate(analyse.id); }}
+                className="text-medical-critique hover:bg-red-50"
+              >
+                Supprimer
+              </Button>
+            </div>
           </div>
         </div>
       )}

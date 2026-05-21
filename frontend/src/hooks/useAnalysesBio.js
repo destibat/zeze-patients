@@ -43,6 +43,24 @@ export function useSupprimerAnalyseBio(patientId) {
   });
 }
 
+export function useTelechargePdfAnalyse(patientId) {
+  return useMutation({
+    mutationFn: async (analyseId) => {
+      const resp = await api.get(
+        `/patients/${patientId}/analyses-bio/${analyseId}/pdf`,
+        { responseType: 'blob', timeout: 30000 },
+      );
+      const url = window.URL.createObjectURL(new Blob([resp.data], { type: 'application/pdf' }));
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `analyse_${analyseId}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => { window.URL.revokeObjectURL(url); document.body.removeChild(a); }, 1000);
+    },
+  });
+}
+
 export function useAnalyserAvecIA(patientId) {
   const qc = useQueryClient();
   return useMutation({
