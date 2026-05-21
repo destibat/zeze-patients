@@ -1,8 +1,31 @@
-import { useState, useMemo, useRef, useEffect } from 'react';
+import { useState, useMemo, useRef, useEffect, Component } from 'react';
 import { useAnalysesBio, useExtraireAnalyseBio, useSupprimerAnalyseBio } from '../../../hooks/useAnalysesBio';
 import { interpreterPanels, couleurSeverite, iconesSeverite, SEVERITE } from '../../../utils/interpretationBio';
 import Button from '../../../components/ui/Button';
 import { Plus, Trash2, ChevronDown, ChevronUp, FlaskConical, Upload, FileText, Image, Loader2, CheckCircle2, X } from 'lucide-react';
+
+// ── ErrorBoundary — empêche un crash d'une carte de vider toute la page ───────
+class CarteErreur extends Component {
+  constructor(props) { super(props); this.state = { erreur: false }; }
+  static getDerivedStateFromError() { return { erreur: true }; }
+  render() {
+    if (this.state.erreur) {
+      return (
+        <div className="border border-red-200 rounded-carte px-4 py-3 bg-red-50 text-sm text-red-700">
+          Erreur d&apos;affichage — donnée invalide.
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+// Normalise les champs JSON qui peuvent revenir en string depuis MariaDB
+const parseJSON = (val, fallback) => {
+  if (val === null || val === undefined) return fallback;
+  if (typeof val === 'string') { try { return JSON.parse(val); } catch { return fallback; } }
+  return val;
+};
 
 const fmtDate = (d) =>
   d ? new Date(d).toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' }) : '—';
@@ -213,19 +236,20 @@ const ZoneUpload = ({ patientId, onTermine, onAnnuler }) => {
 };
 
 // ── Carte d'une analyse sauvegardée ───────────────────────────────────────────
-const CarteAnalyse = ({ analyse }) => {
+const CarteAnalyseInterne = ({ analyse }) => {
   const [ouverte, setOuverte] = useState(false);
   const supprimer = useSupprimerAnalyseBio(analyse.patient_id);
 
+  const panels = useMemo(() => parseJSON(analyse.panels_demandes, []), [analyse.panels_demandes]);
+  const valeurs = useMemo(() => parseJSON(analyse.valeurs_brutes, {}), [analyse.valeurs_brutes]);
+
   const interpretations = useMemo(() => {
     try {
-      const vb = analyse.valeurs_brutes || {};
-      const panels = analyse.panels_demandes || [];
-      return interpreterPanels(vb, panels, analyse.sexe_patient);
+      return interpreterPanels(valeurs, panels, analyse.sexe_patient);
     } catch {
       return {};
     }
-  }, [analyse]);
+  }, [valeurs, panels, analyse.sexe_patient]);
 
   const toutesInterp = Object.values(interpretations).flat();
   const nbCrit = toutesInterp.filter((x) => x.severite === SEVERITE.CRITIQUE).length;
@@ -243,7 +267,7 @@ const CarteAnalyse = ({ analyse }) => {
         <div className="flex items-center gap-3 flex-wrap">
           <span className="text-sm font-medium text-texte-principal">{fmtDate(analyse.date_analyse)}</span>
           <div className="flex gap-1 flex-wrap">
-            {(analyse.panels_demandes || []).map((p) => <PanelBadge key={p} id={p} />)}
+            {panels.map((p) => <PanelBadge key={p} id={p} />)}
           </div>
           {nbCrit > 0 && (
             <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-red-100 text-red-700">
@@ -272,7 +296,7 @@ const CarteAnalyse = ({ analyse }) => {
 
       {ouverte && (
         <div className="px-4 pb-4 pt-3 space-y-4 bg-white border-t border-bordure">
-          {(analyse.panels_demandes || []).map((panelId) => {
+          {panels.map((panelId) => {
             const items = interpretations[panelId] || [];
             return (
               <div key={panelId}>
@@ -310,6 +334,12 @@ const CarteAnalyse = ({ analyse }) => {
     </div>
   );
 };
+
+const CarteAnalyse = (props) => (
+  <CarteErreur>
+    <CarteAnalyseInterne {...props} />
+  </CarteErreur>
+);
 
 // ── Composant principal ───────────────────────────────────────────────────────
 import React from 'react';
