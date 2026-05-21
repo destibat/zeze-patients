@@ -146,7 +146,7 @@ function interpreterNFS(vals, sexe) {
     add('NFS_NORMALE', 'NFS dans les limites de la normale',
       'Tous les paramètres hématologiques sont dans les valeurs de référence.', SEVERITE.NORMAL);
   } else if (commentaires.length === 0) {
-    add('NFS_INCOMPLET', 'Données insuffisantes', 'Saisir au moins l'hémoglobine.', SEVERITE.INFO);
+    add('NFS_INCOMPLET', 'Données insuffisantes', "Saisir au moins l'hémoglobine.", SEVERITE.INFO);
   }
 
   return commentaires;
