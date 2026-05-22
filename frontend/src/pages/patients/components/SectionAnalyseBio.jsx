@@ -77,9 +77,31 @@ const PARAMS_META = {
   glycemie: {
     label: 'Bilan glycémique',
     params: {
-      glycemie_jeun:          { label: 'Glycémie à jeun',        unite: 'mmol/L', ref: () => '3,9–5,5' },
-      glycemie_postprandiale: { label: 'Glycémie postprandiale', unite: 'mmol/L', ref: () => '< 7,8' },
-      hba1c:                  { label: 'HbA1c',                  unite: '%',      ref: () => '< 5,7' },
+      // Les labs en CI reportent souvent en g/L (0,75–1,10) plutôt qu'en mmol/L (3,9–5,5)
+      // On détecte l'unité par la magnitude : < 3 → g/L, sinon mmol/L
+      glycemie_jeun: {
+        label: 'Glycémie à jeun',
+        unite: (v) => {
+          const n = parseFloat(String(v ?? 0).replace(',', '.'));
+          return (n > 0 && n < 3) ? 'g/L' : 'mmol/L';
+        },
+        ref: (s, v) => {
+          const n = parseFloat(String(v ?? 0).replace(',', '.'));
+          return (n > 0 && n < 3) ? '0,75–1,10' : '3,9–5,5';
+        },
+      },
+      glycemie_postprandiale: {
+        label: 'Glycémie postprandiale',
+        unite: (v) => {
+          const n = parseFloat(String(v ?? 0).replace(',', '.'));
+          return (n > 0 && n < 3) ? 'g/L' : 'mmol/L';
+        },
+        ref: (s, v) => {
+          const n = parseFloat(String(v ?? 0).replace(',', '.'));
+          return (n > 0 && n < 3) ? '< 1,40' : '< 7,8';
+        },
+      },
+      hba1c: { label: 'HbA1c', unite: '%', ref: () => '< 5,7' },
     },
   },
   lipidique: {
@@ -161,16 +183,17 @@ const TableauPanel = ({ panelId, valeurs, sexe }) => {
         </thead>
         <tbody>
           {lignes.map(({ cle, param, val }, i) => {
-            const refStr = param.ref(sexe);
+            const refStr = typeof param.ref === 'function' ? param.ref(sexe, val) : param.ref;
+            const uniteStr = typeof param.unite === 'function' ? param.unite(val) : param.unite;
             const statut = calculerStatutBio(val, refStr);
             return (
               <tr key={cle} className={i % 2 === 0 ? 'bg-gray-50' : 'bg-white'}>
                 <td className="border border-gray-200 px-3 py-1.5 text-gray-800">{param.label}</td>
                 <td className="border border-gray-200 px-3 py-1.5 text-right font-semibold text-gray-900">
-                  {val} <span className="font-normal text-gray-500">{param.unite}</span>
+                  {val} <span className="font-normal text-gray-500">{uniteStr}</span>
                 </td>
                 <td className="border border-gray-200 px-3 py-1.5 text-right text-gray-500">
-                  {refStr} {param.unite}
+                  {refStr} {uniteStr}
                 </td>
                 <td className="border border-gray-200 px-2 py-1.5 text-center">
                   {statut ? (
