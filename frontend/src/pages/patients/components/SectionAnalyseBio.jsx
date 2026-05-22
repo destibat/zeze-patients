@@ -68,17 +68,19 @@ const PARAMS_META = {
   renal: {
     label: 'Bilan rénal',
     params: {
-      creatinine:   { label: 'Créatinine',   unite: 'µmol/L',        ref: (s) => s === 'F' ? '44–97'   : '53–106' },
+      // Créatinine — méthode enzymatique standardisée (HAS 2011)
+      creatinine:   { label: 'Créatinine',   unite: 'µmol/L',        ref: (s) => s === 'F' ? '44–80'   : '62–106' },
       uree:         { label: 'Urée',         unite: 'mmol/L',        ref: () => '2,5–7,5' },
-      acide_urique: { label: 'Acide urique', unite: 'µmol/L',        ref: (s) => s === 'F' ? '143–339' : '202–416' },
+      acide_urique: { label: 'Acide urique', unite: 'µmol/L',        ref: (s) => s === 'F' ? '155–350' : '210–420' },
       dfg:          { label: 'DFG estimé',   unite: 'mL/min/1.73m²', ref: () => '> 60' },
     },
   },
   glycemie: {
     label: 'Bilan glycémique',
     params: {
-      // Les labs en CI reportent souvent en g/L (0,75–1,10) plutôt qu'en mmol/L (3,9–5,5)
-      // On détecte l'unité par la magnitude : < 3 → g/L, sinon mmol/L
+      // Norme OMS/HAS : glycémie à jeun normale 0,70–1,10 g/L = 3,9–6,1 mmol/L
+      // Prédiabète : 1,10–1,25 g/L | Diabète : ≥ 1,26 g/L (2 mesures)
+      // Détection unité : valeur < 3 → g/L, sinon mmol/L
       glycemie_jeun: {
         label: 'Glycémie à jeun',
         unite: (v) => {
@@ -87,11 +89,12 @@ const PARAMS_META = {
         },
         ref: (s, v) => {
           const n = parseFloat(String(v ?? 0).replace(',', '.'));
-          return (n > 0 && n < 3) ? '0,75–1,10' : '3,9–5,5';
+          return (n > 0 && n < 3) ? '0,70–1,10' : '3,9–6,1';
         },
       },
+      // Postprandiale (2h) : normale < 1,40 g/L (< 7,8 mmol/L) | Diabète ≥ 2,00 g/L
       glycemie_postprandiale: {
-        label: 'Glycémie postprandiale',
+        label: 'Glycémie postprandiale (2h)',
         unite: (v) => {
           const n = parseFloat(String(v ?? 0).replace(',', '.'));
           return (n > 0 && n < 3) ? 'g/L' : 'mmol/L';
@@ -101,14 +104,19 @@ const PARAMS_META = {
           return (n > 0 && n < 3) ? '< 1,40' : '< 7,8';
         },
       },
+      // HbA1c : normale < 5,7 % | Prédiabète 5,7–6,4 % | Diabète ≥ 6,5 %
       hba1c: { label: 'HbA1c', unite: '%', ref: () => '< 5,7' },
     },
   },
   lipidique: {
     label: 'Bilan lipidique',
     params: {
+      // Cholestérol total : souhaitable < 5,2 mmol/L (< 2,0 g/L) — VIDAL/HAS
       cholesterol_total: { label: 'Cholestérol total', unite: 'mmol/L', ref: () => '< 5,2' },
-      ldl:               { label: 'LDL-cholestérol',   unite: 'mmol/L', ref: () => '< 3,4' },
+      // LDL : valeur de référence populationnelle < 4,1 mmol/L (< 1,60 g/L)
+      // NB : < 3,4 est un objectif thérapeutique (risque CV modéré), pas une norme
+      ldl:               { label: 'LDL-cholestérol',   unite: 'mmol/L', ref: () => '< 4,1' },
+      // HDL : risque CV si F < 1,3 mmol/L ou H < 1,0 mmol/L (> 0,50 g/L F / > 0,40 g/L H)
       hdl:               { label: 'HDL-cholestérol',   unite: 'mmol/L', ref: (s) => s === 'F' ? '> 1,3' : '> 1,0' },
       triglycerides:     { label: 'Triglycérides',      unite: 'mmol/L', ref: () => '< 1,7' },
     },
@@ -118,10 +126,10 @@ const PARAMS_META = {
     params: {
       sodium:       { label: 'Sodium',       unite: 'mmol/L', ref: () => '136–145' },
       potassium:    { label: 'Potassium',    unite: 'mmol/L', ref: () => '3,5–5,0' },
-      chlore:       { label: 'Chlore',       unite: 'mmol/L', ref: () => '98–107' },
-      calcium:      { label: 'Calcium',      unite: 'mmol/L', ref: () => '2,2–2,6' },
-      magnesium:    { label: 'Magnésium',    unite: 'mmol/L', ref: () => '0,75–0,95' },
-      phosphore:    { label: 'Phosphore',    unite: 'mmol/L', ref: () => '0,81–1,45' },
+      chlore:       { label: 'Chlore',       unite: 'mmol/L', ref: () => '96–106' },
+      calcium:      { label: 'Calcium',      unite: 'mmol/L', ref: () => '2,20–2,60' },
+      magnesium:    { label: 'Magnésium',    unite: 'mmol/L', ref: () => '0,75–1,00' },
+      phosphore:    { label: 'Phosphore',    unite: 'mmol/L', ref: () => '0,80–1,45' },
       bicarbonates: { label: 'Bicarbonates', unite: 'mmol/L', ref: () => '22–29' },
     },
   },
