@@ -127,16 +127,81 @@ const extraireValeursPDF = (texte) => {
 };
 
 // ── Extraction PDF ─────────────────────────────────────────────────────────────
-const extraireDepuisPDF = async (buffer) => {
-  const data = await pdfParse(buffer);
-  const valeurs = extraireValeursPDF(data.text);
-  const { sexe_patient, age_patient, date_analyse, ...valeursNFS } = valeurs;
+// Essaie pdf-parse (texte sélectionnable) ; si trop peu de texte → PDF scanné → Claude
+const SEUIL_TEXTE_MIN = 100; // caractères minimum pour considérer le PDF comme lisible
 
+const extraireDepuisPDF = async (buffer) => {
+  // 1. Tentative rapide via pdf-parse
+  let texteNatif = '';
+  try {
+    const data = await pdfParse(buffer);
+    texteNatif = data.text || '';
+  } catch {
+    // pdf-parse peut échouer sur certains PDFs protégés ou mal formés
+    texteNatif = '';
+  }
+
+  // PDF avec texte sélectionnable → extraction par regex
+  if (texteNatif.replace(/\s+/g, '').length >= SEUIL_TEXTE_MIN) {
+    const valeurs = extraireValeursPDF(texteNatif);
+    const { sexe_patient, age_patient, date_analyse, ...valeursNFS } = valeurs;
+    return {
+      texte: texteNatif,
+      meta: { sexe_patient, age_patient, date_analyse },
+      panelsStructures: { nfs: valeursNFS },
+      panelsList: ['nfs'],
+    };
+  }
+
+  // 2. PDF scanné (image) → Claude Vision via l'API document (même capacité que Claude.ai)
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) throw new Error('PDF scanné détecté mais ANTHROPIC_API_KEY non configurée');
+
+  const model = process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-6';
+  const client = new Anthropic({ apiKey });
+  const base64 = buffer.toString('base64');
+
+  const response = await client.messages.create({
+    model,
+    max_tokens: 1500,
+    messages: [{
+      role: 'user',
+      content: [
+        {
+          type: 'document',
+          source: { type: 'base64', media_type: 'application/pdf', data: base64 },
+        },
+        { type: 'text', text: PROMPT_VISION },
+      ],
+    }],
+  });
+
+  const texte = response.content[0]?.text || '{}';
+  const jsonStr = texte.replace(/```(?:json)?\n?/g, '').replace(/```/g, '').trim();
+  let parsed = {};
+  try { parsed = JSON.parse(jsonStr); }
+  catch { const m = texte.match(/\{[\s\S]*\}/); if (m) { try { parsed = JSON.parse(m[0]); } catch { parsed = {}; } } }
+
+  const { date_analyse, sexe_patient, age_patient, ...panelsRaw } = parsed;
+  const panelsStructures = {};
+  const panelsList = [];
+  for (const panelId of PANELS_VALIDES) {
+    if (!panelsRaw[panelId]) continue;
+    const valeurs = {};
+    for (const [k, v] of Object.entries(panelsRaw[panelId])) {
+      if (v !== null && v !== undefined) valeurs[k] = v;
+    }
+    if (Object.keys(valeurs).length > 0) { panelsStructures[panelId] = valeurs; panelsList.push(panelId); }
+  }
+  const parsedSexe = parseSexe(String(sexe_patient || ''));
+  const parsedDate = date_analyse
+    ? (date_analyse.match(/^\d{4}-\d{2}-\d{2}$/) ? date_analyse : parseDate(date_analyse))
+    : null;
   return {
-    texte: data.text,
-    meta: { sexe_patient, age_patient, date_analyse },
-    panelsStructures: { nfs: valeursNFS },
-    panelsList: ['nfs'],
+    texte,
+    meta: { sexe_patient: parsedSexe, age_patient: age_patient ? parseInt(age_patient) : null, date_analyse: parsedDate },
+    panelsStructures: panelsList.length ? panelsStructures : { nfs: {} },
+    panelsList: panelsList.length ? panelsList : ['nfs'],
   };
 };
 

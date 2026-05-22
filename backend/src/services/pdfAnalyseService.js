@@ -117,11 +117,85 @@ const nettoyerPourPDF = (str) => {
 };
 
 // ── Détection en-tête de section principale ───────────────────────────────────
-// Matches "1. Titre court" (≤8 mots) ou "Précaution médicale"
+const SECTION_KEYS = /^(analyse|anomalie|interpr[eé]t|synth[eè]s|explication|recommandation|pr[eé]caution)/i;
 const estEnteteSection = (t) => {
   const m = t.match(/^\d+\.\s+(.+)$/);
-  if (m && m[1].trim().split(/\s+/).length <= 8) return true;
+  if (m) return SECTION_KEYS.test(m[1].trim());
   return /^pr[eé]caution\s+m[eé]dicale/i.test(t);
+};
+
+// ── Helpers tableau Markdown ──────────────────────────────────────────────────
+const estLigneTableau = (t) => t.startsWith('|') && t.endsWith('|') && t.length > 2;
+const estSeparateur   = (t) => /^\|[\s\-:|]+\|$/.test(t);
+
+const parseCellules = (ligne) =>
+  ligne.split('|').slice(1, -1).map(c => c.replace(/\*\*/g, '').trim());
+
+const couleurStatut = (s) => {
+  const u = s.toUpperCase();
+  if (u.includes('NORMAL'))  return VERT_FONCE;
+  if (u.includes('AUGMENT')) return '#B71C1C';
+  if (u.includes('DIMINU'))  return BLEU_FONCE;
+  if (u.includes('LIMITE'))  return ORANGE;
+  return NOIR;
+};
+
+const dessinerTableauMarkdown = (doc, lignes) => {
+  const rows = lignes
+    .map(l => nettoyerPourPDF(l.trim()))
+    .filter(t => estLigneTableau(t) && !estSeparateur(t))
+    .map(parseCellules)
+    .filter(r => r.length > 0);
+
+  if (rows.length < 2) return;
+  const headers  = rows[0];
+  const dataRows = rows.slice(1);
+  const nbCols   = headers.length;
+  if (!nbCols) return;
+
+  const colW = nbCols === 4 ? [195, 90, 130, 80]
+             : nbCols === 3 ? [200, 165, 130]
+             : Array(nbCols).fill(Math.floor(PAGE_W / nbCols));
+  colW[colW.length - 1] = PAGE_W - colW.slice(0, -1).reduce((a, b) => a + b, 0);
+
+  const isStatutLast = /statut/i.test(headers[headers.length - 1] || '');
+  const ROW_H = 18;
+  const FS    = 7.5;
+
+  const drawRow = (cells, y, isHeader, isEven) => {
+    let x = ML;
+    for (let ci = 0; ci < nbCols; ci++) {
+      const w    = colW[ci];
+      const cell = (cells[ci] || '').trim();
+      const fond = isHeader ? FOND_ENTETE : (isEven ? BLEU_FOND : 'white');
+      doc.rect(x, y, w, ROW_H).fill(fond);
+      doc.rect(x, y, w, ROW_H).strokeColor(GRIS_BORD).lineWidth(0.3).stroke();
+      const isStatut = !isHeader && isStatutLast && ci === nbCols - 1;
+      const coul = isHeader ? VERT_FONCE : (isStatut ? couleurStatut(cell) : NOIR);
+      const font = (isHeader || isStatut) ? 'Helvetica-Bold' : 'Helvetica';
+      doc.fontSize(FS).font(font).fillColor(coul)
+         .text(cell, x + 3, y + (ROW_H - FS) / 2, { width: w - 6, lineBreak: false });
+      x += w;
+    }
+  };
+
+  if (doc.y + ROW_H * 2 + 12 > CONTENT_BOT) { doc.addPage(); dessinerHeader(doc); doc.y = CONTENT_TOP; }
+  let y = doc.y + 4;
+  drawRow(headers, y, true, false);
+  y += ROW_H;
+
+  let isEven = false;
+  for (const row of dataRows) {
+    if (y + ROW_H > CONTENT_BOT - 10) {
+      doc.addPage(); dessinerHeader(doc); y = CONTENT_TOP;
+      drawRow(headers, y, true, false);
+      y += ROW_H;
+    }
+    drawRow(row, y, false, isEven);
+    y += ROW_H;
+    isEven = !isEven;
+  }
+  doc.y = y + 8;
 };
 
 // ── Rendu inline avec gras (**texte**) ────────────────────────────────────────
@@ -216,10 +290,25 @@ const rendreTexteIA = (doc, texte) => {
   const lignesPrecaution   = idxPrec >= 0 ? allLignes.slice(idxPrec + 1) : [];
 
   // ── Rendu du contenu principal ─────────────────────────────────────────────
-  for (const ligneRaw of lignesPrincipales) {
+  let idx = 0;
+  while (idx < lignesPrincipales.length) {
     if (doc.y > CONTENT_BOT - 20) { doc.addPage(); dessinerHeader(doc); doc.y = CONTENT_TOP; }
+    const ligneRaw = lignesPrincipales[idx];
     const t = nettoyerPourPDF(ligneRaw.trim());
-    if (!t) { doc.y = Math.min(doc.y + 4, CONTENT_BOT); continue; }
+
+    if (!t || t === '---' || t === '--') { doc.y = Math.min(doc.y + 4, CONTENT_BOT); idx++; continue; }
+
+    // Lignes de tableau Markdown — collecter d'un coup
+    if (estLigneTableau(t)) {
+      const tableLines = [];
+      while (idx < lignesPrincipales.length) {
+        const tl = nettoyerPourPDF(lignesPrincipales[idx].trim());
+        if (estLigneTableau(tl) || estSeparateur(tl)) { tableLines.push(lignesPrincipales[idx]); idx++; }
+        else break;
+      }
+      dessinerTableauMarkdown(doc, tableLines);
+      continue;
+    }
 
     // En-tête de section principale (ex: "1. Analyse détaillée...")
     if (estEnteteSection(t)) {
@@ -230,13 +319,13 @@ const rendreTexteIA = (doc, texte) => {
       const yLine = doc.y + 3;
       doc.moveTo(ML, yLine).lineTo(ML + PAGE_W, yLine).strokeColor(VERT).lineWidth(1).stroke();
       doc.y = yLine + 8;
-      continue;
+      idx++; continue;
     }
 
     // Boîte "État général" (ligne contenant ÉTAT GÉNÉRAL ou similaire)
     if (/ETAT\s+GENERAL/i.test(t.replace(/É/g, 'E').replace(/è/g, 'e'))) {
       dessinerBoiteEtat(doc, t);
-      continue;
+      idx++; continue;
     }
 
     // Sous-titre gras standalone **Texte**
@@ -245,17 +334,17 @@ const rendreTexteIA = (doc, texte) => {
       doc.fontSize(10).font('Helvetica-Bold').fillColor(VERT_FONCE)
          .text(t.slice(2, -2), ML, doc.y + 5, { width: PAGE_W });
       doc.y = doc.y + 2;
-      continue;
+      idx++; continue;
     }
 
-    // Point de liste (-  ou •)
+    // Point de liste
     const bM = t.match(/^[-]\s+(.*)/);
     if (bM) {
       if (doc.y + 14 > CONTENT_BOT) { doc.addPage(); dessinerHeader(doc); doc.y = CONTENT_TOP; }
       const yB = doc.y + 1;
       doc.fontSize(9).font('Helvetica').fillColor(GRIS).text('•', ML + 4, yB, { width: 10 });
       rendreInline(doc, bM[1], ML + 16, yB, PAGE_W - 20, 9, NOIR);
-      continue;
+      idx++; continue;
     }
 
     // Liste numérotée (ex: "1. Paludisme...")
@@ -266,12 +355,13 @@ const rendreTexteIA = (doc, texte) => {
       doc.fontSize(9).font('Helvetica-Bold').fillColor(GRIS)
          .text(`${nmM[1]}.`, ML + 2, yB, { width: 14, align: 'right' });
       rendreInline(doc, nmM[2], ML + 18, yB, PAGE_W - 22, 9, NOIR);
-      continue;
+      idx++; continue;
     }
 
     // Texte courant
     if (doc.y + 12 > CONTENT_BOT) { doc.addPage(); dessinerHeader(doc); doc.y = CONTENT_TOP; }
     rendreInline(doc, t, ML, doc.y + 1, PAGE_W, 9, NOIR);
+    idx++;
   }
 
   // ── Précaution médicale (section finale en boîte) ──────────────────────────
