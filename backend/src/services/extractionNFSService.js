@@ -64,10 +64,34 @@ Structure (n'inclure que ce qui est présent dans l'image) :
 
 Règles importantes :
 - Retourne uniquement les panels et valeurs effectivement présents dans l'image
-- Si une valeur est en mg/dL, convertis en mmol/L (glycémie ÷ 18, cholestérol ÷ 38.67, triglycérides ÷ 88.6, LDL ÷ 38.67, HDL ÷ 38.67)
-- Pour l'hémoglobine en g/dL, garde tel quel
-- Retourne le nombre décimal uniquement (sans unité ni texte)
-- Retourne UNIQUEMENT le JSON brut`;
+- Retourne UNIQUEMENT le JSON brut, nombre décimal uniquement (sans unité ni texte)
+
+CONVERSIONS D'UNITÉS OBLIGATOIRES — applique-les AVANT de retourner la valeur :
+
+NFS (hématologie) :
+- Leucocytes / Globules blancs en /mm³ ou /µL → DIVISER par 1000 → G/L  (ex: 5500/mm³ = 5.5 G/L)
+- Plaquettes en /mm³ ou /µL → DIVISER par 1000 → G/L  (ex: 189000/mm³ = 189 G/L)
+- Neutrophiles, lymphocytes, monocytes, éosinophiles, basophiles absolus en /mm³ → DIVISER par 1000 → G/L
+- Hématies / Globules rouges en 10^6/mm³ ou 10^6/µL → valeur numérique identique en T/L  (ex: 4.43×10^6/mm³ = 4.43 T/L)
+- Hémoglobine en g/dL → garder tel quel
+- VGM en µ³ ou fL → valeur numérique identique (µ³ = fL)
+
+Bilan rénal :
+- Créatinine en µmol/L → garder tel quel  (ex: 98.1 µmol/L → 98.1)
+- Créatinine en mg/L → MULTIPLIER par 8.84 → µmol/L  (ex: 11.10 mg/L × 8.84 = 98.1)
+- Créatinine en mg/dL → MULTIPLIER par 88.4 → µmol/L
+- Urée en mmol/L → garder tel quel
+- Urée en g/L → MULTIPLIER par 16.65 → mmol/L  (ex: 0.45 g/L × 16.65 = 7.5)
+- Acide urique en µmol/L → garder tel quel ; en mg/L → × 5.95 ; en mg/dL → × 59.5
+
+Bilan lipidique :
+- Valeurs en mmol/L → garder tel quel
+- Valeurs en mg/dL → cholestérol ÷ 38.67, triglycérides ÷ 88.6, LDL ÷ 38.67, HDL ÷ 38.67
+
+Glycémie :
+- Valeurs en mmol/L → garder tel quel
+- Valeurs en g/L → MULTIPLIER par 5.55 → mmol/L
+- Valeurs en mg/dL → DIVISER par 18 → mmol/L`;
 
 // ── Patterns regex pour PDF ───────────────────────────────────────────────────
 const PATTERNS = {
