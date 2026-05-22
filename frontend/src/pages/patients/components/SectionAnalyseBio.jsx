@@ -1,5 +1,5 @@
 import { useState, useMemo, useRef, useEffect, Component } from 'react';
-import { useAnalysesBio, useExtraireAnalyseBio, useSupprimerAnalyseBio, useAnalyserAvecIA, useTelechargePdfAnalyse } from '../../../hooks/useAnalysesBio';
+import { useAnalysesBio, useExtraireAnalyseBio, useSupprimerAnalyseBio, useAnalyserAvecIA, useTelechargePdfAnalyse, useTelechargeDocxAnalyse } from '../../../hooks/useAnalysesBio';
 import { interpreterPanels, couleurSeverite, iconesSeverite, SEVERITE } from '../../../utils/interpretationBio';
 import Button from '../../../components/ui/Button';
 import { Plus, Trash2, ChevronDown, ChevronUp, FlaskConical, Upload, FileText, Image, Loader2, CheckCircle2, X, Sparkles, RefreshCw, Download } from 'lucide-react';
@@ -419,7 +419,8 @@ const CarteAnalyseInterne = ({ analyse }) => {
   const [ouverte, setOuverte] = useState(false);
   const supprimer = useSupprimerAnalyseBio(analyse.patient_id);
   const analyserIA = useAnalyserAvecIA(analyse.patient_id);
-  const telechargerPdf = useTelechargePdfAnalyse(analyse.patient_id);
+  const telechargerPdf  = useTelechargePdfAnalyse(analyse.patient_id);
+  const telechargerDocx = useTelechargeDocxAnalyse(analyse.patient_id);
 
   const panels = useMemo(() => parseJSON(analyse.panels_demandes, []), [analyse.panels_demandes]);
   const valeurs = useMemo(() => parseJSON(analyse.valeurs_brutes, {}), [analyse.valeurs_brutes]);
@@ -511,7 +512,7 @@ const CarteAnalyseInterne = ({ analyse }) => {
 
           {/* Analyse IA */}
           <div className="border border-purple-200 rounded-carte overflow-hidden">
-            <div className="flex items-center justify-between px-3 py-2 bg-purple-50">
+            <div className="flex items-center justify-between px-3 py-2.5 bg-purple-50">
               <span className="text-xs font-semibold text-purple-700 flex items-center gap-1.5">
                 <Sparkles size={12} />
                 Analyse IA — Médecin biologiste
@@ -525,14 +526,12 @@ const CarteAnalyseInterne = ({ analyse }) => {
                 disabled={analyserIA.isPending}
                 className="text-purple-700 hover:bg-purple-100 text-xs"
               >
-                {analyserIA.isPending
-                  ? 'Analyse en cours…'
-                  : analyse.analyse_ia_texte ? 'Ré-analyser' : 'Lancer l\'analyse IA'}
+                {analyserIA.isPending ? 'Analyse en cours…' : analyse.analyse_ia_texte ? 'Ré-analyser' : "Lancer l'analyse IA"}
               </Button>
             </div>
 
             {analyserIA.isPending && (
-              <div className="px-4 py-6 flex items-center gap-3 text-purple-700 bg-purple-50/50">
+              <div className="px-4 py-5 flex items-center gap-3 text-purple-700 bg-purple-50/40">
                 <Loader2 size={16} className="animate-spin flex-shrink-0" />
                 <span className="text-sm">L&apos;IA analyse les résultats… (30–60 secondes)</span>
               </div>
@@ -545,14 +544,40 @@ const CarteAnalyseInterne = ({ analyse }) => {
             )}
 
             {analyse.analyse_ia_texte && !analyserIA.isPending && (
-              <div className="px-4 py-4 bg-white">
-                <RenderTexteIA texte={analyse.analyse_ia_texte} />
-                {analyse.analyse_ia_modele && (
-                  <p className="mt-3 text-xs text-texte-secondaire border-t border-bordure pt-2">
-                    Modèle : {analyse.analyse_ia_modele}
-                    {analyse.cout_estime_usd ? ` · Coût estimé : $${parseFloat(analyse.cout_estime_usd).toFixed(4)}` : ''}
+              <div className="px-4 py-3 bg-white flex items-center justify-between gap-4">
+                <div>
+                  <p className="text-sm font-medium text-texte-principal">
+                    Interprétation médicale disponible
                   </p>
-                )}
+                  <p className="text-xs text-texte-secondaire mt-0.5">
+                    {analyse.analyse_ia_modele || 'IA'}
+                    {analyse.cout_estime_usd
+                      ? ` · Coût estimé : $${parseFloat(analyse.cout_estime_usd).toFixed(4)}`
+                      : ''}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <Button
+                    variante="secondaire"
+                    icone={FileText}
+                    taille="petit"
+                    chargement={telechargerDocx.isPending}
+                    onClick={() => telechargerDocx.mutate(analyse.id)}
+                    disabled={telechargerDocx.isPending}
+                  >
+                    Word
+                  </Button>
+                  <Button
+                    variante="primaire"
+                    icone={Download}
+                    taille="petit"
+                    chargement={telechargerPdf.isPending}
+                    onClick={() => telechargerPdf.mutate(analyse.id)}
+                    disabled={telechargerPdf.isPending}
+                  >
+                    PDF
+                  </Button>
+                </div>
               </div>
             )}
           </div>
@@ -562,29 +587,16 @@ const CarteAnalyseInterne = ({ analyse }) => {
               {analyse.sexe_patient && `${analyse.sexe_patient === 'M' ? 'Masculin' : 'Féminin'}`}
               {analyse.age_patient  && ` · ${analyse.age_patient} ans`}
             </span>
-            <div className="flex items-center gap-2">
-              <Button
-                variante="fantome"
-                icone={Download}
-                taille="petit"
-                chargement={telechargerPdf.isPending}
-                onClick={() => telechargerPdf.mutate(analyse.id)}
-                disabled={telechargerPdf.isPending}
-                className="text-bleu-primaire hover:bg-blue-50"
-              >
-                Rapport PDF
-              </Button>
-              <Button
-                variante="fantome"
-                icone={Trash2}
-                taille="petit"
-                chargement={supprimer.isPending}
-                onClick={() => { if (window.confirm('Supprimer cette analyse ?')) supprimer.mutate(analyse.id); }}
-                className="text-medical-critique hover:bg-red-50"
-              >
-                Supprimer
-              </Button>
-            </div>
+            <Button
+              variante="fantome"
+              icone={Trash2}
+              taille="petit"
+              chargement={supprimer.isPending}
+              onClick={() => { if (window.confirm('Supprimer cette analyse ?')) supprimer.mutate(analyse.id); }}
+              className="text-medical-critique hover:bg-red-50"
+            >
+              Supprimer
+            </Button>
           </div>
         </div>
       )}

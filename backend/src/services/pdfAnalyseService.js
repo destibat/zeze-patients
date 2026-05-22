@@ -257,9 +257,26 @@ const dessinerTableauPatient = (doc, rows) => {
   doc.y = doc.y + TOTAL_H + 12;
 };
 
+// ── Nettoyage emojis (Helvetica ne supporte pas l'unicode > Latin-1) ──────────
+const nettoyerPourPDF = (str) => {
+  if (!str) return '';
+  return str
+    // Remplacer flèches et symboles courants en ASCII
+    .replace(/↑/g, '^ ').replace(/↓/g, 'v ')
+    .replace(/✓/g, 'OK').replace(/✗/g, 'X')
+    .replace(/•/g, '-')
+    .replace(/🟢/g, '[Normal]').replace(/🟡/g, '[Surveiller]').replace(/🔴/g, '[Critique]')
+    // Supprimer tous les emojis et symboles hors Latin-1
+    .replace(/[\u{1F000}-\u{1FFFF}]/gu, '')
+    .replace(/[☀-➿]/g, '')
+    .replace(/[︀}-️]/g, '')
+    // Nettoyer les espaces multiples
+    .replace(/ {2,}/g, ' ')
+    .trim();
+};
+
 // ── Rendu texte IA ─────────────────────────────────────────────────────────────
-const SECTION_EMOJIS = ['📊', '⚠', '🧠', '📋', '💬', '🩺', '⚖'];
-const isSectionHeader = (t) => SECTION_EMOJIS.some(e => t.includes(e) && /\d+\./.test(t));
+const isSectionHeader = (t) => /^\s*\d+\.\s+\S/.test(t) || /^(analyse|identification|interpr[eé]tation|synth[eè]se|explication|recommandations|pr[eé]caution)/i.test(t);
 
 const rendreTexteInline = (doc, texte, x, y, largeur, taille, couleur = NOIR) => {
   if (!texte.includes('**')) {
@@ -283,9 +300,9 @@ const rendreTexteInline = (doc, texte, x, y, largeur, taille, couleur = NOIR) =>
 
 const rendreTexteIA = (doc, texte) => {
   if (!texte) return;
-  for (const ligne of texte.split('\n')) {
+  for (const ligneRaw of texte.split('\n')) {
     if (doc.y > CONTENT_BOT - 20) { doc.addPage(); dessinerHeader(doc); doc.y = CONTENT_TOP; }
-    const t = ligne.trim();
+    const t = nettoyerPourPDF(ligneRaw.trim());
     if (!t) { doc.y = Math.min(doc.y + 4, CONTENT_BOT); continue; }
 
     if (isSectionHeader(t)) {
@@ -312,7 +329,7 @@ const rendreTexteIA = (doc, texte) => {
       continue;
     }
 
-    if (t.includes('⚠') && t.length > 10) {
+    if (/precaution|avertissement|important/i.test(t) && t.length > 10) {
       if (doc.y + 36 > CONTENT_BOT) { doc.addPage(); dessinerHeader(doc); doc.y = CONTENT_TOP; }
       const yA = doc.y + 4;
       doc.rect(ML, yA, 3, 32).fill(ORANGE);
