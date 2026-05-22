@@ -384,6 +384,52 @@ function interpreterIonogramme(vals) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Bilan hépatique (CRP, ASAT, ALAT)
+// ─────────────────────────────────────────────────────────────────────────────
+function interpreterHapatique(vals) {
+  const commentaires = [];
+  const add = (code, titre, texte, severite = SEVERITE.ATTENTION) =>
+    commentaires.push({ code, titre, texte, severite });
+
+  const crp  = v(vals.crp);
+  const asat = v(vals.asat);
+  const alat = v(vals.alat);
+  let anomalie = false;
+
+  if (crp !== null) {
+    if (crp >= 100) {
+      anomalie = true;
+      add('CRP_SEVERE', 'CRP très élevée', `CRP ${crp} mg/L — inflammation sévère. Suspicion d'infection bactérienne grave ou maladie inflammatoire aiguë. Prise en charge urgente recommandée.`, SEVERITE.CRITIQUE);
+    } else if (crp >= 30) {
+      anomalie = true;
+      add('CRP_ELEVEE', 'CRP nettement élevée', `CRP ${crp} mg/L (> 30). Inflammation importante. Causes : infection bactérienne, poussée inflammatoire, traumatisme récent.`, SEVERITE.ATTENTION);
+    } else if (crp >= 6) {
+      anomalie = true;
+      add('CRP_MODEREE', 'CRP modérément élevée', `CRP ${crp} mg/L (norme < 6). Inflammation légère à modérée. Peut orienter vers une infection débutante ou une pathologie inflammatoire.`, SEVERITE.ATTENTION);
+    }
+  }
+
+  if (asat !== null && asat > 40) {
+    anomalie = true;
+    add('ASAT_ELEVEE', 'ASAT (GOT) élevée', `ASAT ${asat} UI/L (norme 10–40). ${asat > 120 ? 'Cytolyse hépatique importante. ' : ''}Causes : hépatite virale ou médicamenteuse, stéatose, effort physique intense, infarctus.`, asat > 120 ? SEVERITE.CRITIQUE : SEVERITE.ATTENTION);
+  }
+
+  if (alat !== null && alat > 35) {
+    anomalie = true;
+    add('ALAT_ELEVEE', 'ALAT (TGP) élevée', `ALAT ${alat} UI/L (norme 10–35). L'ALAT est spécifique du foie. ${alat > 105 ? 'Cytolyse hépatique significative. ' : ''}Causes : hépatite virale, stéatose hépatique, toxicité médicamenteuse.`, alat > 105 ? SEVERITE.CRITIQUE : SEVERITE.ATTENTION);
+  }
+
+  const saisies = [crp, asat, alat].filter((x) => x !== null).length;
+  if (!anomalie && saisies > 0) {
+    add('HEPATIQUE_NORMAL', 'Bilan hépatique normal', 'CRP, ASAT et ALAT dans les valeurs de référence. Pas de signe d\'inflammation ni de cytolyse hépatique.', SEVERITE.NORMAL);
+  } else if (saisies === 0) {
+    add('HEPATIQUE_INCOMPLET', 'Données insuffisantes', 'Saisir au moins CRP, ASAT ou ALAT.', SEVERITE.INFO);
+  }
+
+  return commentaires;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Point d'entrée principal
 // ─────────────────────────────────────────────────────────────────────────────
 export function interpreterPanels(valeurs_brutes, panels, sexe) {
@@ -391,11 +437,12 @@ export function interpreterPanels(valeurs_brutes, panels, sexe) {
   for (const panel of panels) {
     const vals = valeurs_brutes[panel] || {};
     switch (panel) {
-      case 'nfs':       resultats.nfs       = interpreterNFS(vals, sexe);       break;
-      case 'renal':     resultats.renal     = interpreterRenal(vals, sexe);     break;
-      case 'glycemie':  resultats.glycemie  = interpreterGlycemie(vals);        break;
-      case 'lipidique': resultats.lipidique = interpreterLipidique(vals, sexe); break;
-      case 'ionogramme':resultats.ionogramme= interpreterIonogramme(vals);      break;
+      case 'nfs':        resultats.nfs        = interpreterNFS(vals, sexe);       break;
+      case 'renal':      resultats.renal      = interpreterRenal(vals, sexe);     break;
+      case 'glycemie':   resultats.glycemie   = interpreterGlycemie(vals);        break;
+      case 'lipidique':  resultats.lipidique  = interpreterLipidique(vals, sexe); break;
+      case 'ionogramme': resultats.ionogramme = interpreterIonogramme(vals);      break;
+      case 'hepatique':  resultats.hepatique  = interpreterHapatique(vals);       break;
     }
   }
   return resultats;

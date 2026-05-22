@@ -37,6 +37,7 @@ const PANEL_INFO = {
   glycemie:   { label: 'Bilan glycémique', couleur: 'bg-yellow-100 text-yellow-800 border-yellow-200' },
   lipidique:  { label: 'Bilan lipidique',  couleur: 'bg-purple-100 text-purple-800 border-purple-200' },
   ionogramme: { label: 'Ionogramme',       couleur: 'bg-teal-100 text-teal-800 border-teal-200' },
+  hepatique:  { label: 'Bilan hépatique',  couleur: 'bg-orange-100 text-orange-800 border-orange-200' },
 };
 
 // ── Paramètres biologiques (labels + unités + normes) ─────────────────────────
@@ -131,6 +132,14 @@ const PARAMS_META = {
       magnesium:    { label: 'Magnésium',    unite: 'mmol/L', ref: () => '0,75–1,00' },
       phosphore:    { label: 'Phosphore',    unite: 'mmol/L', ref: () => '0,80–1,45' },
       bicarbonates: { label: 'Bicarbonates', unite: 'mmol/L', ref: () => '22–29' },
+    },
+  },
+  hepatique: {
+    label: 'Bilan hépatique',
+    params: {
+      crp:  { label: 'CRP (Protéine C-réactive)', unite: 'mg/L', ref: () => '< 6' },
+      asat: { label: 'ASAT (GOT)',                unite: 'UI/L', ref: () => '10–40' },
+      alat: { label: 'ALAT (TGP)',                unite: 'UI/L', ref: () => '10–35' },
     },
   },
 };
@@ -348,11 +357,16 @@ const ZoneUpload = ({ patientId, onTermine, onAnnuler }) => {
       setPct(100);
       setEtape('Analyse terminée !');
       setTimeout(() => onTermine(resultat.analyse), 600);
-    } catch {
+    } catch (err) {
       nettoyer();
       setPct(0);
       setEtape('');
-      setErreur("Erreur lors de l'analyse. Vérifiez que les fichiers sont lisibles et réessayez.");
+      const detail = err?.response?.data?.message || err?.message || '';
+      console.error('[GECAM] Erreur extraction:', detail, err);
+      setErreur(detail
+        ? `Erreur : ${detail}`
+        : "Erreur lors de l'analyse. Vérifiez que les fichiers sont lisibles et réessayez."
+      );
     }
   };
 

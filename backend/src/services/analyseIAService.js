@@ -54,6 +54,12 @@ const PARAMS_LIPIDIQUE = {
   triglycerides:     { label: 'Triglycérides',      unite: 'mmol/L', ref: () => '< 1,7' },
 };
 
+const PARAMS_HEPATIQUE = {
+  crp:  { label: 'CRP (Protéine C-réactive)', unite: 'mg/L', ref: () => '< 6' },
+  asat: { label: 'ASAT (GOT)',                unite: 'UI/L', ref: () => '10–40' },
+  alat: { label: 'ALAT (TGP)',                unite: 'UI/L', ref: () => '10–35' },
+};
+
 const PARAMS_IONOGRAMME = {
   sodium:       { label: 'Sodium',       unite: 'mmol/L', ref: () => '136–145' },
   potassium:    { label: 'Potassium',    unite: 'mmol/L', ref: () => '3,5–5,0' },
@@ -70,6 +76,7 @@ const PANELS_META = {
   glycemie:   { label: 'Bilan glycémique',                  params: PARAMS_GLYCEMIE },
   lipidique:  { label: 'Bilan lipidique',                   params: PARAMS_LIPIDIQUE },
   ionogramme: { label: 'Ionogramme',                        params: PARAMS_IONOGRAMME },
+  hepatique:  { label: 'Bilan hépatique',                   params: PARAMS_HEPATIQUE },
 };
 
 // ── Prompt système (fourni par le médecin) ────────────────────────────────────

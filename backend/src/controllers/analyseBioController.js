@@ -6,7 +6,7 @@ const { analyserBilanAvecIA } = require('../services/analyseIAService');
 const { genererPdfAnalyse } = require('../services/pdfAnalyseService');
 const { genererDocxAnalyse } = require('../services/docxAnalyseService');
 
-const PANELS_VALIDES = ['nfs', 'renal', 'glycemie', 'lipidique', 'ionogramme'];
+const PANELS_VALIDES = ['nfs', 'renal', 'glycemie', 'lipidique', 'ionogramme', 'hepatique'];
 
 const listerAnalyses = async (req, res) => {
   const { patientId } = req.params;

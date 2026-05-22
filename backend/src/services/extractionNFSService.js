@@ -13,6 +13,11 @@ Structure (n'inclure que ce qui est présent dans l'image) :
   "date_analyse": "JJ/MM/AAAA ou null",
   "sexe_patient": "M ou F ou null",
   "age_patient": entier ou null,
+  "hepatique": {
+    "crp": nombre,
+    "asat": nombre,
+    "alat": nombre
+  },
   "nfs": {
     "hemoglobine": nombre,
     "hematocrite": nombre,
@@ -83,6 +88,11 @@ Bilan rénal :
 - Urée en mmol/L → garder tel quel
 - Urée en g/L → MULTIPLIER par 16.65 → mmol/L  (ex: 0.45 g/L × 16.65 = 7.5)
 - Acide urique en µmol/L → garder tel quel ; en mg/L → × 5.95 ; en mg/dL → × 59.5
+
+Bilan hépatique :
+- CRP en mg/L → garder tel quel (ex: 93.70 mg/L → 93.7)
+- ASAT (GOT) et ALAT (TGP) en UI/L ou U/L → garder tel quel
+- Ne pas confondre avec la NFS : ces valeurs sont dans le panel "hepatique"
 
 Bilan lipidique :
 - Valeurs en mmol/L → garder tel quel
@@ -230,7 +240,7 @@ const extraireDepuisPDF = async (buffer) => {
 };
 
 // ── Extraction image via Claude Vision ────────────────────────────────────────
-const PANELS_VALIDES = ['nfs', 'renal', 'glycemie', 'lipidique', 'ionogramme'];
+const PANELS_VALIDES = ['nfs', 'renal', 'glycemie', 'lipidique', 'ionogramme', 'hepatique'];
 
 const extraireDepuisImageVision = async (buffer, mimetype) => {
   const apiKey = process.env.ANTHROPIC_API_KEY;
