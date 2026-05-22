@@ -39,6 +39,157 @@ const PANEL_INFO = {
   ionogramme: { label: 'Ionogramme',       couleur: 'bg-teal-100 text-teal-800 border-teal-200' },
 };
 
+// ── Paramètres biologiques (labels + unités + normes) ─────────────────────────
+const PARAMS_META = {
+  nfs: {
+    label: 'NFS — Numération Formule Sanguine',
+    params: {
+      hemoglobine:      { label: 'Hémoglobine',        unite: 'g/dL',          ref: (s) => s === 'F' ? '12–16'   : '13–17' },
+      hematocrite:      { label: 'Hématocrite',         unite: '%',             ref: (s) => s === 'F' ? '35–47'   : '40–54' },
+      globules_rouges:  { label: 'Globules rouges',     unite: 'T/L',           ref: (s) => s === 'F' ? '4,0–5,2' : '4,5–5,9' },
+      vgm:              { label: 'VGM',                 unite: 'fL',            ref: () => '80–100' },
+      tcmh:             { label: 'TCMH',                unite: 'pg',            ref: () => '27–33' },
+      ccmh:             { label: 'CCMH',                unite: 'g/dL',          ref: () => '32–36' },
+      rdw:              { label: 'RDW',                 unite: '%',             ref: () => '11,5–14,5' },
+      globules_blancs:  { label: 'Globules blancs',     unite: 'G/L',           ref: () => '4–10' },
+      neutrophiles_abs: { label: 'Neutrophiles (abs)',  unite: 'G/L',           ref: () => '1,8–7,5' },
+      neutrophiles_pct: { label: 'Neutrophiles (%)',    unite: '%',             ref: () => '40–75' },
+      lymphocytes_abs:  { label: 'Lymphocytes (abs)',   unite: 'G/L',           ref: () => '1,0–4,0' },
+      lymphocytes_pct:  { label: 'Lymphocytes (%)',     unite: '%',             ref: () => '20–40' },
+      monocytes_abs:    { label: 'Monocytes (abs)',     unite: 'G/L',           ref: () => '0,2–1,0' },
+      monocytes_pct:    { label: 'Monocytes (%)',       unite: '%',             ref: () => '2–10' },
+      eosinophiles_abs: { label: 'Éosinophiles (abs)',  unite: 'G/L',           ref: () => '0–0,5' },
+      eosinophiles_pct: { label: 'Éosinophiles (%)',    unite: '%',             ref: () => '0–5' },
+      basophiles_abs:   { label: 'Basophiles (abs)',    unite: 'G/L',           ref: () => '0–0,1' },
+      basophiles_pct:   { label: 'Basophiles (%)',      unite: '%',             ref: () => '0–1' },
+      plaquettes:       { label: 'Plaquettes',          unite: 'G/L',           ref: () => '150–400' },
+    },
+  },
+  renal: {
+    label: 'Bilan rénal',
+    params: {
+      creatinine:   { label: 'Créatinine',   unite: 'µmol/L',        ref: (s) => s === 'F' ? '44–97'   : '53–106' },
+      uree:         { label: 'Urée',         unite: 'mmol/L',        ref: () => '2,5–7,5' },
+      acide_urique: { label: 'Acide urique', unite: 'µmol/L',        ref: (s) => s === 'F' ? '143–339' : '202–416' },
+      dfg:          { label: 'DFG estimé',   unite: 'mL/min/1.73m²', ref: () => '> 60' },
+    },
+  },
+  glycemie: {
+    label: 'Bilan glycémique',
+    params: {
+      glycemie_jeun:          { label: 'Glycémie à jeun',        unite: 'mmol/L', ref: () => '3,9–5,5' },
+      glycemie_postprandiale: { label: 'Glycémie postprandiale', unite: 'mmol/L', ref: () => '< 7,8' },
+      hba1c:                  { label: 'HbA1c',                  unite: '%',      ref: () => '< 5,7' },
+    },
+  },
+  lipidique: {
+    label: 'Bilan lipidique',
+    params: {
+      cholesterol_total: { label: 'Cholestérol total', unite: 'mmol/L', ref: () => '< 5,2' },
+      ldl:               { label: 'LDL-cholestérol',   unite: 'mmol/L', ref: () => '< 3,4' },
+      hdl:               { label: 'HDL-cholestérol',   unite: 'mmol/L', ref: (s) => s === 'F' ? '> 1,3' : '> 1,0' },
+      triglycerides:     { label: 'Triglycérides',      unite: 'mmol/L', ref: () => '< 1,7' },
+    },
+  },
+  ionogramme: {
+    label: 'Ionogramme',
+    params: {
+      sodium:       { label: 'Sodium',       unite: 'mmol/L', ref: () => '136–145' },
+      potassium:    { label: 'Potassium',    unite: 'mmol/L', ref: () => '3,5–5,0' },
+      chlore:       { label: 'Chlore',       unite: 'mmol/L', ref: () => '98–107' },
+      calcium:      { label: 'Calcium',      unite: 'mmol/L', ref: () => '2,2–2,6' },
+      magnesium:    { label: 'Magnésium',    unite: 'mmol/L', ref: () => '0,75–0,95' },
+      phosphore:    { label: 'Phosphore',    unite: 'mmol/L', ref: () => '0,81–1,45' },
+      bicarbonates: { label: 'Bicarbonates', unite: 'mmol/L', ref: () => '22–29' },
+    },
+  },
+};
+
+// Calcul statut par rapport à la norme
+const calculerStatutBio = (valeur, refStr) => {
+  if (valeur === null || valeur === undefined || valeur === '') return null;
+  const num = parseFloat(String(valeur).replace(',', '.'));
+  if (isNaN(num)) return null;
+  const clean = refStr.replace(/\s*\([^)]+\)/, '').trim();
+  if (clean.includes('–')) {
+    const [a, b] = clean.split('–').map(s => parseFloat(s.replace(',', '.')));
+    if (isNaN(a) || isNaN(b)) return null;
+    if (num < a) return { label: '↓ Diminué',  classe: 'bg-blue-100 text-blue-800' };
+    if (num > b) return { label: '↑ Augmenté', classe: 'bg-red-100 text-red-800' };
+    return           { label: '✓ Normal',      classe: 'bg-green-100 text-green-800' };
+  }
+  const lt = clean.match(/^<\s*([\d,]+)/);
+  if (lt) {
+    const s = parseFloat(lt[1].replace(',', '.'));
+    if (num < s * 0.95) return { label: '✓ Normal',      classe: 'bg-green-100 text-green-800' };
+    if (num < s)        return { label: '↑ Limite',       classe: 'bg-orange-100 text-orange-800' };
+    return                     { label: '↑ Augmenté',     classe: 'bg-red-100 text-red-800' };
+  }
+  const gt = clean.match(/^>\s*([\d,]+)/);
+  if (gt) {
+    const s = parseFloat(gt[1].replace(',', '.'));
+    if (num > s * 1.05) return { label: '✓ Normal',      classe: 'bg-green-100 text-green-800' };
+    if (num > s)        return { label: '↓ Limite',       classe: 'bg-orange-100 text-orange-800' };
+    return                     { label: '↓ Diminué',      classe: 'bg-blue-100 text-blue-800' };
+  }
+  return null;
+};
+
+// ── Tableau des valeurs par panel ─────────────────────────────────────────────
+const TableauPanel = ({ panelId, valeurs, sexe }) => {
+  const meta = PARAMS_META[panelId];
+  if (!meta) return null;
+  const v = valeurs[panelId] || {};
+  const lignes = Object.entries(meta.params)
+    .map(([cle, param]) => ({ cle, param, val: v[cle] }))
+    .filter(({ val }) => val !== null && val !== undefined && val !== '');
+  if (!lignes.length) return null;
+
+  return (
+    <div className="overflow-x-auto rounded border border-gray-200">
+      <div className="bg-[#0D5C38] text-white text-xs font-semibold px-3 py-2">
+        {meta.label}
+      </div>
+      <table className="w-full text-xs border-collapse">
+        <thead>
+          <tr className="bg-[#CFD8DC] text-[#37474F]">
+            <th className="border border-gray-300 px-3 py-2 text-left font-semibold">Paramètre</th>
+            <th className="border border-gray-300 px-3 py-2 text-right font-semibold">Résultat</th>
+            <th className="border border-gray-300 px-3 py-2 text-right font-semibold">Normes</th>
+            <th className="border border-gray-300 px-3 py-2 text-center font-semibold w-28">Statut</th>
+          </tr>
+        </thead>
+        <tbody>
+          {lignes.map(({ cle, param, val }, i) => {
+            const refStr = param.ref(sexe);
+            const statut = calculerStatutBio(val, refStr);
+            return (
+              <tr key={cle} className={i % 2 === 0 ? 'bg-gray-50' : 'bg-white'}>
+                <td className="border border-gray-200 px-3 py-1.5 text-gray-800">{param.label}</td>
+                <td className="border border-gray-200 px-3 py-1.5 text-right font-semibold text-gray-900">
+                  {val} <span className="font-normal text-gray-500">{param.unite}</span>
+                </td>
+                <td className="border border-gray-200 px-3 py-1.5 text-right text-gray-500">
+                  {refStr} {param.unite}
+                </td>
+                <td className="border border-gray-200 px-2 py-1.5 text-center">
+                  {statut ? (
+                    <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${statut.classe}`}>
+                      {statut.label}
+                    </span>
+                  ) : (
+                    <span className="text-gray-400">—</span>
+                  )}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+};
+
 const PanelBadge = ({ id }) => {
   const p = PANEL_INFO[id];
   return p ? (
@@ -326,15 +477,30 @@ const CarteAnalyseInterne = ({ analyse }) => {
 
       {ouverte && (
         <div className="px-4 pb-4 pt-3 space-y-4 bg-white border-t border-bordure">
-          {panels.map((panelId) => {
-            const items = interpretations[panelId] || [];
-            return (
-              <div key={panelId}>
-                <div className="mb-2"><PanelBadge id={panelId} /></div>
-                <BlocInterpretations items={items} />
-              </div>
-            );
-          })}
+          {/* Tableaux des valeurs brutes */}
+          {panels.map((panelId) => (
+            <TableauPanel
+              key={panelId}
+              panelId={panelId}
+              valeurs={valeurs}
+              sexe={analyse.sexe_patient}
+            />
+          ))}
+
+          {/* Interprétations cliniques */}
+          {panels.some((p) => (interpretations[p] || []).length > 0) && (
+            <div className="space-y-3">
+              <p className="text-xs font-semibold text-texte-secondaire uppercase tracking-wide">
+                Interprétation clinique
+              </p>
+              {panels.map((panelId) => {
+                const items = interpretations[panelId] || [];
+                return items.length > 0 ? (
+                  <BlocInterpretations key={panelId} items={items} />
+                ) : null;
+              })}
+            </div>
+          )}
 
           {analyse.conclusion && (
             <div className="bg-fond-secondaire rounded-bouton p-3">

@@ -105,26 +105,24 @@ const extraireEtSauvegarder = async (req, res) => {
   const resultats = await Promise.all(
     fichiers.map((f) => extraireNFS(f.buffer, f.mimetype))
   );
-  const { valeurs, texte } = fusionnerValeurs(resultats);
+  const { meta, panelsStructures, panelsList, texte } = fusionnerValeurs(resultats);
 
+  const sexePatient = patient.sexe === 'masculin' ? 'M' : patient.sexe === 'feminin' ? 'F' : null;
+  const sexe = sexePatient || meta.sexe_patient || null;
   const age = patient.date_naissance
     ? Math.floor((Date.now() - new Date(patient.date_naissance)) / (365.25 * 864e5))
-    : (valeurs.age_patient || null);
-  const sexePatient = patient.sexe === 'masculin' ? 'M' : patient.sexe === 'feminin' ? 'F' : null;
-  const sexe = sexePatient || valeurs.sexe_patient || null;
-
-  const { sexe_patient, age_patient, date_analyse, ...valeursNFS } = valeurs;
+    : (meta.age_patient || null);
 
   const source = fichiers.some((f) => f.mimetype === 'application/pdf') ? 'upload_pdf' : 'upload_image';
 
   const analyse = await AnalyseBiologique.create({
     patient_id:      patientId,
     created_by:      req.utilisateur.id,
-    date_analyse:    date_analyse || new Date().toISOString().slice(0, 10),
+    date_analyse:    meta.date_analyse || new Date().toISOString().slice(0, 10),
     sexe_patient:    sexe,
     age_patient:     age,
-    panels_demandes: ['nfs'],
-    valeurs_brutes:  { nfs: valeursNFS },
+    panels_demandes: panelsList,
+    valeurs_brutes:  panelsStructures,
     source,
   });
 
