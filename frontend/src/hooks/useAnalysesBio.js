@@ -27,6 +27,15 @@ export function useExtraireAnalyseBio(patientId) {
   });
 }
 
+export function useModifierAnalyseBio(patientId) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ analyseId, data }) =>
+      api.put(`/patients/${patientId}/analyses-bio/${analyseId}`, data).then((r) => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: cle(patientId) }),
+  });
+}
+
 export function useCreerAnalyseBio(patientId) {
   const qc = useQueryClient();
   return useMutation({

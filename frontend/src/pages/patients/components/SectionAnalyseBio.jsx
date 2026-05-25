@@ -1,8 +1,8 @@
 import { useState, useMemo, useRef, useEffect, Component } from 'react';
-import { useAnalysesBio, useExtraireAnalyseBio, useSupprimerAnalyseBio, useAnalyserAvecIA, useTelechargePdfAnalyse, useTelechargeDocxAnalyse } from '../../../hooks/useAnalysesBio';
+import { useAnalysesBio, useExtraireAnalyseBio, useModifierAnalyseBio, useSupprimerAnalyseBio, useAnalyserAvecIA, useTelechargePdfAnalyse, useTelechargeDocxAnalyse } from '../../../hooks/useAnalysesBio';
 import { interpreterPanels, couleurSeverite, iconesSeverite, SEVERITE } from '../../../utils/interpretationBio';
 import Button from '../../../components/ui/Button';
-import { Plus, Trash2, ChevronDown, ChevronUp, FlaskConical, Upload, FileText, Image, Loader2, CheckCircle2, X, Sparkles, RefreshCw, Download } from 'lucide-react';
+import { Plus, Trash2, ChevronDown, ChevronUp, FlaskConical, Upload, FileText, Image, Loader2, CheckCircle2, X, Sparkles, RefreshCw, Download, Pencil, Check } from 'lucide-react';
 
 // ── ErrorBoundary — empêche un crash d'une carte de vider toute la page ───────
 class CarteErreur extends Component {
@@ -462,10 +462,25 @@ const ZoneUpload = ({ patientId, onTermine, onAnnuler }) => {
 // ── Carte d'une analyse sauvegardée ───────────────────────────────────────────
 const CarteAnalyseInterne = ({ analyse }) => {
   const [ouverte, setOuverte] = useState(false);
-  const supprimer = useSupprimerAnalyseBio(analyse.patient_id);
+  const [editConclusion, setEditConclusion] = useState(false);
+  const [texteConclusion, setTexteConclusion] = useState('');
+  const supprimer  = useSupprimerAnalyseBio(analyse.patient_id);
+  const modifier   = useModifierAnalyseBio(analyse.patient_id);
   const analyserIA = useAnalyserAvecIA(analyse.patient_id);
   const telechargerPdf  = useTelechargePdfAnalyse(analyse.patient_id);
   const telechargerDocx = useTelechargeDocxAnalyse(analyse.patient_id);
+
+  const ouvrirEditionConclusion = () => {
+    setTexteConclusion(analyse.conclusion || '');
+    setEditConclusion(true);
+  };
+
+  const sauvegarderConclusion = async () => {
+    try {
+      await modifier.mutateAsync({ analyseId: analyse.id, data: { conclusion: texteConclusion.trim() || null } });
+      setEditConclusion(false);
+    } catch { /* affiché via modifier.isError */ }
+  };
 
   const panels = useMemo(() => parseJSON(analyse.panels_demandes, []), [analyse.panels_demandes]);
   const valeurs = useMemo(() => parseJSON(analyse.valeurs_brutes, {}), [analyse.valeurs_brutes]);
@@ -548,12 +563,60 @@ const CarteAnalyseInterne = ({ analyse }) => {
             </div>
           )}
 
-          {analyse.conclusion && (
-            <div className="bg-fond-secondaire rounded-bouton p-3">
-              <p className="text-xs font-semibold text-texte-secondaire uppercase tracking-wide mb-1">Conclusion</p>
-              <p className="text-sm text-texte-principal whitespace-pre-wrap">{analyse.conclusion}</p>
+          {/* Conclusion générale — éditable */}
+          <div className="bg-fond-secondaire rounded-bouton p-3">
+            <div className="flex items-center justify-between mb-1">
+              <p className="text-xs font-semibold text-texte-secondaire uppercase tracking-wide">Conclusion générale</p>
+              {!editConclusion && (
+                <button
+                  onClick={ouvrirEditionConclusion}
+                  className="text-texte-secondaire hover:text-texte-principal transition-colors"
+                  title="Modifier la conclusion"
+                >
+                  <Pencil size={13} />
+                </button>
+              )}
             </div>
-          )}
+            {editConclusion ? (
+              <div className="space-y-2">
+                <textarea
+                  value={texteConclusion}
+                  onChange={(e) => setTexteConclusion(e.target.value)}
+                  className="w-full text-sm border border-bordure rounded p-2 resize-none focus:outline-none focus:ring-1 focus:ring-primaire"
+                  rows={3}
+                  placeholder="Ex : Anémie hypochrome microcytaire isolée, prédiabète de type 2..."
+                  autoFocus
+                />
+                <div className="flex gap-2">
+                  <button
+                    onClick={sauvegarderConclusion}
+                    disabled={modifier.isPending}
+                    className="flex items-center gap-1 text-xs bg-primaire text-white px-3 py-1 rounded hover:opacity-90 disabled:opacity-50"
+                  >
+                    <Check size={11} />
+                    {modifier.isPending ? 'Enregistrement…' : 'Enregistrer'}
+                  </button>
+                  <button
+                    onClick={() => setEditConclusion(false)}
+                    className="text-xs text-texte-secondaire hover:text-texte-principal px-2 py-1"
+                  >
+                    Annuler
+                  </button>
+                </div>
+                {modifier.isError && (
+                  <p className="text-xs text-rouge">Erreur lors de l'enregistrement.</p>
+                )}
+              </div>
+            ) : (
+              <p className="text-sm text-texte-principal whitespace-pre-wrap">
+                {analyse.conclusion || (
+                  <span className="italic text-texte-secondaire">
+                    Aucune conclusion — cliquez sur le crayon pour en ajouter une.
+                  </span>
+                )}
+              </p>
+            )}
+          </div>
 
           {/* Analyse IA */}
           <div className="border border-purple-200 rounded-carte overflow-hidden">

@@ -12,7 +12,7 @@ const FOOTER_PATH = path.resolve(__dirname, '../assets/footer-ordonnance.png');
 const PAGE_W      = 495;
 const PAGE_H      = 842;
 const ML          = 50;
-const HEADER_H    = Math.round(PAGE_W * 124 / 460);   // ≈ 133
+const HEADER_H    = Math.round(PAGE_W * 124 / 460 / 2); // ≈ 66
 const FOOTER_H    = Math.round(PAGE_W * 360 / 1800);  // ≈ 99
 const MARGIN_TOP  = 20;
 const CONTENT_TOP = MARGIN_TOP + HEADER_H + 14;       // ≈ 167
@@ -56,7 +56,7 @@ const parseJson = (v, fallback) => {
 
 // ── Header / Footer ───────────────────────────────────────────────────────────
 const dessinerHeader = (doc) => {
-  if (fs.existsSync(HEADER_PATH)) doc.image(HEADER_PATH, ML, MARGIN_TOP, { width: PAGE_W });
+  if (fs.existsSync(HEADER_PATH)) doc.image(HEADER_PATH, ML, MARGIN_TOP, { fit: [PAGE_W, HEADER_H], align: 'left' });
   const ySep = CONTENT_TOP - 6;
   doc.moveTo(ML, ySep).lineTo(ML + PAGE_W, ySep).strokeColor(VERT).lineWidth(1.5).stroke();
 };

@@ -8,9 +8,9 @@ const ASSETS   = path.resolve(__dirname, '../assets');
 const HEADER   = path.join(ASSETS, 'header-ordonnance.png');
 const FOOTER   = path.join(ASSETS, 'footer-ordonnance.png');
 
-// Header image : 460 × 124 px → sur 495pt de large → hauteur ≈ 133pt
+// Header image : 460 × 124 px → sur 495pt de large → hauteur réduite à 60 % ≈ 80pt
 const PAGE_W       = 495; // largeur utile (A4 595 – marges 2×50)
-const HEADER_H     = Math.round(PAGE_W * 124 / 460); // ≈ 133
+const HEADER_H     = Math.round(PAGE_W * 124 / 460 * 0.6); // ≈ 80
 const FOOTER_H     = Math.round(PAGE_W * 360 / 1800); // ≈ 99
 const MARGIN_LEFT  = 50;
 const MARGIN_TOP   = 20;  // espace avant l'image d'en-tête
@@ -44,7 +44,7 @@ const genererOrdonnancePDF = (ordonnance, posologie) =>
 
     // ── En-tête image ────────────────────────────────────────────────────
     if (fs.existsSync(HEADER)) {
-      doc.image(HEADER, MARGIN_LEFT, MARGIN_TOP, { width: PAGE_W });
+      doc.image(HEADER, MARGIN_LEFT, MARGIN_TOP, { fit: [PAGE_W, HEADER_H], align: 'left' });
     }
 
     // Ligne séparatrice sous le header
