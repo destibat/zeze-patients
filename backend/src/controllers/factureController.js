@@ -2,6 +2,7 @@
 
 const { Facture, Ordonnance, Patient, User, Exercice } = require('../models');
 const { Op } = require('sequelize');
+const { genererPdfFacture } = require('../services/pdfFactureService');
 
 const INCLUDE_BASE = [
   { model: Patient, as: 'patient', attributes: ['id', 'nom', 'prenom', 'telephone', 'numero_dossier'] },
@@ -182,4 +183,21 @@ const listerCreanciers = async (req, res) => {
   res.json(factures);
 };
 
-module.exports = { lister, obtenir, creerDepuisOrdonnance, enregistrerPaiement, annuler, listerCreanciers };
+const telechargerPdf = async (req, res) => {
+  const facture = await Facture.findByPk(req.params.id, {
+    include: [
+      { model: Patient, as: 'patient', attributes: ['id', 'nom', 'prenom', 'telephone', 'numero_dossier'] },
+      { model: User,    as: 'createur', attributes: ['id', 'nom', 'prenom', 'telephone'] },
+    ],
+  });
+  if (!facture) return res.status(404).json({ message: 'Facture introuvable' });
+
+  const buffer = await genererPdfFacture(facture, facture.patient, facture.createur);
+
+  const nomFichier = `facture_${facture.numero}.pdf`;
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `attachment; filename="${nomFichier}"`);
+  res.send(buffer);
+};
+
+module.exports = { lister, obtenir, creerDepuisOrdonnance, enregistrerPaiement, annuler, listerCreanciers, telechargerPdf };

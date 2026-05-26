@@ -7,7 +7,7 @@ import Alert from '../components/ui/Alert';
 import Button from '../components/ui/Button';
 import {
   Receipt, CreditCard, CheckCircle, Clock, AlertCircle,
-  XCircle, Plus, X, ChevronDown, ChevronUp, Bell, Phone, User, TrendingUp, ShoppingBag, Check, Package,
+  XCircle, Plus, X, ChevronDown, ChevronUp, Bell, Phone, User, TrendingUp, ShoppingBag, Check, Package, FileDown,
 } from 'lucide-react';
 import { useVentesDirectesDelegues, useVentesEnAttente, useValiderVente, useEnregistrerPaiement, useRefuserVente } from '../hooks/useStockDelegue';
 import { useFacturesAchat, useMarquerPaye } from '../hooks/useFacturesAchat';
@@ -132,9 +132,24 @@ const parseLignes = (raw) => {
   return Array.isArray(raw) ? raw : [];
 };
 
+const useTelechargePdfFacture = () =>
+  useMutation({
+    mutationFn: async (facture) => {
+      const resp = await api.get(`/factures/${facture.id}/pdf`, { responseType: 'blob', timeout: 30000 });
+      const url = window.URL.createObjectURL(new Blob([resp.data], { type: 'application/pdf' }));
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `facture_${facture.numero}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => { window.URL.revokeObjectURL(url); document.body.removeChild(a); }, 1000);
+    },
+  });
+
 const LigneFacture = ({ facture, onPayer, onAnnuler }) => {
   const { formatMontant } = useFormatMontant();
   const [ouverte, setOuverte] = useState(false);
+  const telecharger = useTelechargePdfFacture();
   const cfg = STATUT[facture.statut] || STATUT.en_attente;
   const Icone = cfg.icone;
   const restant = facture.montant_total - facture.montant_paye;
@@ -201,12 +216,20 @@ const LigneFacture = ({ facture, onPayer, onAnnuler }) => {
             {facture.notes && <span>Notes : {facture.notes}</span>}
           </div>
 
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             {facture.statut !== 'payee' && facture.statut !== 'annulee' && (
               <Button variante="primaire" icone={CreditCard} onClick={(e) => { e.stopPropagation(); onPayer(facture); }}>
                 Paiement
               </Button>
             )}
+            <Button
+              variante="secondaire"
+              icone={FileDown}
+              chargement={telecharger.isPending}
+              onClick={(e) => { e.stopPropagation(); telecharger.mutate(facture); }}
+            >
+              PDF
+            </Button>
             {facture.statut !== 'annulee' && (
               <Button variante="fantome" onClick={(e) => { e.stopPropagation(); onAnnuler(facture); }}>
                 Annuler la facture
