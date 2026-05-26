@@ -849,7 +849,12 @@ const VueFacturesAchat = ({ estDelegue }) => {
       <div className="space-y-3">
         {factures.map((f) => {
           const isPaye = f.statut_paiement === 'paye';
-          const produit = f.mouvement?.produit;
+          const lignesAchat = Array.isArray(f.commande?.lignes) && f.commande.lignes.length > 0
+            ? f.commande.lignes
+            : f.mouvement?.produit
+              ? [{ nom_produit: f.mouvement.produit.nom, quantite: f.mouvement.quantite, prix_unitaire: f.mouvement.produit.prix_unitaire }]
+              : [];
+          const dateAchat = f.mouvement?.date_mouvement ?? f.commande?.date_validation ?? f.commande?.date_commande;
           return (
             <div key={f.id} className={`carte border-l-4 ${isPaye ? 'border-l-green-400' : 'border-l-yellow-400'}`}>
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -858,16 +863,23 @@ const VueFacturesAchat = ({ estDelegue }) => {
                     <span className={`text-xs px-2 py-0.5 rounded-full font-medium border ${isPaye ? 'bg-green-50 text-green-700 border-green-200' : 'bg-yellow-50 text-yellow-700 border-yellow-200'}`}>
                       {isPaye ? 'Payé' : 'En attente'}
                     </span>
-                    <span className="text-xs text-texte-secondaire">{f.mouvement?.date_mouvement}</span>
+                    <span className="text-xs text-texte-secondaire">{dateAchat}</span>
                   </div>
                   {!estDelegue && (
                     <p className="text-sm font-medium text-texte-principal">
                       {f.delegue?.prenom} {f.delegue?.nom}
                     </p>
                   )}
-                  <p className="text-sm text-texte-secondaire">
-                    {produit?.nom ?? '—'} × {f.mouvement?.quantite ?? '—'}
-                  </p>
+                  <div className="space-y-0.5">
+                    {lignesAchat.length > 0
+                      ? lignesAchat.map((l, i) => (
+                          <p key={i} className="text-sm text-texte-secondaire">
+                            {l.nom_produit} <span className="font-medium text-texte-principal">×{l.quantite}</span>
+                          </p>
+                        ))
+                      : <p className="text-sm text-texte-secondaire">—</p>
+                    }
+                  </div>
                   <p className="text-lg font-bold text-texte-principal">{formatMontant(f.montant_total)}</p>
                   {isPaye && f.mode_paiement && (
                     <p className="text-xs text-texte-secondaire">Payé le {f.date_paiement} · {LABELS_MODE[f.mode_paiement] ?? f.mode_paiement}</p>

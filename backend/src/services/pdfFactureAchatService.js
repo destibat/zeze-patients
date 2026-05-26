@@ -49,11 +49,18 @@ const genererPdfFactureAchat = (facture) =>
     doc.on('end', () => resolve(Buffer.concat(chunks)));
     doc.on('error', reject);
 
-    const produit  = facture.mouvement?.produit;
+    const produit   = facture.mouvement?.produit;
     const mouvement = facture.mouvement;
-    const delegue  = facture.delegue;
+    const commande  = facture.commande;
+    const delegue   = facture.delegue;
     const stockiste = facture.stockiste;
-    const statut   = facture.statut_paiement || 'en_attente';
+    const statut    = facture.statut_paiement || 'en_attente';
+
+    const lignes = Array.isArray(commande?.lignes) && commande.lignes.length > 0
+      ? commande.lignes
+      : produit
+        ? [{ nom_produit: produit.nom, quantite: mouvement?.quantite || 0, prix_unitaire: produit.prix_unitaire }]
+        : [];
 
     // ── En-tête image ───────────────────────────────────────────────────────
     if (fs.existsSync(HEADER)) {
@@ -68,8 +75,9 @@ const genererPdfFactureAchat = (facture) =>
     doc.fontSize(16).font('Helvetica-Bold').fillColor(ORANGE)
        .text('FACTURE D\'ACHAT', MARGIN_LEFT, doc.y, { width: PAGE_W, align: 'center' });
 
-    const ref = mouvement?.date_mouvement
-      ? `Ref. ${String(facture.id).slice(0, 8).toUpperCase()}   -   ${formatDate(mouvement.date_mouvement)}`
+    const dateRef = mouvement?.date_mouvement ?? commande?.date_validation ?? commande?.date_commande;
+    const ref = dateRef
+      ? `Ref. ${String(facture.id).slice(0, 8).toUpperCase()}   -   ${formatDate(dateRef)}`
       : `Ref. ${String(facture.id).slice(0, 8).toUpperCase()}`;
     doc.fontSize(8).font('Helvetica').fillColor(GRIS)
        .text(ref, MARGIN_LEFT, doc.y + 2, { width: PAGE_W, align: 'center' });
@@ -119,16 +127,19 @@ const genererPdfFactureAchat = (facture) =>
        .text('Total',   C.total,       yTh + 4, { width: W.total,  align: 'right' });
     doc.y = yTh + 18;
 
-    const yL = doc.y;
-    doc.rect(MARGIN_LEFT, yL, PAGE_W, 20).fill(BLEU_FOND);
-    doc.rect(MARGIN_LEFT, yL, PAGE_W, 20).strokeColor(GRIS_BORD).lineWidth(0.2).stroke();
-    doc.font('Helvetica-Bold').fontSize(8).fillColor(NOIR)
-       .text(produit?.nom || '—', C.produit + 4, yL + 5, { width: W.produit - 4, lineBreak: false });
-    doc.font('Helvetica').fontSize(8).fillColor(NOIR)
-       .text(String(mouvement?.quantite || 0), C.qte,   yL + 5, { width: W.qte,   align: 'center', lineBreak: false })
-       .text(formatMontant(produit?.prix_unitaire),      C.pu,    yL + 5, { width: W.pu,    align: 'right',  lineBreak: false })
-       .text(formatMontant(facture.montant_total),       C.total, yL + 5, { width: W.total, align: 'right',  lineBreak: false });
-    doc.y = yL + 22;
+    lignes.forEach((l, idx) => {
+      const yL = doc.y;
+      const fond = idx % 2 === 0 ? BLEU_FOND : 'white';
+      doc.rect(MARGIN_LEFT, yL, PAGE_W, 20).fill(fond);
+      doc.rect(MARGIN_LEFT, yL, PAGE_W, 20).strokeColor(GRIS_BORD).lineWidth(0.2).stroke();
+      doc.font('Helvetica-Bold').fontSize(8).fillColor(NOIR)
+         .text(l.nom_produit || '—', C.produit + 4, yL + 5, { width: W.produit - 4, lineBreak: false });
+      doc.font('Helvetica').fontSize(8).fillColor(NOIR)
+         .text(String(l.quantite || 0),                                   C.qte,   yL + 5, { width: W.qte,   align: 'center', lineBreak: false })
+         .text(formatMontant(l.prix_unitaire),                             C.pu,    yL + 5, { width: W.pu,    align: 'right',  lineBreak: false })
+         .text(formatMontant((l.prix_unitaire || 0) * (l.quantite || 0)), C.total, yL + 5, { width: W.total, align: 'right',  lineBreak: false });
+      doc.y = yL + 22;
+    });
 
     // ── Total ───────────────────────────────────────────────────────────────
     doc.moveDown(0.6);

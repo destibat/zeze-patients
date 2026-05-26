@@ -1,6 +1,6 @@
 'use strict';
 
-const { FactureAchat, MouvementDelegue, User, Produit } = require('../models');
+const { FactureAchat, MouvementDelegue, CommandeApprovisionnement, User, Produit } = require('../models');
 const { genererPdfFactureAchat } = require('../services/pdfFactureAchatService');
 
 const includeBase = [
@@ -9,6 +9,11 @@ const includeBase = [
     as: 'mouvement',
     attributes: ['id', 'produit_id', 'quantite', 'montant_total', 'date_mouvement'],
     include: [{ model: Produit, as: 'produit', attributes: ['id', 'nom', 'prix_unitaire'] }],
+  },
+  {
+    model: CommandeApprovisionnement,
+    as: 'commande',
+    attributes: ['id', 'lignes', 'montant_total', 'date_commande', 'date_validation'],
   },
   { model: User, as: 'delegue',   attributes: ['id', 'nom', 'prenom', 'email'] },
   { model: User, as: 'stockiste', attributes: ['id', 'nom', 'prenom'] },
@@ -81,18 +86,7 @@ const marquerPaye = async (req, res) => {
 };
 
 const telechargerPdf = async (req, res) => {
-  const facture = await FactureAchat.findByPk(req.params.id, {
-    include: [
-      {
-        model: MouvementDelegue,
-        as: 'mouvement',
-        attributes: ['id', 'produit_id', 'quantite', 'montant_total', 'date_mouvement'],
-        include: [{ model: Produit, as: 'produit', attributes: ['id', 'nom', 'prix_unitaire'] }],
-      },
-      { model: User, as: 'delegue',   attributes: ['id', 'nom', 'prenom', 'email'] },
-      { model: User, as: 'stockiste', attributes: ['id', 'nom', 'prenom'] },
-    ],
-  });
+  const facture = await FactureAchat.findByPk(req.params.id, { include: includeBase });
   if (!facture) return res.status(404).json({ message: 'Facture introuvable' });
 
   const buffer = await genererPdfFactureAchat(facture);
