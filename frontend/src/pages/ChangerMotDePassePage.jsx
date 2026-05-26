@@ -6,7 +6,35 @@ import authService from '../services/authService';
 import Button from '../components/ui/Button';
 import Alert from '../components/ui/Alert';
 import logoMapa from '../assets/logo-mapa.png';
-import { KeyRound } from 'lucide-react';
+import { KeyRound, Eye, EyeOff } from 'lucide-react';
+
+const ChampMdp = ({ label, requis, placeholder, erreur, registration }) => {
+  const [visible, setVisible] = useState(false);
+  return (
+    <div>
+      <label className="block text-sm font-medium text-texte-principal mb-1">
+        {label} {requis && <span className="text-medical-critique">*</span>}
+      </label>
+      <div className="relative">
+        <input
+          type={visible ? 'text' : 'password'}
+          className={`champ-input pr-10 ${erreur ? 'border-medical-critique' : ''}`}
+          placeholder={placeholder}
+          {...registration}
+        />
+        <button
+          type="button"
+          onClick={() => setVisible((v) => !v)}
+          className="absolute right-3 top-1/2 -translate-y-1/2 text-texte-secondaire hover:text-texte-principal transition-colors"
+          tabIndex={-1}
+        >
+          {visible ? <EyeOff size={16} /> : <Eye size={16} />}
+        </button>
+      </div>
+      {erreur && <p className="text-xs text-medical-critique mt-1">{erreur.message}</p>}
+    </div>
+  );
+};
 
 const ChangerMotDePassePage = () => {
   const { utilisateur } = useAuth();
@@ -55,50 +83,33 @@ const ChangerMotDePassePage = () => {
           {erreur && <div className="mb-4"><Alert type="erreur" message={erreur} /></div>}
 
           <form onSubmit={handleSubmit(soumettre)} noValidate className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-texte-principal mb-1">
-                Mot de passe temporaire <span className="text-medical-critique">*</span>
-              </label>
-              <input
-                type="password"
-                className={`champ-input ${errors.ancienMdp ? 'border-medical-critique' : ''}`}
-                placeholder="Votre mot de passe actuel"
-                {...register('ancienMdp', { required: 'Requis' })}
-              />
-              {errors.ancienMdp && <p className="text-xs text-medical-critique mt-1">{errors.ancienMdp.message}</p>}
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-texte-principal mb-1">
-                Nouveau mot de passe <span className="text-medical-critique">*</span>
-              </label>
-              <input
-                type="password"
-                className={`champ-input ${errors.nouveauMdp ? 'border-medical-critique' : ''}`}
-                placeholder="Minimum 8 caractères"
-                {...register('nouveauMdp', {
-                  required: 'Requis',
-                  minLength: { value: 8, message: 'Minimum 8 caractères' },
-                })}
-              />
-              {errors.nouveauMdp && <p className="text-xs text-medical-critique mt-1">{errors.nouveauMdp.message}</p>}
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-texte-principal mb-1">
-                Confirmer le nouveau mot de passe <span className="text-medical-critique">*</span>
-              </label>
-              <input
-                type="password"
-                className={`champ-input ${errors.confirmation ? 'border-medical-critique' : ''}`}
-                placeholder="Répétez le nouveau mot de passe"
-                {...register('confirmation', {
-                  required: 'Requis',
-                  validate: (v) => v === nouveauMdp || 'Les mots de passe ne correspondent pas',
-                })}
-              />
-              {errors.confirmation && <p className="text-xs text-medical-critique mt-1">{errors.confirmation.message}</p>}
-            </div>
+            <ChampMdp
+              label="Mot de passe temporaire"
+              requis
+              placeholder="Votre mot de passe actuel"
+              erreur={errors.ancienMdp}
+              registration={register('ancienMdp', { required: 'Requis' })}
+            />
+            <ChampMdp
+              label="Nouveau mot de passe"
+              requis
+              placeholder="Minimum 8 caractères"
+              erreur={errors.nouveauMdp}
+              registration={register('nouveauMdp', {
+                required: 'Requis',
+                minLength: { value: 8, message: 'Minimum 8 caractères' },
+              })}
+            />
+            <ChampMdp
+              label="Confirmer le nouveau mot de passe"
+              requis
+              placeholder="Répétez le nouveau mot de passe"
+              erreur={errors.confirmation}
+              registration={register('confirmation', {
+                required: 'Requis',
+                validate: (v) => v === nouveauMdp || 'Les mots de passe ne correspondent pas',
+              })}
+            />
 
             <Button type="submit" variante="primaire" taille="lg" chargement={chargement} className="w-full mt-2">
               Enregistrer mon mot de passe
