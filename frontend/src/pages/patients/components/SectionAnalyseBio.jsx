@@ -1,5 +1,5 @@
 import { useState, useMemo, useRef, useEffect, Component } from 'react';
-import { useAnalysesBio, useExtraireAnalyseBio, useModifierAnalyseBio, useSupprimerAnalyseBio, useAnalyserAvecIA, useTelechargePdfAnalyse, useTelechargeDocxAnalyse } from '../../../hooks/useAnalysesBio';
+import { useAnalysesBio, useExtraireAnalyseBio, useCreerAnalyseBio, useCreerEtAnalyserIA, useModifierAnalyseBio, useSupprimerAnalyseBio, useAnalyserAvecIA, useTelechargePdfAnalyse, useTelechargeDocxAnalyse } from '../../../hooks/useAnalysesBio';
 import { interpreterPanels, couleurSeverite, iconesSeverite, SEVERITE } from '../../../utils/interpretationBio';
 import Button from '../../../components/ui/Button';
 import { Plus, Trash2, ChevronDown, ChevronUp, FlaskConical, Upload, FileText, Image, Loader2, CheckCircle2, X, Sparkles, RefreshCw, Download, Pencil, Check } from 'lucide-react';
@@ -307,154 +307,254 @@ const TYPES_ACCEPTES = ['application/pdf', 'image/png', 'image/jpeg', 'image/jpg
 const ZoneUpload = ({ patientId, onTermine, onAnnuler }) => {
   const [fichiers, setFichiers] = useState([]);
   const [survol, setSurvol] = useState(false);
+  const [extraction, setExtraction] = useState(null); // null = étape 1, objet = étape 2
   const [pct, setPct] = useState(0);
-  const [etape, setEtape] = useState('');
+  const [etapeMsg, setEtapeMsg] = useState('');
   const [erreur, setErreur] = useState('');
   const inputRef = useRef(null);
   const timersRef = useRef([]);
 
-  const extraire = useExtraireAnalyseBio(patientId);
-  const enAnalyse = extraire.isPending;
+  const extraire  = useExtraireAnalyseBio(patientId);
+  const creer     = useCreerAnalyseBio(patientId);
+  const creerIA   = useCreerEtAnalyserIA(patientId);
 
-  const nettoyer = () => timersRef.current.forEach(clearTimeout);
-
+  const nettoyer = () => { timersRef.current.forEach(clearTimeout); timersRef.current = []; };
   useEffect(() => () => nettoyer(), []);
 
+  const enExtraction = extraire.isPending;
+  const enSauvegarde = creer.isPending || creerIA.isPending;
+  const enCours      = enExtraction || enSauvegarde;
+
   const ajouterFichiers = (nouveaux) => {
+    if (enCours) return;
     const liste = Array.from(nouveaux);
     const invalides = liste.filter((f) => !TYPES_ACCEPTES.includes(f.type));
     if (invalides.length) { setErreur('Format non supporté. Utilisez PDF, PNG ou JPEG.'); return; }
     const tropGrands = liste.filter((f) => f.size > 15 * 1024 * 1024);
     if (tropGrands.length) { setErreur('Un fichier dépasse 15 Mo.'); return; }
     setErreur('');
+    setExtraction(null);
     setFichiers((prev) => {
       const noms = new Set(prev.map((f) => f.name));
       return [...prev, ...liste.filter((f) => !noms.has(f.name))];
     });
   };
 
-  const retirerFichier = (nom) => setFichiers((prev) => prev.filter((f) => f.name !== nom));
+  const retirerFichier = (nom) => {
+    setFichiers((prev) => prev.filter((f) => f.name !== nom));
+    setExtraction(null);
+  };
 
-  const lancerAnalyse = async () => {
-    if (!fichiers.length) return;
+  const lancerExtraction = async () => {
+    if (!fichiers.length || enCours) return;
     setErreur('');
-
+    nettoyer();
     const etapes = [
-      { pct: 10, msg: 'Envoi des fichiers…',       delai: 100 },
-      { pct: 30, msg: 'Lecture des documents…',     delai: 800 },
-      { pct: 55, msg: 'Extraction du texte…',       delai: 2500 },
-      { pct: 75, msg: 'Analyse des valeurs…',       delai: 5000 },
-      { pct: 88, msg: 'Interprétation en cours…',   delai: 8000 },
+      { pct: 15, msg: 'Envoi des fichiers…',     delai: 100 },
+      { pct: 35, msg: 'Lecture des documents…',   delai: 800 },
+      { pct: 60, msg: 'Extraction du texte…',     delai: 2500 },
+      { pct: 80, msg: 'Analyse des valeurs…',     delai: 5000 },
     ];
     etapes.forEach(({ pct: p, msg, delai }) => {
-      const t = setTimeout(() => { setPct(p); setEtape(msg); }, delai);
-      timersRef.current.push(t);
+      timersRef.current.push(setTimeout(() => { setPct(p); setEtapeMsg(msg); }, delai));
     });
-
     try {
-      const resultat = await extraire.mutateAsync(fichiers);
-      nettoyer();
-      setPct(100);
-      setEtape('Analyse terminée !');
-      setTimeout(() => onTermine(resultat.analyse), 600);
+      const result = await extraire.mutateAsync(fichiers);
+      nettoyer(); setPct(100); setEtapeMsg('Extraction terminée !');
+      setTimeout(() => { setExtraction(result); setPct(0); setEtapeMsg(''); }, 500);
     } catch (err) {
+      nettoyer(); setPct(0); setEtapeMsg('');
+      setErreur(err?.response?.data?.message || "Erreur lors de l'extraction. Vérifiez les fichiers et réessayez.");
+    }
+  };
+
+  const doSauvegarder = async (avecIA) => {
+    if (avecIA && !extraction.a_donnees) {
+      setErreur('Aucune donnée extraite — l\'analyse IA n\'est pas disponible.');
+      return;
+    }
+    setErreur('');
+    nettoyer();
+    if (avecIA) {
+      const etapes = [
+        { pct: 10, msg: 'Enregistrement de l\'analyse…', delai: 100 },
+        { pct: 25, msg: 'Préparation du bilan…',          delai: 1200 },
+        { pct: 45, msg: 'Analyse médicale en cours…',     delai: 5000 },
+        { pct: 65, msg: 'Interprétation clinique…',       delai: 18000 },
+        { pct: 82, msg: 'Génération du rapport…',         delai: 38000 },
+      ];
+      etapes.forEach(({ pct: p, msg, delai }) => {
+        timersRef.current.push(setTimeout(() => { setPct(p); setEtapeMsg(msg); }, delai));
+      });
+    }
+    const payload = {
+      date_analyse:    extraction.meta.date_analyse,
+      sexe_patient:    extraction.meta.sexe_patient,
+      age_patient:     extraction.meta.age_patient,
+      panels_demandes: extraction.panels.length ? extraction.panels : ['nfs'],
+      valeurs_brutes:  extraction.valeurs,
+      source:          extraction.meta.source,
+    };
+    try {
+      await (avecIA ? creerIA : creer).mutateAsync(payload);
       nettoyer();
-      setPct(0);
-      setEtape('');
-      const detail = err?.response?.data?.message || err?.message || '';
-      console.error('[GECAM] Erreur extraction:', detail, err);
-      setErreur(detail
-        ? `Erreur : ${detail}`
-        : "Erreur lors de l'analyse. Vérifiez que les fichiers sont lisibles et réessayez."
-      );
+      onTermine();
+    } catch (err) {
+      nettoyer(); setPct(0); setEtapeMsg('');
+      setErreur(err?.response?.data?.message || (avecIA ? "Erreur lors de l'analyse IA." : "Erreur lors de l'enregistrement."));
     }
   };
 
   const aFichiers = fichiers.length > 0;
 
-  return (
-    <div className="space-y-4">
-      {/* Zone de dépôt */}
-      <div
-        onDragOver={(e) => { e.preventDefault(); setSurvol(true); }}
-        onDragLeave={() => setSurvol(false)}
-        onDrop={(e) => { e.preventDefault(); setSurvol(false); ajouterFichiers(e.dataTransfer.files); }}
-        onClick={() => !enAnalyse && inputRef.current?.click()}
-        className={`border-2 border-dashed rounded-carte p-6 text-center cursor-pointer transition-all ${
-          survol
-            ? 'border-zeze-vert bg-green-50'
-            : aFichiers
-            ? 'border-zeze-vert/40 bg-green-50/30'
-            : 'border-bordure hover:border-gray-400 hover:bg-fond-secondaire'
-        } ${enAnalyse ? 'pointer-events-none' : ''}`}
-      >
-        <input
-          ref={inputRef}
-          type="file"
-          className="hidden"
-          accept=".pdf,.png,.jpg,.jpeg"
-          multiple
-          onChange={(e) => ajouterFichiers(e.target.files)}
-        />
-        <Upload size={28} className={`mx-auto mb-2 ${aFichiers ? 'text-zeze-vert' : 'text-texte-secondaire'}`} />
-        {aFichiers ? (
-          <p className="text-xs text-zeze-vert font-medium">Cliquez ou déposez pour ajouter d&apos;autres fichiers</p>
-        ) : (
-          <div>
-            <p className="text-sm font-medium text-texte-principal">Déposez vos fichiers ici</p>
-            <p className="text-xs text-texte-secondaire mt-1">ou cliquez pour sélectionner</p>
-            <p className="text-xs text-texte-secondaire mt-0.5">PDF, PNG, JPEG · 15 Mo max · plusieurs fichiers acceptés</p>
+  // ── Chargement analyse IA ──────────────────────────────────────────────
+  if (creerIA.isPending) {
+    return (
+      <div className="space-y-3 py-2">
+        <BarreProgression pct={pct} etape={etapeMsg || 'Analyse IA en cours…'} />
+      </div>
+    );
+  }
+
+  // ── Étape 2 : prévisualisation des données extraites ───────────────────
+  if (extraction) {
+    return (
+      <div className="space-y-4">
+        <div className={`rounded-carte p-3 border ${extraction.a_donnees ? 'bg-green-50 border-green-200' : 'bg-orange-50 border-orange-200'}`}>
+          <div className="flex items-center gap-2 mb-2">
+            {extraction.a_donnees
+              ? <CheckCircle2 size={15} className="text-green-600 flex-shrink-0" />
+              : <span className="text-orange-500 text-base flex-shrink-0 leading-none">⚠</span>
+            }
+            <p className={`text-sm font-medium ${extraction.a_donnees ? 'text-green-800' : 'text-orange-800'}`}>
+              {extraction.a_donnees
+                ? `${extraction.nb_valeurs} valeur${extraction.nb_valeurs > 1 ? 's' : ''} extraite${extraction.nb_valeurs > 1 ? 's' : ''}`
+                : 'Aucune donnée biologique extraite'
+              }
+            </p>
+          </div>
+          <div className="flex gap-1.5 flex-wrap">
+            {extraction.panels.map((p) => <PanelBadge key={p} id={p} />)}
+          </div>
+          {!extraction.a_donnees && (
+            <p className="text-xs text-orange-700 mt-1.5">
+              Le fichier n&apos;a pas pu être lu correctement. L&apos;analyse IA n&apos;est pas disponible.
+            </p>
+          )}
+        </div>
+
+        {erreur && <p className="text-sm text-medical-critique">{erreur}</p>}
+
+        {creer.isPending && (
+          <div className="flex items-center gap-2 text-sm text-texte-secondaire py-1">
+            <Loader2 size={14} className="animate-spin" /> Enregistrement…
+          </div>
+        )}
+
+        {!creer.isPending && (
+          <div className="flex flex-wrap justify-between items-center gap-2">
+            <Button
+              variante="secondaire"
+              taille="petit"
+              icone={X}
+              onClick={() => { setExtraction(null); setErreur(''); }}
+              disabled={enSauvegarde}
+            >
+              Modifier les fichiers
+            </Button>
+            <div className="flex gap-2 flex-wrap justify-end">
+              <Button
+                variante="secondaire"
+                icone={FlaskConical}
+                onClick={() => doSauvegarder(false)}
+                disabled={enSauvegarde}
+                chargement={creer.isPending}
+              >
+                Analyse locale
+              </Button>
+              <Button
+                icone={Sparkles}
+                onClick={() => doSauvegarder(true)}
+                disabled={!extraction.a_donnees || enSauvegarde}
+                chargement={creerIA.isPending}
+                title={!extraction.a_donnees ? 'Aucune donnée extraite' : undefined}
+              >
+                Analyser avec l&apos;IA
+              </Button>
+            </div>
           </div>
         )}
       </div>
+    );
+  }
 
-      {/* Liste des fichiers sélectionnés */}
-      {aFichiers && !enAnalyse && (
-        <div className="space-y-1.5">
-          {fichiers.map((f) => (
-            <div key={f.name} className="flex items-center gap-2 px-3 py-2 bg-fond-secondaire rounded-bouton">
-              {f.type === 'application/pdf'
-                ? <FileText size={14} className="text-zeze-vert flex-shrink-0" />
-                : <Image size={14} className="text-zeze-vert flex-shrink-0" />}
-              <span className="flex-1 truncate text-texte-principal text-xs">{f.name}</span>
-              <span className="text-xs text-texte-secondaire flex-shrink-0">{(f.size / 1024).toFixed(0)} Ko</span>
-              <button
-                type="button"
-                onClick={(e) => { e.stopPropagation(); retirerFichier(f.name); }}
-                className="text-texte-secondaire hover:text-medical-critique flex-shrink-0"
-              >
-                <X size={14} />
-              </button>
+  // ── Étape 1 : dépôt de fichiers ────────────────────────────────────────
+  return (
+    <div className="space-y-4">
+      {!enExtraction && (
+        <>
+          <div
+            onDragOver={(e) => { e.preventDefault(); setSurvol(true); }}
+            onDragLeave={() => setSurvol(false)}
+            onDrop={(e) => { e.preventDefault(); setSurvol(false); ajouterFichiers(e.dataTransfer.files); }}
+            onClick={() => inputRef.current?.click()}
+            className={`border-2 border-dashed rounded-carte p-6 text-center cursor-pointer transition-all ${
+              survol ? 'border-zeze-vert bg-green-50'
+                     : aFichiers ? 'border-zeze-vert/40 bg-green-50/30'
+                     : 'border-bordure hover:border-gray-400 hover:bg-fond-secondaire'
+            }`}
+          >
+            <input ref={inputRef} type="file" className="hidden" accept=".pdf,.png,.jpg,.jpeg" multiple
+              onChange={(e) => ajouterFichiers(e.target.files)} />
+            <Upload size={28} className={`mx-auto mb-2 ${aFichiers ? 'text-zeze-vert' : 'text-texte-secondaire'}`} />
+            {aFichiers ? (
+              <p className="text-xs text-zeze-vert font-medium">Cliquez ou déposez pour ajouter d&apos;autres fichiers</p>
+            ) : (
+              <div>
+                <p className="text-sm font-medium text-texte-principal">Déposez vos fichiers ici</p>
+                <p className="text-xs text-texte-secondaire mt-1">ou cliquez pour sélectionner</p>
+                <p className="text-xs text-texte-secondaire mt-0.5">PDF, PNG, JPEG · 15 Mo max · plusieurs fichiers</p>
+              </div>
+            )}
+          </div>
+
+          {aFichiers && (
+            <div className="space-y-1.5">
+              {fichiers.map((f) => (
+                <div key={f.name} className="flex items-center gap-2 px-3 py-2 bg-fond-secondaire rounded-bouton">
+                  {f.type === 'application/pdf'
+                    ? <FileText size={14} className="text-zeze-vert flex-shrink-0" />
+                    : <Image size={14} className="text-zeze-vert flex-shrink-0" />}
+                  <span className="flex-1 truncate text-texte-principal text-xs">{f.name}</span>
+                  <span className="text-xs text-texte-secondaire flex-shrink-0">{(f.size / 1024).toFixed(0)} Ko</span>
+                  <button type="button"
+                    onClick={(e) => { e.stopPropagation(); retirerFichier(f.name); }}
+                    className="text-texte-secondaire hover:text-medical-critique flex-shrink-0">
+                    <X size={14} />
+                  </button>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
+          )}
+        </>
       )}
 
-      {/* Barre de progression */}
-      {enAnalyse && <BarreProgression pct={pct} etape={etape} />}
-      {pct === 100 && !enAnalyse && (
-        <div className="flex items-center gap-2 text-sm text-green-700">
-          <CheckCircle2 size={16} /> Analyse terminée, enregistrement…
-        </div>
-      )}
-
-      {/* Erreur */}
+      {enExtraction && <BarreProgression pct={pct} etape={etapeMsg || 'Extraction en cours…'} />}
       {erreur && <p className="text-sm text-medical-critique">{erreur}</p>}
 
-      {/* Actions */}
-      <div className="flex justify-between items-center">
-        <Button variante="secondaire" onClick={onAnnuler} disabled={enAnalyse}>
-          Annuler
-        </Button>
-        <Button
-          icone={FlaskConical}
-          onClick={lancerAnalyse}
-          disabled={!aFichiers || enAnalyse}
-          chargement={enAnalyse}
-        >
-          {enAnalyse ? 'Analyse en cours…' : `Lancer l'analyse${fichiers.length > 1 ? ` (${fichiers.length} fichiers)` : ''}`}
-        </Button>
-      </div>
+      {!enExtraction && (
+        <div className="flex justify-between items-center">
+          <Button variante="secondaire" onClick={onAnnuler}>Annuler</Button>
+          <Button
+            icone={FlaskConical}
+            onClick={lancerExtraction}
+            disabled={!aFichiers}
+            chargement={extraire.isPending}
+          >
+            {`Extraire${fichiers.length > 1 ? ` (${fichiers.length} fichiers)` : ''}`}
+          </Button>
+        </div>
+      )}
     </div>
   );
 };

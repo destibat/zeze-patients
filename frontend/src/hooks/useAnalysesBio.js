@@ -12,7 +12,6 @@ export function useAnalysesBio(patientId) {
 }
 
 export function useExtraireAnalyseBio(patientId) {
-  const qc = useQueryClient();
   return useMutation({
     mutationFn: (fichiers) => {
       const form = new FormData();
@@ -23,7 +22,7 @@ export function useExtraireAnalyseBio(patientId) {
         timeout: 120000,
       }).then((r) => r.data);
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: cle(patientId) }),
+    // Pas d'invalidation — l'extraction ne sauvegarde plus en base
   });
 }
 
@@ -80,6 +79,16 @@ export function useTelechargeDocxAnalyse(patientId) {
       `analyse_${analyseId}.docx`,
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     ),
+  });
+}
+
+export function useCreerEtAnalyserIA(patientId) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data) =>
+      api.post(`/patients/${patientId}/analyses-bio`, { ...data, lancer_ia: true }, { timeout: 120000 })
+         .then((r) => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: cle(patientId) }),
   });
 }
 

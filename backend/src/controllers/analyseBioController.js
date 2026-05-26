@@ -60,6 +60,22 @@ const creerAnalyse = async (req, res) => {
     conclusion:      conclusion?.trim() || null,
   });
 
+  // Analyse IA immédiate si demandée
+  if (req.body.lancer_ia) {
+    try {
+      const resultat = await analyserBilanAvecIA(analyse);
+      await analyse.update({
+        analyse_ia_texte:  resultat.texte,
+        analyse_ia_modele: resultat.modele,
+        tokens_input:      resultat.tokens_input,
+        tokens_output:     resultat.tokens_output,
+        cout_estime_usd:   resultat.cout_estime_usd,
+      });
+    } catch (errIA) {
+      console.error('[IA] Erreur analyse IA dans creerAnalyse:', errIA.message);
+    }
+  }
+
   const result = await AnalyseBiologique.findByPk(analyse.id, {
     include: [{ association: 'auteur', attributes: ['id', 'nom', 'prenom'] }],
   });
@@ -94,7 +110,7 @@ const modifierAnalyse = async (req, res) => {
   res.json(result);
 };
 
-const extraireEtSauvegarder = async (req, res) => {
+const extraireSansEnregistrer = async (req, res) => {
   const fichiers = req.files || (req.file ? [req.file] : []);
   if (!fichiers.length) return res.status(400).json({ message: 'Aucun fichier fourni' });
 
@@ -102,36 +118,33 @@ const extraireEtSauvegarder = async (req, res) => {
   const patient = await Patient.findByPk(patientId, { attributes: ['id', 'sexe', 'date_naissance'] });
   if (!patient) return res.status(404).json({ message: 'Patient introuvable' });
 
-  // Extraire chaque fichier puis fusionner
-  const resultats = await Promise.all(
-    fichiers.map((f) => extraireNFS(f.buffer, f.mimetype))
-  );
-  const { meta, panelsStructures, panelsList, texte } = fusionnerValeurs(resultats);
+  const resultats = await Promise.all(fichiers.map((f) => extraireNFS(f.buffer, f.mimetype)));
+  const { meta, panelsStructures, panelsList } = fusionnerValeurs(resultats);
 
   const sexePatient = patient.sexe === 'masculin' ? 'M' : patient.sexe === 'feminin' ? 'F' : null;
   const sexe = sexePatient || meta.sexe_patient || null;
-  const age = patient.date_naissance
+  const age  = patient.date_naissance
     ? Math.floor((Date.now() - new Date(patient.date_naissance)) / (365.25 * 864e5))
     : (meta.age_patient || null);
-
   const source = fichiers.some((f) => f.mimetype === 'application/pdf') ? 'upload_pdf' : 'upload_image';
 
-  const analyse = await AnalyseBiologique.create({
-    patient_id:      patientId,
-    created_by:      req.utilisateur.id,
-    date_analyse:    meta.date_analyse || new Date().toISOString().slice(0, 10),
-    sexe_patient:    sexe,
-    age_patient:     age,
-    panels_demandes: panelsList,
-    valeurs_brutes:  panelsStructures,
-    source,
-  });
+  const nbValeurs = Object.values(panelsStructures).reduce(
+    (total, panelVals) => total + Object.values(panelVals).filter((v) => v !== null && v !== undefined).length,
+    0,
+  );
 
-  const result = await AnalyseBiologique.findByPk(analyse.id, {
-    include: [{ association: 'auteur', attributes: ['id', 'nom', 'prenom'] }],
+  res.json({
+    meta: {
+      date_analyse: meta.date_analyse || new Date().toISOString().slice(0, 10),
+      sexe_patient: sexe,
+      age_patient:  age,
+      source,
+    },
+    panels:     panelsList,
+    valeurs:    panelsStructures,
+    nb_valeurs: nbValeurs,
+    a_donnees:  nbValeurs > 0,
   });
-
-  res.status(201).json({ analyse: result, texte_brut: texte });
 };
 
 const supprimerAnalyse = async (req, res) => {
@@ -193,4 +206,4 @@ const telechargerDocx = async (req, res) => {
   res.send(buffer);
 };
 
-module.exports = { listerAnalyses, obtenirAnalyse, creerAnalyse, modifierAnalyse, supprimerAnalyse, extraireEtSauvegarder, analyserAvecIA, telechargerPdf, telechargerDocx };
+module.exports = { listerAnalyses, obtenirAnalyse, creerAnalyse, modifierAnalyse, supprimerAnalyse, extraireSansEnregistrer, analyserAvecIA, telechargerPdf, telechargerDocx };

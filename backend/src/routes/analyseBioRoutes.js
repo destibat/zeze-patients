@@ -20,7 +20,7 @@ router.get('/',                                      tousLesRoles,   asyncHandle
 router.get('/:analyseId/pdf',                        tousLesRoles,   asyncHandler(ctrl.telechargerPdf));
 router.get('/:analyseId/docx',                       tousLesRoles,   asyncHandler(ctrl.telechargerDocx));
 router.get('/:analyseId',                            tousLesRoles,   asyncHandler(ctrl.obtenirAnalyse));
-router.post('/extraire', upload.array('fichiers', 10), tousLesRoles, asyncHandler(ctrl.extraireEtSauvegarder));
+router.post('/extraire', upload.array('fichiers', 10), tousLesRoles, asyncHandler(ctrl.extraireSansEnregistrer));
 router.post('/',                                      tousLesRoles,   asyncHandler(ctrl.creerAnalyse));
 router.post('/:analyseId/analyser',                   tousLesRoles,   asyncHandler(ctrl.analyserAvecIA));
 router.put('/:analyseId',                             tousLesRoles,   asyncHandler(ctrl.modifierAnalyse));
