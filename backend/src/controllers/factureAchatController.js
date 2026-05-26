@@ -1,6 +1,7 @@
 'use strict';
 
 const { FactureAchat, MouvementDelegue, User, Produit } = require('../models');
+const { genererPdfFactureAchat } = require('../services/pdfFactureAchatService');
 
 const includeBase = [
   {
@@ -79,4 +80,27 @@ const marquerPaye = async (req, res) => {
   res.json(facture);
 };
 
-module.exports = { lister, marquerEnvoye, marquerPaye };
+const telechargerPdf = async (req, res) => {
+  const facture = await FactureAchat.findByPk(req.params.id, {
+    include: [
+      {
+        model: MouvementDelegue,
+        as: 'mouvement',
+        attributes: ['id', 'produit_id', 'quantite', 'montant_total', 'date_mouvement'],
+        include: [{ model: Produit, as: 'produit', attributes: ['id', 'nom', 'prix_unitaire'] }],
+      },
+      { model: User, as: 'delegue',   attributes: ['id', 'nom', 'prenom', 'email'] },
+      { model: User, as: 'stockiste', attributes: ['id', 'nom', 'prenom'] },
+    ],
+  });
+  if (!facture) return res.status(404).json({ message: 'Facture introuvable' });
+
+  const buffer = await genererPdfFactureAchat(facture);
+
+  const ref = String(facture.id).slice(0, 8).toUpperCase();
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `attachment; filename="facture_achat_${ref}.pdf"`);
+  res.send(buffer);
+};
+
+module.exports = { lister, marquerEnvoye, marquerPaye, telechargerPdf };

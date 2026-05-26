@@ -797,10 +797,26 @@ const VueValidationDelegues = () => {
 const MODES_PAIEMENT_ACHAT = MODES_PAIEMENT.map((m) => m.value);
 const LABELS_MODE = { ...LABELS_MODES_PAIEMENT, en_attente: 'En attente' };
 
+const useTelechargePdfFactureAchat = () =>
+  useMutation({
+    mutationFn: async (facture) => {
+      const ref = String(facture.id).slice(0, 8).toUpperCase();
+      const resp = await api.get(`/factures-achat/${facture.id}/pdf`, { responseType: 'blob', timeout: 30000 });
+      const url = window.URL.createObjectURL(new Blob([resp.data], { type: 'application/pdf' }));
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `facture_achat_${ref}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => { window.URL.revokeObjectURL(url); document.body.removeChild(a); }, 1000);
+    },
+  });
+
 const VueFacturesAchat = ({ estDelegue }) => {
   const { formatMontant } = useFormatMontant();
   const { data: factures = [], isLoading } = useFacturesAchat();
   const marquerPaye = useMarquerPaye();
+  const telecharger = useTelechargePdfFactureAchat();
   const [modes, setModes] = useState({});
 
   const totalEnAttente = factures.filter((f) => f.statut_paiement === 'en_attente').reduce((s, f) => s + f.montant_total, 0);
@@ -858,24 +874,35 @@ const VueFacturesAchat = ({ estDelegue }) => {
                   )}
                 </div>
 
-                {!isPaye && (
-                  <div className="flex items-center gap-2">
-                    <select
-                      className="champ-input text-sm"
-                      value={modes[f.id] ?? 'especes'}
-                      onChange={(e) => setModes((m) => ({ ...m, [f.id]: e.target.value }))}
-                    >
-                      {MODES_PAIEMENT_ACHAT.map((m) => <option key={m} value={m}>{LABELS_MODE[m]}</option>)}
-                    </select>
-                    <Button
-                      size="sm"
-                      onClick={() => marquerPaye.mutate({ id: f.id, mode_paiement: modes[f.id] ?? 'especes' })}
-                      disabled={marquerPaye.isPending}
-                    >
-                      <Check size={14} className="mr-1" /> Marquer payé
-                    </Button>
-                  </div>
-                )}
+                <div className="flex items-center gap-2 flex-wrap">
+                  {!isPaye && (
+                    <>
+                      <select
+                        className="champ-input text-sm"
+                        value={modes[f.id] ?? 'especes'}
+                        onChange={(e) => setModes((m) => ({ ...m, [f.id]: e.target.value }))}
+                      >
+                        {MODES_PAIEMENT_ACHAT.map((m) => <option key={m} value={m}>{LABELS_MODE[m]}</option>)}
+                      </select>
+                      <Button
+                        size="sm"
+                        onClick={() => marquerPaye.mutate({ id: f.id, mode_paiement: modes[f.id] ?? 'especes' })}
+                        disabled={marquerPaye.isPending}
+                      >
+                        <Check size={14} className="mr-1" /> Marquer payé
+                      </Button>
+                    </>
+                  )}
+                  <Button
+                    variante="secondaire"
+                    size="sm"
+                    icone={FileDown}
+                    chargement={telecharger.isPending}
+                    onClick={() => telecharger.mutate(f)}
+                  >
+                    PDF
+                  </Button>
+                </div>
               </div>
             </div>
           );
