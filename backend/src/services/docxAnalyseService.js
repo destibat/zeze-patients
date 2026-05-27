@@ -486,17 +486,6 @@ const genererDocxAnalyse = async (analyse, patient) => {
       espaceBefore: 0, espaceAfter: 80,
     }));
     children.push(...texteIAVersElements(analyse.analyse_ia_texte));
-
-    if (analyse.cout_estime_usd) {
-      children.push(new Paragraph({
-        alignment: AlignmentType.RIGHT,
-        spacing: { before: 200 },
-        children: [new TextRun({
-          text: `Analyse par ${analyse.analyse_ia_modele || 'IA'} — Coût estimé : $${parseFloat(analyse.cout_estime_usd).toFixed(4)}`,
-          size: 14, color: 'BDBDBD', italics: true,
-        })],
-      }));
-    }
   }
 
   const doc = new Document({
