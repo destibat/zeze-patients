@@ -369,10 +369,6 @@ const ZoneUpload = ({ patientId, onTermine, onAnnuler }) => {
   };
 
   const doSauvegarder = async (avecIA) => {
-    if (avecIA && !extraction.a_donnees) {
-      setErreur('Aucune donnée extraite — l\'analyse IA n\'est pas disponible.');
-      return;
-    }
     setErreur('');
     nettoyer();
     if (avecIA) {
@@ -438,7 +434,7 @@ const ZoneUpload = ({ patientId, onTermine, onAnnuler }) => {
           </div>
           {!extraction.a_donnees && (
             <p className="text-xs text-orange-700 mt-1.5">
-              Le fichier n&apos;a pas pu être lu correctement. L&apos;analyse IA n&apos;est pas disponible.
+              Aucune valeur biologique reconnue. L&apos;IA analysera le document tel quel.
             </p>
           )}
         </div>
@@ -475,9 +471,8 @@ const ZoneUpload = ({ patientId, onTermine, onAnnuler }) => {
               <Button
                 icone={Sparkles}
                 onClick={() => doSauvegarder(true)}
-                disabled={!extraction.a_donnees || enSauvegarde}
+                disabled={enSauvegarde}
                 chargement={creerIA.isPending}
-                title={!extraction.a_donnees ? 'Aucune donnée extraite' : undefined}
               >
                 Analyser avec l&apos;IA
               </Button>

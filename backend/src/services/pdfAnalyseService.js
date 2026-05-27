@@ -425,15 +425,6 @@ const genererPdfAnalyse = (analyse, patient) =>
     // ── Contenu : texte IA uniquement ─────────────────────────────────────
     if (analyse.analyse_ia_texte) {
       rendreTexteIA(doc, analyse.analyse_ia_texte);
-
-      if (analyse.cout_estime_usd) {
-        if (doc.y + 14 > CONTENT_BOT) { doc.addPage(); dessinerHeader(doc); doc.y = CONTENT_TOP; }
-        doc.fontSize(6.5).font('Helvetica').fillColor(GRIS_BORD)
-           .text(
-             `Analyse generee par ${analyse.analyse_ia_modele || 'IA'} — Cout estime : $${parseFloat(analyse.cout_estime_usd).toFixed(4)}`,
-             ML, doc.y + 6, { width: PAGE_W, align: 'right' },
-           );
-      }
     } else {
       if (doc.y + 50 > CONTENT_BOT) { doc.addPage(); dessinerHeader(doc); doc.y = CONTENT_TOP; }
       doc.y = doc.y + 8;
