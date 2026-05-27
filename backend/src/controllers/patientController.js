@@ -6,6 +6,13 @@ const { genererNumeroDossier } = require('../services/numeroDossierService');
 const { succes, erreur, pagine } = require('../utils/apiResponse');
 const config = require('../config/env');
 
+// Convertit DD/MM/YYYY → YYYY-MM-DD (MySQL). Laisse inchangé si déjà ISO.
+const normaliserDate = (d) => {
+  if (!d) return d;
+  const m = String(d).match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  return m ? `${m[3]}-${m[2]}-${m[1]}` : d;
+};
+
 const journaliser = async (action, req, entiteId = null) => {
   await AuditLog.create({
     user_id: req.utilisateur?.id,
@@ -80,7 +87,7 @@ const creerPatient = async (req, res) => {
     nom: nom.trim(),
     prenom: prenom.trim(),
     sexe,
-    date_naissance,
+    date_naissance: normaliserDate(date_naissance),
     telephone: telephone.trim(),
     adresse: reste.adresse?.trim() || null,
     commune: reste.commune?.trim() || null,
@@ -118,7 +125,9 @@ const modifierPatient = async (req, res) => {
 
   const miseAJour = {};
   champs.forEach((champ) => {
-    if (req.body[champ] !== undefined) miseAJour[champ] = req.body[champ];
+    if (req.body[champ] !== undefined) {
+      miseAJour[champ] = champ === 'date_naissance' ? normaliserDate(req.body[champ]) : req.body[champ];
+    }
   });
 
   // Les champs ENUM refusent '' en MariaDB strict mode — convertir en null
