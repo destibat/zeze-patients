@@ -32,6 +32,66 @@ const Champ = ({ label, obligatoire, erreur, children, colonne2 }) => (
 
 const GROUPES_SANGUINS = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
 
+const MOIS = [
+  'Janvier','Février','Mars','Avril','Mai','Juin',
+  'Juillet','Août','Septembre','Octobre','Novembre','Décembre',
+];
+const ANNEE_MIN = 1920;
+const ANNEE_MAX = new Date().getFullYear();
+
+// Sélecteur de date de naissance — 3 listes déroulantes
+// Reçoit value / onChange de Controller (valeur interne : "YYYY-MM-DD" ou "")
+const SelectDateNaissance = ({ value, onChange, erreur }) => {
+  const parts = value && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value.split('-') : ['', '', ''];
+  const [annee, setAnnee] = useState(parts[0]);
+  const [mois,  setMois]  = useState(parts[1]);
+  const [jour,  setJour]  = useState(parts[2]);
+
+  const sync = (a, m, j) => {
+    if (a && m && j) onChange(`${a}-${m}-${j}`);
+    else onChange('');
+  };
+
+  const jourMax = annee && mois
+    ? new Date(Number(annee), Number(mois), 0).getDate()
+    : 31;
+  const jours = Array.from({ length: jourMax }, (_, i) => String(i + 1).padStart(2, '0'));
+  const annees = Array.from({ length: ANNEE_MAX - ANNEE_MIN + 1 }, (_, i) => String(ANNEE_MAX - i));
+
+  const sel = `champ-input ${erreur ? 'border-medical-critique' : ''}`;
+
+  return (
+    <div className="grid grid-cols-3 gap-2">
+      <select
+        value={jour}
+        onChange={(e) => { setJour(e.target.value); sync(annee, mois, e.target.value); }}
+        className={sel}
+      >
+        <option value="">Jour</option>
+        {jours.map((j) => <option key={j} value={j}>{j}</option>)}
+      </select>
+      <select
+        value={mois}
+        onChange={(e) => { setMois(e.target.value); sync(annee, e.target.value, jour); }}
+        className={sel}
+      >
+        <option value="">Mois</option>
+        {MOIS.map((m, i) => (
+          <option key={i} value={String(i + 1).padStart(2, '0')}>{m}</option>
+        ))}
+      </select>
+      <select
+        value={annee}
+        onChange={(e) => { setAnnee(e.target.value); sync(e.target.value, mois, jour); }}
+        className={sel}
+      >
+        <option value="">Année</option>
+        {annees.map((a) => <option key={a} value={a}>{a}</option>)}
+      </select>
+    </div>
+  );
+};
+
 const PatientFormPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -119,7 +179,18 @@ const PatientFormPage = () => {
             </select>
           </Champ>
           <Champ label="Date de naissance" obligatoire erreur={errors.date_naissance?.message}>
-            <input type="date" className={cls(errors.date_naissance)} {...register('date_naissance', { required: 'Requis' })} />
+            <Controller
+              name="date_naissance"
+              control={control}
+              rules={{ required: 'Requis' }}
+              render={({ field }) => (
+                <SelectDateNaissance
+                  value={field.value || ''}
+                  onChange={field.onChange}
+                  erreur={errors.date_naissance}
+                />
+              )}
+            />
           </Champ>
           <Champ label="Téléphone" obligatoire erreur={errors.telephone?.message} colonne2>
             <input type="tel" placeholder="+225 07 00 00 00 00" className={cls(errors.telephone)} {...register('telephone', { required: 'Requis' })} />
