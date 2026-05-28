@@ -6,7 +6,7 @@ const fs = require('fs');
 
 // ── Assets ────────────────────────────────────────────────────────────────────
 const LOGO_PATH   = path.resolve(__dirname, '../assets/logo-mapa.jpg');
-const FOOTER_PATH = path.resolve(__dirname, '../assets/footer-mapa.jpg');
+const FOOTER_PATH = path.resolve(__dirname, '../assets/footer-racines.jpg');
 
 // ── Dimensions A4 ─────────────────────────────────────────────────────────────
 const PAGE_W      = 495;

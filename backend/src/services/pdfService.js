@@ -6,7 +6,7 @@ const fs = require('fs');
 
 const ASSETS   = path.resolve(__dirname, '../assets');
 const HEADER   = path.join(ASSETS, 'header-ordonnance.png');
-const FOOTER   = path.join(ASSETS, 'footer-ordonnance.png');
+const FOOTER   = path.join(ASSETS, 'footer-racines.jpg');
 
 // Header image : 460 × 124 px → sur 495pt de large → hauteur réduite à 60 % ≈ 80pt
 const PAGE_W       = 495; // largeur utile (A4 595 – marges 2×50)

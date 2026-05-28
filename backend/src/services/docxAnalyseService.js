@@ -10,7 +10,7 @@ const fs = require('fs');
 const path = require('path');
 
 const LOGO_PATH   = path.resolve(__dirname, '../assets/logo-mapa.jpg');
-const FOOTER_PATH = path.resolve(__dirname, '../assets/footer-mapa.jpg');
+const FOOTER_PATH = path.resolve(__dirname, '../assets/footer-racines.jpg');
 
 // ── Référentiels panels ───────────────────────────────────────────────────────
 const PARAMS_NFS = {

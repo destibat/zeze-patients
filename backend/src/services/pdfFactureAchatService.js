@@ -6,7 +6,7 @@ const fs = require('fs');
 
 const ASSETS      = path.resolve(__dirname, '../assets');
 const HEADER      = path.join(ASSETS, 'header-ordonnance.png');
-const FOOTER      = path.join(ASSETS, 'footer-ordonnance.png');
+const FOOTER      = path.join(ASSETS, 'footer-racines.jpg');
 
 const PAGE_W      = 495;
 const HEADER_H    = Math.round(PAGE_W * 124 / 460 * 0.6);
