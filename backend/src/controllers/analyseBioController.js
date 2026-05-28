@@ -119,7 +119,7 @@ const extraireSansEnregistrer = async (req, res) => {
   if (!patient) return res.status(404).json({ message: 'Patient introuvable' });
 
   const resultats = await Promise.all(fichiers.map((f) => extraireNFS(f.buffer, f.mimetype)));
-  const { meta, panelsStructures, panelsList } = fusionnerValeurs(resultats);
+  const { meta, panelsStructures, panelsList, contexte_clinique } = fusionnerValeurs(resultats);
 
   const sexePatient = patient.sexe === 'masculin' ? 'M' : patient.sexe === 'feminin' ? 'F' : null;
   const sexe = sexePatient || meta.sexe_patient || null;
@@ -144,7 +144,7 @@ const extraireSansEnregistrer = async (req, res) => {
     valeurs:    panelsStructures,
     nb_valeurs: nbValeurs,
     a_donnees:  nbValeurs > 0,
-    texte_brut: resultats.map((r) => r.texte).filter(Boolean).join('\n\n---\n\n') || null,
+    texte_brut: contexte_clinique || null,
   });
 };
 

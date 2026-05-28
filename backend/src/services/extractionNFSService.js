@@ -4,15 +4,16 @@ const pdfParse = require('pdf-parse');
 const Anthropic = require('@anthropic-ai/sdk');
 
 // ── Prompt extraction Vision ───────────────────────────────────────────────────
-const PROMPT_VISION = `Tu es un assistant d'extraction de données médicales. Analyse cette image de résultats biologiques.
+const PROMPT_VISION = `Tu es un assistant d'extraction de données médicales. Analyse ce document médical (résultats biologiques, ECG, compte-rendu, ordonnance, etc.).
 
-Extrais TOUTES les valeurs biologiques présentes et retourne UNIQUEMENT un objet JSON valide, sans texte avant ni après, sans bloc markdown.
+Extrais toutes les informations présentes et retourne UNIQUEMENT un objet JSON valide, sans texte avant ni après, sans bloc markdown.
 
-Structure (n'inclure que ce qui est présent dans l'image) :
+Structure (n'inclure que ce qui est présent dans le document) :
 {
   "date_analyse": "JJ/MM/AAAA ou null",
   "sexe_patient": "M ou F ou null",
   "age_patient": entier ou null,
+  "contexte_clinique": "Tout le contenu médical du document qui ne rentre pas dans les panels biologiques ci-dessous : motif de consultation, diagnostics, symptômes, antécédents, résultats ECG (rythme, fréquence cardiaque, axe, anomalies), compte-rendu d'imagerie, observations cliniques, ordonnances, conclusions médicales, etc. Copie fidèlement toutes ces informations. null si rien.",
   "hepatique": {
     "crp": nombre,
     "asat": nombre,
@@ -68,8 +69,10 @@ Structure (n'inclure que ce qui est présent dans l'image) :
 }
 
 Règles importantes :
-- Retourne uniquement les panels et valeurs effectivement présents dans l'image
-- Retourne UNIQUEMENT le JSON brut, nombre décimal uniquement (sans unité ni texte)
+- Retourne uniquement les panels et valeurs effectivement présents dans le document
+- Pour les valeurs numériques des panels : nombre décimal uniquement (sans unité ni texte)
+- Pour "contexte_clinique" : texte libre, copie fidèle de tout contenu médical hors panels biologiques
+- Retourne UNIQUEMENT le JSON brut
 
 CONVERSIONS D'UNITÉS OBLIGATOIRES — applique-les AVANT de retourner la valeur :
 
@@ -175,12 +178,13 @@ const extraireDepuisPDF = async (buffer) => {
     texteNatif = '';
   }
 
-  // PDF avec texte sélectionnable → extraction par regex
+  // PDF avec texte sélectionnable → extraction par regex + texte complet conservé
   if (texteNatif.replace(/\s+/g, '').length >= SEUIL_TEXTE_MIN) {
     const valeurs = extraireValeursPDF(texteNatif);
     const { sexe_patient, age_patient, date_analyse, ...valeursNFS } = valeurs;
     return {
-      texte: texteNatif,
+      texte: texteNatif,           // texte complet du PDF (contexte clinique inclus)
+      contexte_clinique: texteNatif,
       meta: { sexe_patient, age_patient, date_analyse },
       panelsStructures: { nfs: valeursNFS },
       panelsList: ['nfs'],
@@ -216,7 +220,7 @@ const extraireDepuisPDF = async (buffer) => {
   try { parsed = JSON.parse(jsonStr); }
   catch { const m = texte.match(/\{[\s\S]*\}/); if (m) { try { parsed = JSON.parse(m[0]); } catch { parsed = {}; } } }
 
-  const { date_analyse, sexe_patient, age_patient, ...panelsRaw } = parsed;
+  const { date_analyse, sexe_patient, age_patient, contexte_clinique, ...panelsRaw } = parsed;
   const panelsStructures = {};
   const panelsList = [];
   for (const panelId of PANELS_VALIDES) {
@@ -233,6 +237,7 @@ const extraireDepuisPDF = async (buffer) => {
     : null;
   return {
     texte,
+    contexte_clinique: typeof contexte_clinique === 'string' ? contexte_clinique : null,
     meta: { sexe_patient: parsedSexe, age_patient: age_patient ? parseInt(age_patient) : null, date_analyse: parsedDate },
     panelsStructures: panelsList.length ? panelsStructures : { nfs: {} },
     panelsList: panelsList.length ? panelsList : ['nfs'],
@@ -277,9 +282,8 @@ const extraireDepuisImageVision = async (buffer, mimetype) => {
     if (m) { try { parsed = JSON.parse(m[0]); } catch { parsed = {}; } }
   }
 
-  const { date_analyse, sexe_patient, age_patient, ...panelsRaw } = parsed;
+  const { date_analyse, sexe_patient, age_patient, contexte_clinique, ...panelsRaw } = parsed;
 
-  // Nettoyer : ne garder que les panels connus avec au moins une valeur non-null
   const panelsStructures = {};
   const panelsList = [];
 
@@ -302,6 +306,7 @@ const extraireDepuisImageVision = async (buffer, mimetype) => {
 
   return {
     texte,
+    contexte_clinique: typeof contexte_clinique === 'string' ? contexte_clinique : null,
     meta: {
       sexe_patient: parsedSexe,
       age_patient: age_patient ? parseInt(age_patient) : null,
@@ -321,6 +326,10 @@ const extraireNFS = async (buffer, mimetype) => {
 const fusionnerValeurs = (resultats) => {
   const merged = {
     texte: resultats.map((r) => r.texte).join('\n\n---\n\n'),
+    contexte_clinique: resultats
+      .map((r) => r.contexte_clinique)
+      .filter(Boolean)
+      .join('\n\n---\n\n') || null,
     meta: {},
     panelsStructures: {},
     panelsList: [],

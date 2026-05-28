@@ -160,7 +160,7 @@ Informations patient :
   });
 
   if (aValeursConnues) {
-    msg += 'Résultats par panel :\n';
+    msg += 'Résultats biologiques structurés :\n';
     for (const panelId of panels) {
       const meta = PANELS_META[panelId];
       if (!meta) continue;
@@ -175,14 +175,16 @@ Informations patient :
       }
       if (aucune) msg += '(Aucune valeur renseignée pour ce panel)\n';
     }
-  } else if (texte_brut) {
-    // Examen hors panels connus : on transmet le texte brut extrait du document
-    msg += `Texte brut extrait du document d'examen (analyse tout type d'examen présent) :\n\n${texte_brut}\n`;
-  } else {
-    msg += 'Aucune valeur biologique fournie. Effectue une analyse générale sur la base des informations patient disponibles.\n';
   }
 
-  msg += '\nMerci de fournir une analyse complète et structurée selon les 7 sections demandées.';
+  if (texte_brut) {
+    // Contexte clinique complet : ECG, OMI, diagnostics, comptes-rendus, etc.
+    msg += `\n\n=== Contexte clinique et autres examens (ECG, imagerie, symptômes, etc.) ===\n${texte_brut}\n`;
+  } else if (!aValeursConnues) {
+    msg += 'Aucune valeur biologique structurée disponible. Analyse les éléments cliniques fournis si présents.\n';
+  }
+
+  msg += '\nMerci de fournir une analyse complète et structurée selon les 7 sections demandées, en tenant compte de tous les éléments fournis (valeurs biologiques ET contexte clinique).';
   return msg;
 };
 
