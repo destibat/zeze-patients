@@ -26,6 +26,7 @@ module.exports = (sequelize) => {
       allowNull: false,
       defaultValue: 'manuelle',
     },
+    contexte_clinique: { type: DataTypes.TEXT, allowNull: true },
     conclusion: { type: DataTypes.TEXT, allowNull: true },
     analyse_ia_texte: { type: DataTypes.TEXT, allowNull: true },
     analyse_ia_modele: { type: DataTypes.STRING(50), allowNull: true },

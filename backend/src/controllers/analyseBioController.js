@@ -48,16 +48,17 @@ const creerAnalyse = async (req, res) => {
   }
 
   const analyse = await AnalyseBiologique.create({
-    patient_id:      patientId,
-    consultation_id: consultation_id || null,
-    created_by:      req.utilisateur.id,
+    patient_id:        patientId,
+    consultation_id:   consultation_id || null,
+    created_by:        req.utilisateur.id,
     date_analyse,
-    sexe_patient:    sexe_patient || null,
-    age_patient:     age_patient ? parseInt(age_patient) : null,
+    sexe_patient:      sexe_patient || null,
+    age_patient:       age_patient ? parseInt(age_patient) : null,
     panels_demandes,
-    valeurs_brutes:  valeurs_brutes || {},
-    source:          source || 'manuelle',
-    conclusion:      conclusion?.trim() || null,
+    valeurs_brutes:    valeurs_brutes || {},
+    source:            source || 'manuelle',
+    contexte_clinique: req.body.texte_brut?.trim() || null,
+    conclusion:        conclusion?.trim() || null,
   });
 
   // Analyse IA immédiate si demandée
@@ -159,7 +160,8 @@ const analyserAvecIA = async (req, res) => {
   const analyse = await AnalyseBiologique.findByPk(req.params.analyseId);
   if (!analyse) return res.status(404).json({ message: 'Analyse introuvable' });
 
-  const resultat = await analyserBilanAvecIA(analyse);
+  // Utilise le contexte clinique persisté (ECG, diagnostics…)
+  const resultat = await analyserBilanAvecIA(analyse, { texte_brut: analyse.contexte_clinique || null });
 
   await analyse.update({
     analyse_ia_texte:  resultat.texte,
@@ -207,4 +209,70 @@ const telechargerDocx = async (req, res) => {
   res.send(buffer);
 };
 
-module.exports = { listerAnalyses, obtenirAnalyse, creerAnalyse, modifierAnalyse, supprimerAnalyse, extraireSansEnregistrer, analyserAvecIA, telechargerPdf, telechargerDocx };
+// ── Création + analyse IA avec fichiers originaux envoyés à Claude ─────────────
+// Route multipart : reçoit les champs JSON + les fichiers originaux (ECG, NFS…)
+// Claude reçoit à la fois les valeurs structurées ET les documents visuels
+const creerEtAnalyserAvecDocuments = async (req, res) => {
+  const { patientId } = req.params;
+  const patient = await Patient.findByPk(patientId, { attributes: ['id'] });
+  if (!patient) return res.status(404).json({ message: 'Patient introuvable' });
+
+  // Les champs arrivent comme strings (multipart)
+  const date_analyse    = req.body.date_analyse;
+  const sexe_patient    = req.body.sexe_patient || null;
+  const age_patient     = req.body.age_patient  ? parseInt(req.body.age_patient) : null;
+  const source          = req.body.source        || 'upload_pdf';
+  const texte_brut      = req.body.texte_brut    || null;
+
+  let panels_demandes, valeurs_brutes;
+  try {
+    panels_demandes = JSON.parse(req.body.panels_demandes || '["nfs"]');
+    valeurs_brutes  = JSON.parse(req.body.valeurs_brutes  || '{}');
+  } catch {
+    return res.status(400).json({ message: 'panels_demandes ou valeurs_brutes invalides (JSON attendu)' });
+  }
+
+  if (!date_analyse)       return res.status(400).json({ message: 'La date de l\'analyse est requise' });
+  if (!panels_demandes?.length) return res.status(400).json({ message: 'Sélectionnez au moins un panel' });
+
+  const panelsInvalides = panels_demandes.filter((p) => !PANELS_VALIDES.includes(p));
+  if (panelsInvalides.length) {
+    return res.status(400).json({ message: `Panels inconnus : ${panelsInvalides.join(', ')}` });
+  }
+
+  const fichiers = (req.files || []).map((f) => ({ buffer: f.buffer, mimetype: f.mimetype }));
+
+  const analyse = await AnalyseBiologique.create({
+    patient_id:        patientId,
+    created_by:        req.utilisateur.id,
+    date_analyse,
+    sexe_patient,
+    age_patient,
+    panels_demandes,
+    valeurs_brutes,
+    source,
+    contexte_clinique: texte_brut?.trim() || null,
+    conclusion:        null,
+  });
+
+  try {
+    // Envoie les fichiers originaux directement à Claude (ECG visible, pas seulement texte extrait)
+    const resultat = await analyserBilanAvecIA(analyse, { texte_brut, fichiers });
+    await analyse.update({
+      analyse_ia_texte:  resultat.texte,
+      analyse_ia_modele: resultat.modele,
+      tokens_input:      resultat.tokens_input,
+      tokens_output:     resultat.tokens_output,
+      cout_estime_usd:   resultat.cout_estime_usd,
+    });
+  } catch (errIA) {
+    console.error('[IA] Erreur analyse IA dans creerEtAnalyserAvecDocuments:', errIA.message);
+  }
+
+  const result = await AnalyseBiologique.findByPk(analyse.id, {
+    include: [{ association: 'auteur', attributes: ['id', 'nom', 'prenom'] }],
+  });
+  res.status(201).json(result);
+};
+
+module.exports = { listerAnalyses, obtenirAnalyse, creerAnalyse, modifierAnalyse, supprimerAnalyse, extraireSansEnregistrer, analyserAvecIA, creerEtAnalyserAvecDocuments, telechargerPdf, telechargerDocx };

@@ -188,19 +188,56 @@ Informations patient :
   return msg;
 };
 
+// ── Construction du contenu message (texte + documents visuels) ───────────────
+const construireContenuMessage = (analyse, texte_brut, fichiers) => {
+  // Texte structuré en premier
+  const contenu = [{ type: 'text', text: construireMessage(analyse, texte_brut) }];
+
+  // Ajout des fichiers originaux pour analyse visuelle directe (ECG, imagerie…)
+  if (fichiers && fichiers.length > 0) {
+    for (const f of fichiers) {
+      const mime = f.mimetype === 'image/jpg' ? 'image/jpeg' : f.mimetype;
+      if (['image/jpeg', 'image/png', 'image/webp', 'image/gif'].includes(mime)) {
+        contenu.push({
+          type: 'image',
+          source: { type: 'base64', media_type: mime, data: f.buffer.toString('base64') },
+        });
+      } else if (mime === 'application/pdf') {
+        contenu.push({
+          type: 'document',
+          source: { type: 'base64', media_type: 'application/pdf', data: f.buffer.toString('base64') },
+        });
+      }
+    }
+  }
+
+  return contenu;
+};
+
 // ── Appel Claude ──────────────────────────────────────────────────────────────
-const analyserBilanAvecIA = async (analyse, { texte_brut } = {}) => {
+const analyserBilanAvecIA = async (analyse, { texte_brut, fichiers } = {}) => {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error('ANTHROPIC_API_KEY non configurée — ajoutez-la dans le fichier .env');
 
   const client = new Anthropic({ apiKey });
 
-  const response = await client.messages.create({
-    model:      MODEL,
-    max_tokens: 4096,
-    system:     SYSTEM_PROMPT,
-    messages:   [{ role: 'user', content: construireMessage(analyse, texte_brut) }],
-  });
+  const contenu = construireContenuMessage(analyse, texte_brut, fichiers);
+  const aDocumentsPDF = fichiers && fichiers.some((f) => f.mimetype === 'application/pdf');
+
+  // Pour les PDFs : activer le support document (public beta stable)
+  const extraOptions = aDocumentsPDF
+    ? { headers: { 'anthropic-beta': 'pdfs-2024-09-25' } }
+    : {};
+
+  const response = await client.messages.create(
+    {
+      model:      MODEL,
+      max_tokens: 4096,
+      system:     SYSTEM_PROMPT,
+      messages:   [{ role: 'user', content: contenu }],
+    },
+    extraOptions,
+  );
 
   const texte     = response.content[0]?.text || '';
   const tokensIn  = response.usage?.input_tokens  || 0;

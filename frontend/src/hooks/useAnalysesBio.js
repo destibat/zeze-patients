@@ -85,9 +85,22 @@ export function useTelechargeDocxAnalyse(patientId) {
 export function useCreerEtAnalyserIA(patientId) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (data) =>
-      api.post(`/patients/${patientId}/analyses-bio`, { ...data, lancer_ia: true }, { timeout: 120000 })
-         .then((r) => r.data),
+    mutationFn: (data) => {
+      // Si data est une FormData (contient les fichiers originaux) → route multipart dédiée
+      if (data instanceof FormData) {
+        return api.post(
+          `/patients/${patientId}/analyses-bio/analyser-documents`,
+          data,
+          { headers: { 'Content-Type': 'multipart/form-data' }, timeout: 180000 },
+        ).then((r) => r.data);
+      }
+      // Sinon JSON classique (sans fichiers)
+      return api.post(
+        `/patients/${patientId}/analyses-bio`,
+        { ...data, lancer_ia: true },
+        { timeout: 120000 },
+      ).then((r) => r.data);
+    },
     onSuccess: () => qc.invalidateQueries({ queryKey: cle(patientId) }),
   });
 }

@@ -374,16 +374,17 @@ const ZoneUpload = ({ patientId, onTermine, onAnnuler }) => {
     if (avecIA) {
       const etapes = [
         { pct: 10, msg: 'Enregistrement de l\'analyse…', delai: 100 },
-        { pct: 25, msg: 'Préparation du bilan…',          delai: 1200 },
-        { pct: 45, msg: 'Analyse médicale en cours…',     delai: 5000 },
-        { pct: 65, msg: 'Interprétation clinique…',       delai: 18000 },
-        { pct: 82, msg: 'Génération du rapport…',         delai: 38000 },
+        { pct: 25, msg: 'Envoi des documents à l\'IA…',  delai: 1500 },
+        { pct: 45, msg: 'Analyse médicale en cours…',    delai: 6000 },
+        { pct: 65, msg: 'Interprétation clinique…',      delai: 20000 },
+        { pct: 82, msg: 'Génération du rapport…',        delai: 45000 },
       ];
       etapes.forEach(({ pct: p, msg, delai }) => {
         timersRef.current.push(setTimeout(() => { setPct(p); setEtapeMsg(msg); }, delai));
       });
     }
-    const payload = {
+
+    const metaDonnees = {
       date_analyse:    extraction.meta.date_analyse,
       sexe_patient:    extraction.meta.sexe_patient,
       age_patient:     extraction.meta.age_patient,
@@ -392,8 +393,21 @@ const ZoneUpload = ({ patientId, onTermine, onAnnuler }) => {
       source:          extraction.meta.source,
       texte_brut:      extraction.texte_brut || null,
     };
+
     try {
-      await (avecIA ? creerIA : creer).mutateAsync(payload);
+      if (avecIA) {
+        // Envoie les fichiers originaux directement à Claude (ECG visible en images/PDFs)
+        const form = new FormData();
+        Object.entries(metaDonnees).forEach(([k, v]) => {
+          if (v !== null && v !== undefined) {
+            form.append(k, typeof v === 'object' ? JSON.stringify(v) : String(v));
+          }
+        });
+        fichiers.forEach((f) => form.append('fichiers', f));
+        await creerIA.mutateAsync(form);
+      } else {
+        await creer.mutateAsync(metaDonnees);
+      }
       nettoyer();
       onTermine();
     } catch (err) {
