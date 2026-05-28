@@ -255,19 +255,28 @@ const creerEtAnalyserAvecDocuments = async (req, res) => {
     conclusion:        null,
   });
 
+  let resultat;
   try {
-    // Envoie les fichiers originaux directement à Claude (ECG visible, pas seulement texte extrait)
-    const resultat = await analyserBilanAvecIA(analyse, { texte_brut, fichiers });
-    await analyse.update({
-      analyse_ia_texte:  resultat.texte,
-      analyse_ia_modele: resultat.modele,
-      tokens_input:      resultat.tokens_input,
-      tokens_output:     resultat.tokens_output,
-      cout_estime_usd:   resultat.cout_estime_usd,
-    });
+    // Tente avec images (ECG visible) + texte extrait des PDFs
+    resultat = await analyserBilanAvecIA(analyse, { texte_brut, fichiers });
   } catch (errIA) {
-    console.error('[IA] Erreur analyse IA dans creerEtAnalyserAvecDocuments:', errIA.message);
+    console.error('[IA] Tentative avec images échouée, fallback texte seul:', errIA.message);
+    try {
+      resultat = await analyserBilanAvecIA(analyse, { texte_brut });
+    } catch (errFallback) {
+      console.error('[IA] Fallback texte échoué:', errFallback.message);
+      await analyse.destroy();
+      return res.status(500).json({ message: 'Analyse IA impossible. Vérifiez les fichiers et réessayez.' });
+    }
   }
+
+  await analyse.update({
+    analyse_ia_texte:  resultat.texte,
+    analyse_ia_modele: resultat.modele,
+    tokens_input:      resultat.tokens_input,
+    tokens_output:     resultat.tokens_output,
+    cout_estime_usd:   resultat.cout_estime_usd,
+  });
 
   const result = await AnalyseBiologique.findByPk(analyse.id, {
     include: [{ association: 'auteur', attributes: ['id', 'nom', 'prenom'] }],
