@@ -57,6 +57,11 @@ module.exports = (sequelize) => {
       allowNull: false,
       defaultValue: 'XOF',
     },
+    peut_utiliser_ia: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: true,
+    },
     nom_cabinet: {
       type: DataTypes.STRING(200),
       allowNull: true,

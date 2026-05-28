@@ -96,7 +96,7 @@ const modifierUtilisateur = async (req, res) => {
     return erreur(res, 'Vous ne pouvez pas modifier votre propre rôle', 403);
   }
 
-  const { nom, prenom, email, role, telephone, ville, pays, nom_cabinet, actif, commission_rate, stockiste_id, devise } = req.body;
+  const { nom, prenom, email, role, telephone, ville, pays, nom_cabinet, actif, commission_rate, stockiste_id, devise, peut_utiliser_ia } = req.body;
 
   const nouveauRole = role || utilisateur.role;
   if (nouveauRole === 'delegue' && !stockiste_id && !utilisateur.stockiste_id) {
@@ -125,6 +125,7 @@ const modifierUtilisateur = async (req, res) => {
       ? (stockiste_id || utilisateur.stockiste_id)
       : null,
     devise: devise || utilisateur.devise,
+    peut_utiliser_ia: peut_utiliser_ia !== undefined ? Boolean(peut_utiliser_ia) : utilisateur.peut_utiliser_ia,
   });
 
   await journaliser('UPDATE_USER', req.utilisateur?.id, req, utilisateur.id);

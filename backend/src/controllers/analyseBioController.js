@@ -1,12 +1,17 @@
 'use strict';
 
-const { AnalyseBiologique, Patient } = require('../models');
+const { AnalyseBiologique, Patient, User } = require('../models');
 const { extraireNFS, fusionnerValeurs } = require('../services/extractionNFSService');
 const { analyserBilanAvecIA } = require('../services/analyseIAService');
 const { genererPdfAnalyse } = require('../services/pdfAnalyseService');
 const { genererDocxAnalyse } = require('../services/docxAnalyseService');
 
 const PANELS_VALIDES = ['nfs', 'renal', 'glycemie', 'lipidique', 'ionogramme', 'hepatique'];
+
+const verifierPermissionIA = async (userId) => {
+  const u = await User.findByPk(userId, { attributes: ['peut_utiliser_ia'] });
+  return u?.peut_utiliser_ia !== false;
+};
 
 // Garantit une date ISO YYYY-MM-DD valide, sinon retourne aujourd'hui
 const dateISO = (d) => {
@@ -69,6 +74,9 @@ const creerAnalyse = async (req, res) => {
 
   // Analyse IA immédiate si demandée
   if (req.body.lancer_ia) {
+    if (!await verifierPermissionIA(req.utilisateur.id)) {
+      return res.status(403).json({ message: 'Accès à l\'analyse IA non autorisé pour ce compte.' });
+    }
     try {
       const resultat = await analyserBilanAvecIA(analyse, { texte_brut: req.body.texte_brut || null });
       await analyse.update({
@@ -163,6 +171,9 @@ const supprimerAnalyse = async (req, res) => {
 };
 
 const analyserAvecIA = async (req, res) => {
+  if (!await verifierPermissionIA(req.utilisateur.id)) {
+    return res.status(403).json({ message: 'Accès à l\'analyse IA non autorisé pour ce compte.' });
+  }
   const analyse = await AnalyseBiologique.findByPk(req.params.analyseId);
   if (!analyse) return res.status(404).json({ message: 'Analyse introuvable' });
 
@@ -219,6 +230,9 @@ const telechargerDocx = async (req, res) => {
 // Route multipart : reçoit les champs JSON + les fichiers originaux (ECG, NFS…)
 // Claude reçoit à la fois les valeurs structurées ET les documents visuels
 const creerEtAnalyserAvecDocuments = async (req, res) => {
+  if (!await verifierPermissionIA(req.utilisateur.id)) {
+    return res.status(403).json({ message: 'Accès à l\'analyse IA non autorisé pour ce compte.' });
+  }
   const { patientId } = req.params;
   const patient = await Patient.findByPk(patientId, { attributes: ['id'] });
   if (!patient) return res.status(404).json({ message: 'Patient introuvable' });

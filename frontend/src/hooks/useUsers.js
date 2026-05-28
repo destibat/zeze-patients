@@ -62,3 +62,11 @@ export const useReinitialiserMdp = () =>
   useMutation({
     mutationFn: ({ id, nouveauMotDePasse }) => userService.reinitialiserMdp(id, nouveauMotDePasse),
   });
+
+export const useToggleIA = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, peut_utiliser_ia }) => userService.modifier(id, { peut_utiliser_ia }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: [CLE_USERS] }),
+  });
+};

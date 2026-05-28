@@ -4,13 +4,13 @@ import { useTranslation } from 'react-i18next';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   useUsers, useDesactiverUser, useReactiverUser,
-  useSupprimerUser, useReinitialiserMdp,
+  useSupprimerUser, useReinitialiserMdp, useToggleIA,
 } from '../../hooks/useUsers';
 import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
 import Alert from '../../components/ui/Alert';
 import api from '../../services/api';
-import { UserPlus, Search, Pencil, UserX, UserCheck, KeyRound, Trash2, X, Eye, EyeOff, RotateCcw, TriangleAlert } from 'lucide-react';
+import { UserPlus, Search, Pencil, UserX, UserCheck, KeyRound, Trash2, X, Eye, EyeOff, RotateCcw, TriangleAlert, Sparkles } from 'lucide-react';
 
 const couleurRole = { administrateur: 'violet', stockiste: 'bleu', secretaire: 'gris', delegue: 'orange' };
 
@@ -177,8 +177,9 @@ const UsersPage = () => {
 
   const { data, isLoading, isError } = useUsers({ recherche, role: filtreRole || undefined });
   const desactiver = useDesactiverUser();
-  const reactiver = useReactiverUser();
-  const supprimer = useSupprimerUser();
+  const reactiver  = useReactiverUser();
+  const supprimer  = useSupprimerUser();
+  const toggleIA   = useToggleIA();
 
   const afficherSucces = (msg) => {
     setMessageSucces(msg);
@@ -357,6 +358,19 @@ const UsersPage = () => {
                           title="Modifier le mot de passe"
                         >
                           <KeyRound size={15} />
+                        </button>
+                        {/* Toggle IA */}
+                        <button
+                          onClick={() => toggleIA.mutate({ id: user.id, peut_utiliser_ia: !user.peut_utiliser_ia })}
+                          disabled={toggleIA.isPending}
+                          title={user.peut_utiliser_ia ? 'Désactiver l\'accès IA' : 'Activer l\'accès IA'}
+                          className={`p-1.5 rounded transition-colors ${
+                            user.peut_utiliser_ia
+                              ? 'text-purple-500 hover:text-purple-700 hover:bg-purple-50'
+                              : 'text-gray-300 hover:text-purple-400 hover:bg-purple-50'
+                          }`}
+                        >
+                          <Sparkles size={15} />
                         </button>
                         {/* Désactiver / Réactiver */}
                         {user.actif ? (
