@@ -105,6 +105,17 @@ export function useCreerEtAnalyserIA(patientId) {
   });
 }
 
+export function useValiderAnalyseBio(patientId) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (analyseId) => api.put(
+      `/patients/${patientId}/analyses-bio/${analyseId}/valider`,
+      {},
+    ).then((r) => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: cle(patientId) }),
+  });
+}
+
 export function useAnalyserAvecIA(patientId) {
   const qc = useQueryClient();
   return useMutation({

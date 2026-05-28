@@ -24,6 +24,7 @@ router.post('/extraire',            upload.array('fichiers', 10), tousLesRoles, 
 router.post('/analyser-documents',  upload.array('fichiers', 10), tousLesRoles, asyncHandler(ctrl.creerEtAnalyserAvecDocuments));
 router.post('/',                                                   tousLesRoles, asyncHandler(ctrl.creerAnalyse));
 router.post('/:analyseId/analyser',                   tousLesRoles,   asyncHandler(ctrl.analyserAvecIA));
+router.put('/:analyseId/valider',                     tousLesRoles,   asyncHandler(ctrl.validerAnalyse));
 router.put('/:analyseId',                             tousLesRoles,   asyncHandler(ctrl.modifierAnalyse));
 router.delete('/:analyseId',                          adminOuMedecin, asyncHandler(ctrl.supprimerAnalyse));
 

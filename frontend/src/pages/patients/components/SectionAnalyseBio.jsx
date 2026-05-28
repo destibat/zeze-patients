@@ -1,8 +1,8 @@
 import { useState, useMemo, useRef, useEffect, Component } from 'react';
-import { useAnalysesBio, useExtraireAnalyseBio, useCreerAnalyseBio, useCreerEtAnalyserIA, useModifierAnalyseBio, useSupprimerAnalyseBio, useAnalyserAvecIA, useTelechargePdfAnalyse, useTelechargeDocxAnalyse } from '../../../hooks/useAnalysesBio';
+import { useAnalysesBio, useExtraireAnalyseBio, useCreerAnalyseBio, useCreerEtAnalyserIA, useModifierAnalyseBio, useSupprimerAnalyseBio, useAnalyserAvecIA, useValiderAnalyseBio, useTelechargePdfAnalyse, useTelechargeDocxAnalyse } from '../../../hooks/useAnalysesBio';
 import { interpreterPanels, couleurSeverite, iconesSeverite, SEVERITE } from '../../../utils/interpretationBio';
 import Button from '../../../components/ui/Button';
-import { Plus, Trash2, ChevronDown, ChevronUp, FlaskConical, Upload, FileText, Image, Loader2, CheckCircle2, X, Sparkles, RefreshCw, Download, Pencil, Check } from 'lucide-react';
+import { Plus, Trash2, ChevronDown, ChevronUp, FlaskConical, Upload, FileText, Image, Loader2, CheckCircle2, X, Sparkles, RefreshCw, Download, Pencil, Check, ShieldCheck } from 'lucide-react';
 
 // ── ErrorBoundary — empêche un crash d'une carte de vider toute la page ───────
 class CarteErreur extends Component {
@@ -577,6 +577,7 @@ const CarteAnalyseInterne = ({ analyse }) => {
   const supprimer  = useSupprimerAnalyseBio(analyse.patient_id);
   const modifier   = useModifierAnalyseBio(analyse.patient_id);
   const analyserIA = useAnalyserAvecIA(analyse.patient_id);
+  const valider    = useValiderAnalyseBio(analyse.patient_id);
   const telechargerPdf  = useTelechargePdfAnalyse(analyse.patient_id);
   const telechargerDocx = useTelechargeDocxAnalyse(analyse.patient_id);
 
@@ -635,6 +636,19 @@ const CarteAnalyseInterne = ({ analyse }) => {
             <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-green-100 text-green-700">
               Normal
             </span>
+          )}
+          {analyse.analyse_ia_texte && (
+            analyse.valide_par_medecin
+              ? (
+                <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 flex items-center gap-1">
+                  <ShieldCheck size={10} />
+                  Validée
+                </span>
+              ) : (
+                <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-orange-100 text-orange-700">
+                  Non validée
+                </span>
+              )
           )}
           <span className="text-xs text-texte-secondaire">{sourceLabel[analyse.source] || ''}</span>
         </div>
@@ -762,40 +776,70 @@ const CarteAnalyseInterne = ({ analyse }) => {
             )}
 
             {analyse.analyse_ia_texte && !analyserIA.isPending && (
-              <div className="px-4 py-3 bg-white flex items-center justify-between gap-4">
-                <div>
-                  <p className="text-sm font-medium text-texte-principal">
-                    Interprétation médicale disponible
-                  </p>
-                  <p className="text-xs text-texte-secondaire mt-0.5">
-                    {analyse.analyse_ia_modele || 'IA'}
-                    {analyse.cout_estime_usd
-                      ? ` · Coût estimé : $${parseFloat(analyse.cout_estime_usd).toFixed(4)}`
-                      : ''}
-                  </p>
+              <div className="px-4 py-3 bg-white space-y-3">
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <p className="text-sm font-medium text-texte-principal">
+                      Interprétation médicale disponible
+                    </p>
+                    <p className="text-xs text-texte-secondaire mt-0.5">
+                      {analyse.analyse_ia_modele || 'IA'}
+                      {analyse.cout_estime_usd
+                        ? ` · Coût estimé : $${parseFloat(analyse.cout_estime_usd).toFixed(4)}`
+                        : ''}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <Button
+                      variante="secondaire"
+                      icone={FileText}
+                      taille="petit"
+                      chargement={telechargerDocx.isPending}
+                      onClick={() => telechargerDocx.mutate(analyse.id)}
+                      disabled={telechargerDocx.isPending}
+                    >
+                      Word
+                    </Button>
+                    <Button
+                      variante="primaire"
+                      icone={Download}
+                      taille="petit"
+                      chargement={telechargerPdf.isPending}
+                      onClick={() => telechargerPdf.mutate(analyse.id)}
+                      disabled={telechargerPdf.isPending}
+                    >
+                      PDF
+                    </Button>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2 flex-shrink-0">
-                  <Button
-                    variante="secondaire"
-                    icone={FileText}
-                    taille="petit"
-                    chargement={telechargerDocx.isPending}
-                    onClick={() => telechargerDocx.mutate(analyse.id)}
-                    disabled={telechargerDocx.isPending}
-                  >
-                    Word
-                  </Button>
-                  <Button
-                    variante="primaire"
-                    icone={Download}
-                    taille="petit"
-                    chargement={telechargerPdf.isPending}
-                    onClick={() => telechargerPdf.mutate(analyse.id)}
-                    disabled={telechargerPdf.isPending}
-                  >
-                    PDF
-                  </Button>
-                </div>
+
+                {/* Validation médecin */}
+                {analyse.valide_par_medecin ? (
+                  <div className="flex items-center gap-2 px-3 py-2 bg-emerald-50 border border-emerald-200 rounded-bouton text-xs text-emerald-800">
+                    <ShieldCheck size={13} className="text-emerald-600 flex-shrink-0" />
+                    <span>
+                      Validée par le médecin le{' '}
+                      {fmtDate(analyse.date_validation)}
+                    </span>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-between gap-3 px-3 py-2 bg-orange-50 border border-orange-200 rounded-bouton">
+                    <p className="text-xs text-orange-800">
+                      L&apos;interprétation IA n&apos;a pas encore été validée par un médecin.
+                    </p>
+                    <Button
+                      variante="secondaire"
+                      icone={ShieldCheck}
+                      taille="petit"
+                      chargement={valider.isPending}
+                      onClick={() => valider.mutate(analyse.id)}
+                      disabled={valider.isPending}
+                      className="flex-shrink-0 text-emerald-700 border-emerald-300 hover:bg-emerald-50"
+                    >
+                      Valider
+                    </Button>
+                  </div>
+                )}
               </div>
             )}
           </div>

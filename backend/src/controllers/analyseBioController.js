@@ -290,4 +290,19 @@ const creerEtAnalyserAvecDocuments = async (req, res) => {
   res.status(201).json(result);
 };
 
-module.exports = { listerAnalyses, obtenirAnalyse, creerAnalyse, modifierAnalyse, supprimerAnalyse, extraireSansEnregistrer, analyserAvecIA, creerEtAnalyserAvecDocuments, telechargerPdf, telechargerDocx };
+const validerAnalyse = async (req, res) => {
+  const analyse = await AnalyseBiologique.findByPk(req.params.analyseId);
+  if (!analyse) return res.status(404).json({ message: 'Analyse introuvable' });
+
+  await analyse.update({
+    valide_par_medecin: true,
+    date_validation:    new Date(),
+  });
+
+  const result = await AnalyseBiologique.findByPk(analyse.id, {
+    include: [{ association: 'auteur', attributes: ['id', 'nom', 'prenom'] }],
+  });
+  res.json(result);
+};
+
+module.exports = { listerAnalyses, obtenirAnalyse, creerAnalyse, modifierAnalyse, supprimerAnalyse, extraireSansEnregistrer, analyserAvecIA, creerEtAnalyserAvecDocuments, telechargerPdf, telechargerDocx, validerAnalyse };
