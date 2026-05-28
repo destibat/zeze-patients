@@ -5,6 +5,7 @@ const { authentifier } = require('../middlewares/authenticate');
 const { autoriser } = require('../middlewares/authorize');
 const { asyncHandler } = require('../middlewares/errorHandler');
 const { sequelize, User, Produit, StockDelegue } = require('../models');
+const { Op } = require('sequelize');
 
 const router = express.Router();
 router.use(authentifier, autoriser('administrateur'));
@@ -83,6 +84,89 @@ router.post('/reset-stock-delegues', asyncHandler(async (req, res) => {
     message: unites > 0
       ? `Stock des revendeurs réinitialisé : ${unites} unité(s) par produit actif.`
       : 'Stock des revendeurs vidé (aucune unité redistribuée).',
+  });
+}));
+
+// GET /api/admin/consommation-ia
+router.get('/consommation-ia', asyncHandler(async (req, res) => {
+  const debutMois = new Date();
+  debutMois.setDate(1);
+  debutMois.setHours(0, 0, 0, 0);
+
+  const [statsMois] = await sequelize.query(`
+    SELECT
+      COUNT(*)                                                      AS nb_analyses,
+      COALESCE(SUM(cout_estime_usd), 0)                            AS cout_mois_usd,
+      COALESCE(SUM(tokens_input), 0)                               AS tokens_input_mois,
+      COALESCE(SUM(tokens_output), 0)                              AS tokens_output_mois,
+      SUM(CASE WHEN valide_par_medecin = 1 THEN 1 ELSE 0 END)     AS nb_validees
+    FROM analyses_biologiques
+    WHERE analyse_ia_texte IS NOT NULL AND created_at >= :debutMois
+  `, { replacements: { debutMois }, type: sequelize.QueryTypes.SELECT });
+
+  const [statsTotal] = await sequelize.query(`
+    SELECT
+      COUNT(*)                           AS nb_total,
+      COALESCE(SUM(cout_estime_usd), 0)  AS cout_total_usd
+    FROM analyses_biologiques
+    WHERE analyse_ia_texte IS NOT NULL
+  `, { type: sequelize.QueryTypes.SELECT });
+
+  const parJour = await sequelize.query(`
+    SELECT
+      DATE(created_at)                   AS jour,
+      COUNT(*)                           AS nb,
+      COALESCE(SUM(cout_estime_usd), 0)  AS cout_usd
+    FROM analyses_biologiques
+    WHERE analyse_ia_texte IS NOT NULL
+      AND created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+    GROUP BY DATE(created_at)
+    ORDER BY jour ASC
+  `, { type: sequelize.QueryTypes.SELECT });
+
+  const topUtilisateurs = await sequelize.query(`
+    SELECT
+      u.prenom, u.nom, u.role,
+      COUNT(ab.id)                           AS nb_analyses,
+      COALESCE(SUM(ab.cout_estime_usd), 0)   AS cout_usd
+    FROM analyses_biologiques ab
+    JOIN users u ON ab.created_by = u.id
+    WHERE ab.analyse_ia_texte IS NOT NULL
+      AND ab.created_at >= :debutMois
+    GROUP BY ab.created_by, u.prenom, u.nom, u.role
+    ORDER BY nb_analyses DESC
+    LIMIT 5
+  `, { replacements: { debutMois }, type: sequelize.QueryTypes.SELECT });
+
+  const dernieres = await sequelize.query(`
+    SELECT
+      ab.id, ab.date_analyse, ab.panels_demandes,
+      ab.analyse_ia_modele, ab.cout_estime_usd,
+      ab.tokens_input, ab.tokens_output,
+      ab.valide_par_medecin, ab.created_at,
+      u.prenom, u.nom
+    FROM analyses_biologiques ab
+    JOIN users u ON ab.created_by = u.id
+    WHERE ab.analyse_ia_texte IS NOT NULL
+    ORDER BY ab.created_at DESC
+    LIMIT 10
+  `, { type: sequelize.QueryTypes.SELECT });
+
+  res.json({
+    mois: {
+      nb_analyses:     Number(statsMois.nb_analyses),
+      cout_usd:        Number(statsMois.cout_mois_usd),
+      tokens_input:    Number(statsMois.tokens_input_mois),
+      tokens_output:   Number(statsMois.tokens_output_mois),
+      nb_validees:     Number(statsMois.nb_validees),
+    },
+    total: {
+      nb_analyses: Number(statsTotal.nb_total),
+      cout_usd:    Number(statsTotal.cout_total_usd),
+    },
+    par_jour:         parJour,
+    top_utilisateurs: topUtilisateurs,
+    dernieres:        dernieres,
   });
 }));
 

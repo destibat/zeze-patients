@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '../services/api';
 import Alert from '../components/ui/Alert';
 import Button from '../components/ui/Button';
-import { User, Lock, Building2, Save, Percent, Eye, EyeOff, Store, Pencil, X, Check, ImageUp, FileImage, Upload, AlertTriangle, RotateCcw, Users } from 'lucide-react';
+import { User, Lock, Building2, Save, Percent, Eye, EyeOff, Store, Pencil, X, Check, ImageUp, FileImage, Upload, AlertTriangle, RotateCcw, Users, Sparkles, Loader2 } from 'lucide-react';
 
 const Section = ({ titre, icone: Icone, children }) => (
   <div className="carte space-y-4">
@@ -319,6 +319,162 @@ const ZoneDangereuse = () => {
   );
 };
 
+// ── Suivi de consommation IA (admin uniquement) ───────────────────────────────
+const PANEL_COURT = { nfs: 'NFS', renal: 'Rénal', glycemie: 'Glycémie', lipidique: 'Lipides', ionogramme: 'Iono', hepatique: 'Hépatique' };
+
+const SectionConsommationIA = () => {
+  const { data, isLoading } = useQuery({
+    queryKey: ['consommation-ia'],
+    queryFn: () => api.get('/admin/consommation-ia').then((r) => r.data),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const usd    = (v) => `$${Number(v || 0).toFixed(4)}`;
+  const fmtD   = (d) => d ? new Date(d).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' }) : '—';
+  const panels = (v) => { try { return (Array.isArray(v) ? v : JSON.parse(v)).map((p) => PANEL_COURT[p] || p).join(', '); } catch { return '—'; } };
+
+  if (isLoading) return (
+    <Section titre="Consommation IA" icone={Sparkles}>
+      <div className="flex items-center gap-2 text-sm text-texte-secondaire py-4">
+        <Loader2 size={14} className="animate-spin" /> Chargement…
+      </div>
+    </Section>
+  );
+
+  const m      = data?.mois    || {};
+  const t      = data?.total   || {};
+  const jours  = data?.par_jour || [];
+  const maxNb  = Math.max(...jours.map((d) => Number(d.nb)), 1);
+
+  return (
+    <Section titre="Consommation IA — mois en cours" icone={Sparkles}>
+
+      {/* KPIs */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {[
+          { label: 'Analyses ce mois',  val: m.nb_analyses ?? 0,   sub: `${t.nb_analyses ?? 0} au total` },
+          { label: 'Coût estimé',        val: usd(m.cout_usd),      sub: `${usd(t.cout_usd)} total` },
+          { label: 'Validées',           val: m.nb_validees ?? 0,   sub: `sur ${m.nb_analyses ?? 0} ce mois` },
+          { label: 'Tokens ce mois',     val: ((m.tokens_input ?? 0) + (m.tokens_output ?? 0)).toLocaleString('fr-FR'),
+            sub: `${(m.tokens_input ?? 0).toLocaleString('fr-FR')} in / ${(m.tokens_output ?? 0).toLocaleString('fr-FR')} out` },
+        ].map(({ label, val, sub }) => (
+          <div key={label} className="bg-fond-secondaire rounded-carte p-3 space-y-1">
+            <p className="text-xs text-texte-secondaire">{label}</p>
+            <p className="text-lg font-semibold text-texte-principal">{val}</p>
+            <p className="text-xs text-texte-secondaire">{sub}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Graphique barres 30 jours */}
+      {jours.length > 0 && (
+        <div>
+          <p className="text-xs font-semibold text-texte-secondaire uppercase tracking-wide mb-2">
+            Analyses / jour — 30 derniers jours
+          </p>
+          <div className="flex items-end gap-px h-16 bg-fond-secondaire rounded px-2 pt-2 pb-1">
+            {jours.map((d) => {
+              const h = Math.max(3, Math.round((Number(d.nb) / maxNb) * 48));
+              return (
+                <div
+                  key={d.jour}
+                  className="flex-1 bg-zeze-vert/60 hover:bg-zeze-vert rounded-t transition-colors cursor-default"
+                  style={{ height: `${h}px` }}
+                  title={`${fmtD(d.jour)} : ${d.nb} analyse${d.nb > 1 ? 's' : ''} · ${usd(d.cout_usd)}`}
+                />
+              );
+            })}
+          </div>
+          <div className="flex justify-between text-xs text-texte-secondaire mt-1">
+            <span>{fmtD(jours[0]?.jour)}</span>
+            <span>{fmtD(jours[jours.length - 1]?.jour)}</span>
+          </div>
+        </div>
+      )}
+
+      {/* Top utilisateurs */}
+      {(data?.top_utilisateurs || []).length > 0 && (
+        <div>
+          <p className="text-xs font-semibold text-texte-secondaire uppercase tracking-wide mb-2">
+            Top utilisateurs ce mois
+          </p>
+          <div className="overflow-x-auto rounded border border-bordure">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="bg-fond-secondaire text-texte-secondaire">
+                  <th className="text-left px-3 py-2 font-semibold">Utilisateur</th>
+                  <th className="text-left px-3 py-2 font-semibold">Rôle</th>
+                  <th className="text-right px-3 py-2 font-semibold">Analyses</th>
+                  <th className="text-right px-3 py-2 font-semibold">Coût estimé</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.top_utilisateurs.map((u, i) => (
+                  <tr key={i} className={i % 2 === 0 ? 'bg-white' : 'bg-fond-secondaire/50'}>
+                    <td className="px-3 py-2">{u.prenom} {u.nom}</td>
+                    <td className="px-3 py-2 text-texte-secondaire capitalize">{u.role}</td>
+                    <td className="px-3 py-2 text-right font-semibold">{u.nb_analyses}</td>
+                    <td className="px-3 py-2 text-right">{usd(u.cout_usd)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* 10 dernières analyses */}
+      {(data?.dernieres || []).length > 0 && (
+        <div>
+          <p className="text-xs font-semibold text-texte-secondaire uppercase tracking-wide mb-2">
+            10 dernières analyses IA
+          </p>
+          <div className="overflow-x-auto rounded border border-bordure">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="bg-fond-secondaire text-texte-secondaire">
+                  <th className="text-left px-3 py-2 font-semibold">Date</th>
+                  <th className="text-left px-3 py-2 font-semibold">Panels</th>
+                  <th className="text-left px-3 py-2 font-semibold">Par</th>
+                  <th className="text-left px-3 py-2 font-semibold hidden sm:table-cell">Modèle</th>
+                  <th className="text-right px-3 py-2 font-semibold hidden sm:table-cell">Tokens</th>
+                  <th className="text-right px-3 py-2 font-semibold">Coût</th>
+                  <th className="text-center px-3 py-2 font-semibold">Val.</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.dernieres.map((a, i) => (
+                  <tr key={a.id} className={i % 2 === 0 ? 'bg-white' : 'bg-fond-secondaire/50'}>
+                    <td className="px-3 py-2 whitespace-nowrap">{fmtD(a.date_analyse)}</td>
+                    <td className="px-3 py-2">{panels(a.panels_demandes)}</td>
+                    <td className="px-3 py-2 whitespace-nowrap">{a.prenom} {a.nom}</td>
+                    <td className="px-3 py-2 text-texte-secondaire hidden sm:table-cell">{a.analyse_ia_modele || '—'}</td>
+                    <td className="px-3 py-2 text-right hidden sm:table-cell">
+                      {((a.tokens_input || 0) + (a.tokens_output || 0)).toLocaleString('fr-FR')}
+                    </td>
+                    <td className="px-3 py-2 text-right">{usd(a.cout_estime_usd)}</td>
+                    <td className="px-3 py-2 text-center">
+                      {a.valide_par_medecin
+                        ? <span className="text-emerald-600 font-bold">✓</span>
+                        : <span className="text-orange-400">—</span>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {(m.nb_analyses ?? 0) === 0 && (
+        <p className="text-sm text-texte-secondaire text-center py-4">
+          Aucune analyse IA ce mois.
+        </p>
+      )}
+    </Section>
+  );
+};
+
 const ParametresPage = () => {
   const { utilisateur } = useAuth();
   const qc = useQueryClient();
@@ -605,6 +761,9 @@ const ParametresPage = () => {
       {['administrateur', 'stockiste'].includes(utilisateur?.role) && (
         <SectionImagesOrdonnance />
       )}
+
+      {/* Suivi consommation IA — admin uniquement */}
+      {estAdmin && <SectionConsommationIA />}
 
       {/* Zone dangereuse — admin uniquement */}
       {estAdmin && <ZoneDangereuse />}
