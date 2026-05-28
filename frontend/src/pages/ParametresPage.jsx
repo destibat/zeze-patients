@@ -346,8 +346,10 @@ const SectionConsommationIA = () => {
   const jours  = data?.par_jour || [];
   const maxNb  = Math.max(...jours.map((d) => Number(d.nb)), 1);
 
+  const titreCabinet = data?.nom_cabinet ? `Consommation IA — ${data.nom_cabinet}` : 'Consommation IA — mois en cours';
+
   return (
-    <Section titre="Consommation IA — mois en cours" icone={Sparkles}>
+    <Section titre={titreCabinet} icone={Sparkles}>
 
       {/* KPIs */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">

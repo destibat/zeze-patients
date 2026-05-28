@@ -152,7 +152,13 @@ router.get('/consommation-ia', asyncHandler(async (req, res) => {
     LIMIT 10
   `, { type: sequelize.QueryTypes.SELECT });
 
+  const [paramNomCabinet] = await sequelize.query(
+    `SELECT valeur FROM parametres_cabinet WHERE cle = 'nom_cabinet' LIMIT 1`,
+    { type: sequelize.QueryTypes.SELECT },
+  );
+
   res.json({
+    nom_cabinet: paramNomCabinet?.valeur || null,
     mois: {
       nb_analyses:     Number(statsMois.nb_analyses),
       cout_usd:        Number(statsMois.cout_mois_usd),
