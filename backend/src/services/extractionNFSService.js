@@ -143,7 +143,10 @@ const parseSexe   = (v) => {
 const parseDate = (v) => {
   if (!v) return null;
   const p = v.split(/[\/\-]/);
-  return p.length === 3 ? `${p[2]}-${p[1]}-${p[0]}` : null;
+  if (p.length !== 3) return null;
+  const iso = `${p[2]}-${p[1].padStart(2, '0')}-${p[0].padStart(2, '0')}`;
+  const d = new Date(iso);
+  return isNaN(d.getTime()) ? null : iso;
 };
 
 const extraireValeursPDF = (texte) => {

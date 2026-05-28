@@ -8,6 +8,12 @@ const { genererDocxAnalyse } = require('../services/docxAnalyseService');
 
 const PANELS_VALIDES = ['nfs', 'renal', 'glycemie', 'lipidique', 'ionogramme', 'hepatique'];
 
+// Garantit une date ISO YYYY-MM-DD valide, sinon retourne aujourd'hui
+const dateISO = (d) => {
+  if (d && /^\d{4}-\d{2}-\d{2}$/.test(d) && !isNaN(new Date(d).getTime())) return d;
+  return new Date().toISOString().slice(0, 10);
+};
+
 const listerAnalyses = async (req, res) => {
   const { patientId } = req.params;
   const patient = await Patient.findByPk(patientId, { attributes: ['id'] });
@@ -51,7 +57,7 @@ const creerAnalyse = async (req, res) => {
     patient_id:        patientId,
     consultation_id:   consultation_id || null,
     created_by:        req.utilisateur.id,
-    date_analyse,
+    date_analyse:      dateISO(date_analyse),
     sexe_patient:      sexe_patient || null,
     age_patient:       age_patient ? parseInt(age_patient) : null,
     panels_demandes,
@@ -136,7 +142,7 @@ const extraireSansEnregistrer = async (req, res) => {
 
   res.json({
     meta: {
-      date_analyse: meta.date_analyse || new Date().toISOString().slice(0, 10),
+      date_analyse: dateISO(meta.date_analyse),
       sexe_patient: sexe,
       age_patient:  age,
       source,
@@ -245,7 +251,7 @@ const creerEtAnalyserAvecDocuments = async (req, res) => {
   const analyse = await AnalyseBiologique.create({
     patient_id:        patientId,
     created_by:        req.utilisateur.id,
-    date_analyse,
+    date_analyse:      dateISO(date_analyse),
     sexe_patient,
     age_patient,
     panels_demandes,
