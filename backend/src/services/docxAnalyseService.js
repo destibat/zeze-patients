@@ -4,8 +4,13 @@ const {
   Document, Packer, Paragraph, Table, TableRow, TableCell,
   TextRun, AlignmentType, WidthType, BorderStyle,
   ShadingType, VerticalAlign, convertInchesToTwip,
-  Footer, PageNumber,
+  Header, Footer, PageNumber, ImageRun,
 } = require('docx');
+const fs = require('fs');
+const path = require('path');
+
+const LOGO_PATH   = path.resolve(__dirname, '../assets/logo-mapa.jpg');
+const FOOTER_PATH = path.resolve(__dirname, '../assets/footer-mapa.jpg');
 
 // ── Référentiels panels ───────────────────────────────────────────────────────
 const PARAMS_NFS = {
@@ -510,17 +515,46 @@ const genererDocxAnalyse = async (analyse, patient) => {
           },
         },
       },
-      footers: {
-        default: new Footer({
+      headers: {
+        default: new Header({
           children: [new Paragraph({
-            alignment: AlignmentType.CENTER,
             children: [
-              new TextRun({ text: 'ZEZEPAGNON — Dossiers Patients  |  Page ', size: 16, color: '9E9E9E' }),
-              new TextRun({ children: [PageNumber.CURRENT], size: 16, color: '9E9E9E' }),
-              new TextRun({ text: ' sur ', size: 16, color: '9E9E9E' }),
-              new TextRun({ children: [PageNumber.TOTAL_PAGES], size: 16, color: '9E9E9E' }),
+              ...(fs.existsSync(LOGO_PATH) ? [new ImageRun({
+                data: fs.readFileSync(LOGO_PATH),
+                transformation: { width: 45, height: 45 },
+                floating: {
+                  horizontalPosition: { offset: 457200 },
+                  verticalPosition:   { offset: 0 },
+                },
+              })] : []),
+              new TextRun({ text: 'MAPA', bold: true, size: 28, color: '1565C0' }),
+              new TextRun({ text: '\t', size: 20 }),
+              new TextRun({ text: 'Maximizing American Potential in Africa', size: 18, color: '616161' }),
             ],
           })],
+        }),
+      },
+      footers: {
+        default: new Footer({
+          children: [
+            ...(fs.existsSync(FOOTER_PATH) ? [new Paragraph({
+              alignment: AlignmentType.CENTER,
+              spacing: { before: 0, after: 0 },
+              children: [new ImageRun({
+                data: fs.readFileSync(FOOTER_PATH),
+                transformation: { width: 595, height: 119 },
+              })],
+            })] : []),
+            new Paragraph({
+              alignment: AlignmentType.CENTER,
+              children: [
+                new TextRun({ text: 'Page ', size: 16, color: '9E9E9E' }),
+                new TextRun({ children: [PageNumber.CURRENT], size: 16, color: '9E9E9E' }),
+                new TextRun({ text: ' sur ', size: 16, color: '9E9E9E' }),
+                new TextRun({ children: [PageNumber.TOTAL_PAGES], size: 16, color: '9E9E9E' }),
+              ],
+            }),
+          ],
         }),
       },
       children,

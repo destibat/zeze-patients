@@ -79,16 +79,16 @@ const PANELS_META = {
   hepatique:  { label: 'Bilan hépatique',                   params: PARAMS_HEPATIQUE },
 };
 
-// ── Prompt système (fourni par le médecin) ────────────────────────────────────
-const SYSTEM_PROMPT = `Rôle : Tu es un médecin biologiste expérimenté, spécialiste en hématologie, biochimie et interprétation clinique des examens médicaux. Tu adoptes une approche rigoureuse, pédagogique et claire.
+// ── Prompt système ────────────────────────────────────────────────────────────
+const SYSTEM_PROMPT = `Rôle : Tu es un médecin biologiste expérimenté, spécialiste en hématologie, biochimie et interprétation clinique des examens médicaux. Tu es aussi médecin généraliste pouvant interpréter tout type d'examen qu'un patient te soumet. Tu adoptes une approche rigoureuse, pédagogique et claire, similaire à celle d'un médecin traitant expliquant les résultats à son patient.
 
-🔍 Mission : analyser les résultats biologiques fournis et produire un rapport structuré en 6 sections numérotées.
+🔍 Mission : À partir des résultats d'analyses médicales fournis (NFS, biochimie, sérologie, ou tout autre type d'examen), produire un rapport structuré en 7 sections numérotées.
 
 ---
 
 📊 1. Analyse détaillée des paramètres
 
-Pour chaque panel présent, affiche un sous-titre en gras (ex: **NFS — Numération Formule Sanguine**) puis un tableau Markdown OBLIGATOIRE avec ces 4 colonnes exactes :
+Pour chaque panel ou groupe de valeurs présent, affiche un sous-titre en gras (ex: **NFS — Numération Formule Sanguine**) puis un tableau Markdown OBLIGATOIRE avec ces 4 colonnes exactes :
 
 | Paramètre | Résultat | Normes | Statut |
 |-----------|----------|--------|--------|
@@ -98,36 +98,40 @@ Le Statut doit être l'une de ces valeurs exactes : **Normal** / **↑ Augmenté
 
 ---
 
-⚠️ 2. Anomalies détectées
-Liste numérotée de toutes les anomalies, avec explication courte pour chacune.
+⚠️ 2. Identification des anomalies
+Lister toutes les anomalies détectées.
+Expliquer simplement chaque anomalie (cause possible, signification biologique).
 
 🧠 3. Interprétation médicale
-- Liens entre les anomalies
+- Faire des liens entre les anomalies
 - **Sous-titres en gras** pour chaque thème (ex: **Liens entre les anomalies**, **Hypothèses diagnostiques**)
-- Hypothèses diagnostiques probables (sans affirmer de diagnostic définitif)
+- Proposer des hypothèses diagnostiques probables — mentionner les maladies ou troubles possibles (sans affirmer de diagnostic définitif)
 
 📋 4. Synthèse globale
-Commence par une ligne de synthèse mise en valeur :
+Résumer l'état général du patient. Commence par :
 **ÉTAT GÉNÉRAL : [NORMAL / À SURVEILLER / PRÉOCCUPANT] — [phrase courte]**
-Puis résumé clinique en 3-5 phrases.
+Puis donner une lecture cohérente et clinique des résultats en 3-5 phrases.
 
-💬 5. Explication simple pour le patient
-Langage accessible, sans jargon médical. Expliquer ce qui va bien et ce qui mérite attention.
+💬 5. Explication simplifiée pour le patient
+Reformuler les résultats dans un langage clair et compréhensible, sans jargon médical. Préciser :
+- Ce qui va bien
+- Ce qui mérite attention
+- Le niveau de gravité (rassurant / modéré / sérieux)
 
 🩺 6. Recommandations
-Sous-sections avec **titres en gras** :
-**Mesures urgentes** (si applicable)
-**À court terme**
-**Conseils généraux**
+Proposer, avec **titres en gras** :
+**Examens complémentaires éventuels**
+**Conseils hygiéno-diététiques**
+**Nécessité ou non de consulter rapidement**
 
-⚖️ 7. Précaution médicale
-Cette analyse a une valeur informative et pédagogique. Elle ne remplace pas une consultation médicale réelle. Les résultats et la conduite à tenir doivent être validés par un médecin qualifié.
+⚖️ 7. Précaution médicale obligatoire
+Cette analyse a une valeur informative et pédagogique. Elle ne remplace pas une consultation médicale réelle et doit être validée par un médecin qualifié.
 
 ---
-IMPORTANT : Le tableau Markdown de la section 1 est OBLIGATOIRE. Utilise uniquement des tirets simples pour les listes (- item).`;
+IMPORTANT : Le tableau Markdown de la section 1 est OBLIGATOIRE pour chaque groupe de valeurs. Utilise uniquement des tirets simples pour les listes (- item).`;
 
 // ── Construction du message utilisateur ───────────────────────────────────────
-const construireMessage = (analyse) => {
+const construireMessage = (analyse, texte_brut) => {
   const sexe = analyse.sexe_patient;
   const sexeLabel = sexe === 'F' ? 'Féminin' : sexe === 'M' ? 'Masculin' : 'Non renseigné';
   const ageLabel  = analyse.age_patient ? `${analyse.age_patient} ans` : 'Non renseigné';
@@ -145,33 +149,45 @@ Informations patient :
 - Âge : ${ageLabel}
 - Date d'analyse : ${analyse.date_analyse || 'Non renseignée'}
 
-Résultats par panel :
 `;
 
-  for (const panelId of panels) {
+  // Vérifie s'il y a des valeurs structurées dans les panels connus
+  const aValeursConnues = panels.some((panelId) => {
     const meta = PANELS_META[panelId];
-    if (!meta) continue;
-
-    msg += `\n=== ${meta.label} ===\n`;
+    if (!meta) return false;
     const vPanel = valeurs[panelId] || {};
-    let aucune = true;
+    return Object.values(vPanel).some((v) => v !== null && v !== undefined);
+  });
 
-    for (const [cle, param] of Object.entries(meta.params)) {
-      const val = vPanel[cle];
-      if (val === null || val === undefined) continue;
-      aucune = false;
-      msg += `- ${param.label} : ${val} ${param.unite}  [Référence : ${param.ref(sexe)} ${param.unite}]\n`;
+  if (aValeursConnues) {
+    msg += 'Résultats par panel :\n';
+    for (const panelId of panels) {
+      const meta = PANELS_META[panelId];
+      if (!meta) continue;
+      msg += `\n=== ${meta.label} ===\n`;
+      const vPanel = valeurs[panelId] || {};
+      let aucune = true;
+      for (const [cle, param] of Object.entries(meta.params)) {
+        const val = vPanel[cle];
+        if (val === null || val === undefined) continue;
+        aucune = false;
+        msg += `- ${param.label} : ${val} ${param.unite}  [Référence : ${param.ref(sexe)} ${param.unite}]\n`;
+      }
+      if (aucune) msg += '(Aucune valeur renseignée pour ce panel)\n';
     }
-
-    if (aucune) msg += '(Aucune valeur renseignée pour ce panel)\n';
+  } else if (texte_brut) {
+    // Examen hors panels connus : on transmet le texte brut extrait du document
+    msg += `Texte brut extrait du document d'examen (analyse tout type d'examen présent) :\n\n${texte_brut}\n`;
+  } else {
+    msg += 'Aucune valeur biologique fournie. Effectue une analyse générale sur la base des informations patient disponibles.\n';
   }
 
-  msg += '\nMerci de fournir une analyse complète et structurée selon les 6 sections demandées.';
+  msg += '\nMerci de fournir une analyse complète et structurée selon les 7 sections demandées.';
   return msg;
 };
 
 // ── Appel Claude ──────────────────────────────────────────────────────────────
-const analyserBilanAvecIA = async (analyse) => {
+const analyserBilanAvecIA = async (analyse, { texte_brut } = {}) => {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error('ANTHROPIC_API_KEY non configurée — ajoutez-la dans le fichier .env');
 
@@ -181,7 +197,7 @@ const analyserBilanAvecIA = async (analyse) => {
     model:      MODEL,
     max_tokens: 4096,
     system:     SYSTEM_PROMPT,
-    messages:   [{ role: 'user', content: construireMessage(analyse) }],
+    messages:   [{ role: 'user', content: construireMessage(analyse, texte_brut) }],
   });
 
   const texte     = response.content[0]?.text || '';

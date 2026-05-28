@@ -5,18 +5,19 @@ const path = require('path');
 const fs = require('fs');
 
 // ── Assets ────────────────────────────────────────────────────────────────────
-const HEADER_PATH = path.resolve(__dirname, '../assets/header-ordonnance.png');
-const FOOTER_PATH = path.resolve(__dirname, '../assets/footer-ordonnance.png');
+const LOGO_PATH   = path.resolve(__dirname, '../assets/logo-mapa.jpg');
+const FOOTER_PATH = path.resolve(__dirname, '../assets/footer-mapa.jpg');
 
 // ── Dimensions A4 ─────────────────────────────────────────────────────────────
 const PAGE_W      = 495;
 const PAGE_H      = 842;
 const ML          = 50;
-const HEADER_H    = Math.round(PAGE_W * 124 / 460 / 2); // ≈ 66
-const FOOTER_H    = Math.round(PAGE_W * 360 / 1800);  // ≈ 99
-const MARGIN_TOP  = 20;
-const CONTENT_TOP = MARGIN_TOP + HEADER_H + 14;       // ≈ 167
-const FOOTER_Y    = PAGE_H - 20 - FOOTER_H;           // ≈ 723
+const LOGO_H      = 60;                                // hauteur logo MAPA (carré 225×225)
+const HEADER_H    = LOGO_H + 20;                       // logo + séparateur
+const FOOTER_H    = Math.round(PAGE_W * 360 / 1800);   // ≈ 99 (ratio 1800×360)
+const MARGIN_TOP  = 16;
+const CONTENT_TOP = MARGIN_TOP + HEADER_H + 10;
+const FOOTER_Y    = PAGE_H - 20 - FOOTER_H;
 const CONTENT_BOT = FOOTER_Y - 10;
 
 // ── Palette ───────────────────────────────────────────────────────────────────
@@ -56,7 +57,21 @@ const parseJson = (v, fallback) => {
 
 // ── Header / Footer ───────────────────────────────────────────────────────────
 const dessinerHeader = (doc) => {
-  if (fs.existsSync(HEADER_PATH)) doc.image(HEADER_PATH, ML, MARGIN_TOP, { fit: [PAGE_W, HEADER_H], align: 'left' });
+  const yTop = MARGIN_TOP + 4;
+  // Logo MAPA (carré — affiché à gauche)
+  if (fs.existsSync(LOGO_PATH)) {
+    doc.image(LOGO_PATH, ML, yTop, { fit: [LOGO_H, LOGO_H] });
+  }
+  // Texte organisation à droite du logo
+  const xTxt = ML + LOGO_H + 12;
+  const wTxt = PAGE_W - LOGO_H - 12;
+  doc.fontSize(14).font('Helvetica-Bold').fillColor(BLEU_FONCE)
+     .text('MAPA', xTxt, yTop + 8, { width: wTxt });
+  doc.fontSize(8.5).font('Helvetica').fillColor(GRIS)
+     .text('Maximizing American Potential in Africa', xTxt, yTop + 26, { width: wTxt });
+  doc.fontSize(7.5).font('Helvetica-Oblique').fillColor(GRIS)
+     .text('Rapport médical — Résultats d\'analyses biologiques', xTxt, yTop + 38, { width: wTxt });
+  // Séparateur
   const ySep = CONTENT_TOP - 6;
   doc.moveTo(ML, ySep).lineTo(ML + PAGE_W, ySep).strokeColor(VERT).lineWidth(1.5).stroke();
 };

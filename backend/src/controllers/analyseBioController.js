@@ -63,7 +63,7 @@ const creerAnalyse = async (req, res) => {
   // Analyse IA immédiate si demandée
   if (req.body.lancer_ia) {
     try {
-      const resultat = await analyserBilanAvecIA(analyse);
+      const resultat = await analyserBilanAvecIA(analyse, { texte_brut: req.body.texte_brut || null });
       await analyse.update({
         analyse_ia_texte:  resultat.texte,
         analyse_ia_modele: resultat.modele,
@@ -144,6 +144,7 @@ const extraireSansEnregistrer = async (req, res) => {
     valeurs:    panelsStructures,
     nb_valeurs: nbValeurs,
     a_donnees:  nbValeurs > 0,
+    texte_brut: resultats.map((r) => r.texte).filter(Boolean).join('\n\n---\n\n') || null,
   });
 };
 

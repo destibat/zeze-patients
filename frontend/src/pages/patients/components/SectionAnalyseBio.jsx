@@ -390,6 +390,7 @@ const ZoneUpload = ({ patientId, onTermine, onAnnuler }) => {
       panels_demandes: extraction.panels.length ? extraction.panels : ['nfs'],
       valeurs_brutes:  extraction.valeurs,
       source:          extraction.meta.source,
+      texte_brut:      extraction.texte_brut || null,
     };
     try {
       await (avecIA ? creerIA : creer).mutateAsync(payload);
