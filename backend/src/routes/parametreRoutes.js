@@ -9,6 +9,12 @@ const { authentifier } = require('../middlewares/authenticate');
 const { seulementAdmin, adminOuMedecin } = require('../middlewares/authorize');
 const { asyncHandler } = require('../middlewares/errorHandler');
 const ctrl = require('../controllers/parametreController');
+const { sequelize } = require('../models');
+
+const masquerCle = (cle) => {
+  if (!cle || cle.length < 8) return '••••••••';
+  return cle.slice(0, 10) + '•'.repeat(Math.max(4, cle.length - 14)) + cle.slice(-4);
+};
 
 const ASSETS_DIR = path.resolve(__dirname, '../assets');
 
@@ -53,5 +59,39 @@ router.get('/images-ordonnance', authentifier, adminOuMedecin, asyncHandler(asyn
 
 router.get('/', authentifier, asyncHandler(ctrl.lister));
 router.put('/', authentifier, seulementAdmin, asyncHandler(ctrl.mettreAJour));
+
+// GET /api/parametres/cle-ia — statut de la clé Anthropic (masquée)
+router.get('/cle-ia', authentifier, seulementAdmin, asyncHandler(async (req, res) => {
+  const [row] = await sequelize.query(
+    `SELECT valeur FROM parametres_cabinet WHERE cle = 'anthropic_api_key' LIMIT 1`,
+    { type: sequelize.QueryTypes.SELECT },
+  );
+  if (!row?.valeur) {
+    return res.json({ source: 'env', configuree: !!process.env.ANTHROPIC_API_KEY });
+  }
+  res.json({ source: 'db', configuree: true, masquee: masquerCle(row.valeur) });
+}));
+
+// PUT /api/parametres/cle-ia — enregistre la clé dans la DB
+router.put('/cle-ia', authentifier, seulementAdmin, asyncHandler(async (req, res) => {
+  const cle = (req.body.cle || '').trim();
+  if (!cle) return res.status(400).json({ message: 'Clé API requise' });
+  if (!cle.startsWith('sk-ant-')) {
+    return res.status(400).json({ message: 'Format invalide — la clé doit commencer par sk-ant-' });
+  }
+  await sequelize.query(
+    `INSERT INTO parametres_cabinet (id, cle, valeur, created_at, updated_at)
+     VALUES (UUID(), 'anthropic_api_key', :cle, NOW(), NOW())
+     ON DUPLICATE KEY UPDATE valeur = :cle, updated_at = NOW()`,
+    { replacements: { cle } },
+  );
+  res.json({ ok: true, source: 'db', configuree: true, masquee: masquerCle(cle) });
+}));
+
+// DELETE /api/parametres/cle-ia — supprime la clé de la DB (retombe sur .env)
+router.delete('/cle-ia', authentifier, seulementAdmin, asyncHandler(async (req, res) => {
+  await sequelize.query(`DELETE FROM parametres_cabinet WHERE cle = 'anthropic_api_key'`);
+  res.json({ ok: true, source: 'env', configuree: !!process.env.ANTHROPIC_API_KEY });
+}));
 
 module.exports = router;

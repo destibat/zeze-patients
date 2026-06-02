@@ -319,6 +319,135 @@ const ZoneDangereuse = () => {
   );
 };
 
+// ── Clé API Anthropic (admin uniquement) ─────────────────────────────────────
+const SectionCleIA = () => {
+  const qc = useQueryClient();
+  const [nouvelleCle, setNouvelleCle] = useState('');
+  const [visible, setVisible] = useState(false);
+  const [succes, setSucces] = useState('');
+  const [erreur, setErreur] = useState('');
+
+  const { data, isLoading, refetch } = useQuery({
+    queryKey: ['cle-ia-statut'],
+    queryFn: () => api.get('/parametres/cle-ia').then((r) => r.data),
+    staleTime: 0,
+  });
+
+  const sauvegarder = useMutation({
+    mutationFn: (cle) => api.put('/parametres/cle-ia', { cle }).then((r) => r.data),
+    onSuccess: () => {
+      setSucces('Clé API enregistrée avec succès');
+      setNouvelleCle('');
+      setErreur('');
+      setVisible(false);
+      refetch();
+      setTimeout(() => setSucces(''), 4000);
+    },
+    onError: (e) => { setErreur(e?.response?.data?.message || 'Erreur lors de l\'enregistrement'); setSucces(''); },
+  });
+
+  const supprimer = useMutation({
+    mutationFn: () => api.delete('/parametres/cle-ia').then((r) => r.data),
+    onSuccess: () => {
+      setSucces('Clé supprimée — retour sur la configuration serveur');
+      setErreur('');
+      refetch();
+      setTimeout(() => setSucces(''), 4000);
+    },
+    onError: (e) => { setErreur(e?.response?.data?.message || 'Erreur'); },
+  });
+
+  return (
+    <Section titre="Clé API Anthropic" icone={Sparkles}>
+      <p className="text-xs text-texte-secondaire">
+        Clé utilisée pour les analyses médicales par IA. Une clé configurée ici prend le dessus sur celle du serveur, et permet d'utiliser votre propre compte Anthropic.
+      </p>
+
+      {succes && <Alert type="succes" message={succes} />}
+      {erreur && <Alert type="erreur" message={erreur} />}
+
+      {isLoading ? (
+        <div className="flex items-center gap-2 text-sm text-texte-secondaire py-2">
+          <Loader2 size={14} className="animate-spin" /> Chargement…
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {/* Statut actuel */}
+          <div className="flex items-center justify-between gap-3 p-3 bg-fond-secondaire rounded-bouton">
+            <div className="min-w-0">
+              {data?.source === 'db' ? (
+                <>
+                  <p className="text-sm font-medium text-texte-principal flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0 inline-block" />
+                    Clé personnalisée active
+                  </p>
+                  <p className="text-xs font-mono text-texte-secondaire mt-0.5 truncate">{data.masquee}</p>
+                </>
+              ) : (
+                <>
+                  <p className="text-sm font-medium text-texte-principal flex items-center gap-1.5">
+                    <span className={`w-2 h-2 rounded-full flex-shrink-0 inline-block ${data?.configuree ? 'bg-blue-400' : 'bg-orange-400'}`} />
+                    {data?.configuree ? 'Clé serveur (.env)' : 'Aucune clé configurée'}
+                  </p>
+                  <p className="text-xs text-texte-secondaire mt-0.5">
+                    {data?.configuree
+                      ? 'Partagée entre tous les cabinets — configurer une clé ici pour l\'isoler'
+                      : 'L\'analyse IA est non fonctionnelle sans clé API'}
+                  </p>
+                </>
+              )}
+            </div>
+            {data?.source === 'db' && (
+              <Button
+                variante="danger"
+                taille="petit"
+                icone={X}
+                chargement={supprimer.isPending}
+                onClick={() => supprimer.mutate()}
+              >
+                Supprimer
+              </Button>
+            )}
+          </div>
+
+          {/* Saisie nouvelle clé */}
+          <div className="space-y-2">
+            <p className="text-xs font-medium text-texte-principal">
+              {data?.source === 'db' ? 'Remplacer la clé' : 'Configurer une clé personnalisée'}
+            </p>
+            <div className="relative">
+              <input
+                type={visible ? 'text' : 'password'}
+                className="champ-input pr-10 font-mono text-sm"
+                value={nouvelleCle}
+                onChange={(e) => setNouvelleCle(e.target.value)}
+                placeholder="sk-ant-api03-..."
+              />
+              <button
+                type="button"
+                onClick={() => setVisible((v) => !v)}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-texte-secondaire hover:text-texte-principal p-1 rounded"
+                tabIndex={-1}
+              >
+                {visible ? <EyeOff size={16} /> : <Eye size={16} />}
+              </button>
+            </div>
+            <Button
+              variante="primaire"
+              icone={Save}
+              disabled={!nouvelleCle.trim()}
+              chargement={sauvegarder.isPending}
+              onClick={() => sauvegarder.mutate(nouvelleCle)}
+            >
+              Enregistrer la clé
+            </Button>
+          </div>
+        </div>
+      )}
+    </Section>
+  );
+};
+
 // ── Suivi de consommation IA (admin uniquement) ───────────────────────────────
 const PANEL_COURT = { nfs: 'NFS', renal: 'Rénal', glycemie: 'Glycémie', lipidique: 'Lipides', ionogramme: 'Iono', hepatique: 'Hépatique' };
 
@@ -763,6 +892,9 @@ const ParametresPage = () => {
       {['administrateur', 'stockiste'].includes(utilisateur?.role) && (
         <SectionImagesOrdonnance />
       )}
+
+      {/* Clé API Anthropic — admin uniquement */}
+      {estAdmin && <SectionCleIA />}
 
       {/* Suivi consommation IA — admin uniquement */}
       {estAdmin && <SectionConsommationIA />}

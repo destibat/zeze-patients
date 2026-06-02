@@ -213,10 +213,25 @@ const construireContenuMessage = (analyse, texte_brut, fichiers) => {
   return contenu;
 };
 
+// ── Clé API : DB en priorité, .env en fallback ────────────────────────────────
+const obtenirCleAPI = async () => {
+  try {
+    const { sequelize } = require('../models');
+    const [row] = await sequelize.query(
+      `SELECT valeur FROM parametres_cabinet WHERE cle = 'anthropic_api_key' LIMIT 1`,
+      { type: sequelize.QueryTypes.SELECT },
+    );
+    if (row?.valeur) return row.valeur;
+  } catch {
+    // ignore, utilise la variable d'environnement
+  }
+  return process.env.ANTHROPIC_API_KEY;
+};
+
 // ── Appel Claude ──────────────────────────────────────────────────────────────
 const analyserBilanAvecIA = async (analyse, { texte_brut, fichiers } = {}) => {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) throw new Error('ANTHROPIC_API_KEY non configurée — ajoutez-la dans le fichier .env');
+  const apiKey = await obtenirCleAPI();
+  if (!apiKey) throw new Error('Clé API Anthropic non configurée — ajoutez-la dans Paramètres ou dans le fichier .env');
 
   const client = new Anthropic({ apiKey });
 
