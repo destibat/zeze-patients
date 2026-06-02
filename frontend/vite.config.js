@@ -10,13 +10,11 @@ export default defineConfig({
     },
   },
   server: {
-    host: '0.0.0.0', // accessible depuis Docker
+    host: '0.0.0.0',
     port: 5173,
     proxy: {
-      // En dev, redirige les appels /api vers le backend Express
       '/api': {
         target: 'http://backend:3000',
-        //target: 'http://localhost:3000',
         changeOrigin: true,
       },
     },

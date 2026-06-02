@@ -2,6 +2,8 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider } from './contexts/AuthContext';
 import ProtectedRoute from './components/layout/ProtectedRoute';
+import PWAInstallBanner from './components/PWAInstallBanner';
+import OfflineBanner from './components/OfflineBanner';
 import AppLayout from './components/layout/AppLayout';
 import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
@@ -41,7 +43,10 @@ const App = () => (
   <QueryClientProvider client={queryClient}>
     <AuthProvider>
       <BrowserRouter>
-        <Routes>
+        <>
+          <OfflineBanner />
+          <PWAInstallBanner />
+          <Routes>
           {/* Route publique */}
           <Route path="/connexion" element={<LoginPage />} />
 
@@ -159,6 +164,7 @@ const App = () => (
           {/* 404 */}
           <Route path="*" element={<NotFoundPage />} />
         </Routes>
+        </>
       </BrowserRouter>
     </AuthProvider>
   </QueryClientProvider>
