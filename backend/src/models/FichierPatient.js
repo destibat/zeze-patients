@@ -13,6 +13,7 @@ module.exports = (sequelize) => {
 
   FichierPatient.init({
     id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    cabinet_id: { type: DataTypes.UUID, allowNull: true },
     patient_id: { type: DataTypes.UUID, allowNull: false },
     consultation_id: { type: DataTypes.UUID, allowNull: true },
     nom_original: { type: DataTypes.STRING(255), allowNull: false },

@@ -20,6 +20,7 @@ module.exports = (sequelize) => {
   Consultation.init(
     {
       id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+      cabinet_id: { type: DataTypes.UUID, allowNull: true },
       patient_id: { type: DataTypes.UUID, allowNull: false },
       medecin_id: { type: DataTypes.UUID, allowNull: false },
       date_consultation: { type: DataTypes.DATEONLY, allowNull: false },

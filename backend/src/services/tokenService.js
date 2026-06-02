@@ -20,6 +20,7 @@ const genererAccessToken = (utilisateur) => {
       role: utilisateur.role,
       nom: utilisateur.nom,
       prenom: utilisateur.prenom,
+      cabinet_id: utilisateur.cabinet_id || null,
     },
     config.jwt.secret,
     { expiresIn: config.jwt.expiresIn }

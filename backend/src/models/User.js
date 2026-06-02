@@ -10,6 +10,7 @@ module.exports = (sequelize) => {
       defaultValue: DataTypes.UUIDV4,
       primaryKey: true,
     },
+    cabinet_id: { type: DataTypes.UUID, allowNull: true },
     nom: {
       type: DataTypes.STRING(100),
       allowNull: false,

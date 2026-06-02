@@ -14,6 +14,7 @@ module.exports = (sequelize) => {
   StockMouvement.init(
     {
       id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+      cabinet_id: { type: DataTypes.UUID, allowNull: true },
       produit_id: { type: DataTypes.UUID, allowNull: false },
       type: { type: DataTypes.ENUM('entree', 'sortie', 'ajustement'), allowNull: false },
       quantite: { type: DataTypes.INTEGER, allowNull: false },

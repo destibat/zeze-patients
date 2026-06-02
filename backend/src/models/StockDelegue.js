@@ -9,6 +9,7 @@ module.exports = (sequelize) => {
       defaultValue: DataTypes.UUIDV4,
       primaryKey: true,
     },
+    cabinet_id: { type: DataTypes.UUID, allowNull: true },
     delegue_id: { type: DataTypes.UUID, allowNull: false },
     produit_id: { type: DataTypes.UUID, allowNull: false },
     quantite: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },

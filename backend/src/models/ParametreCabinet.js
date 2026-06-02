@@ -8,6 +8,7 @@ module.exports = (sequelize) => {
   ParametreCabinet.init(
     {
       id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+      cabinet_id: { type: DataTypes.UUID, allowNull: true },
       cle:         { type: DataTypes.STRING(100), allowNull: false, unique: true },
       valeur:      { type: DataTypes.STRING(500), allowNull: false },
       description: { type: DataTypes.STRING(300), allowNull: true },

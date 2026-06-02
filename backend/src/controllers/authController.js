@@ -59,6 +59,7 @@ const connexion = async (req, res) => {
       prenom: utilisateur.prenom,
       email: utilisateur.email,
       role: utilisateur.role,
+      cabinet_id: utilisateur.cabinet_id || null,
       doitChangerMdp: utilisateur.doit_changer_mdp,
     },
   };

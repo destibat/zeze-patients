@@ -5,6 +5,7 @@ const { DataTypes } = require('sequelize');
 module.exports = (sequelize) => {
   const FactureAchat = sequelize.define('FactureAchat', {
     id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    cabinet_id: { type: DataTypes.UUID, allowNull: true },
     mouvement_id: { type: DataTypes.UUID, allowNull: true },
     commande_id:  { type: DataTypes.UUID, allowNull: true },
     delegue_id:   { type: DataTypes.UUID, allowNull: false },

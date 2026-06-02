@@ -10,12 +10,16 @@ const { authentifier } = require('../middlewares/authenticate');
 const { asyncHandler } = require('../middlewares/errorHandler');
 const { obtenirStats, obtenirStatsDetaillees } = require('../controllers/statsController');
 const { verifierAbonnement, obtenirStatut } = require('../middlewares/verifierAbonnement');
+const { identifierCabinet } = require('../middlewares/identifierCabinet');
 const { sequelize } = require('../models');
 
 const router = express.Router();
 
 // Limiteur de taux global sur toutes les routes /api
 router.use(limiteurGeneral);
+
+// Identification du cabinet — toujours en premier (domain ou JWT)
+router.use(identifierCabinet);
 
 // Routes sans vérification d'abonnement
 router.use('/auth', authRoutes);

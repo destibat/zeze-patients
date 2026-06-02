@@ -14,6 +14,7 @@ module.exports = (sequelize) => {
   Ordonnance.init(
     {
       id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+      cabinet_id: { type: DataTypes.UUID, allowNull: true },
       numero: { type: DataTypes.STRING(20), allowNull: false, unique: true },
       consultation_id: { type: DataTypes.UUID, allowNull: true },
       patient_id: { type: DataTypes.UUID, allowNull: false },

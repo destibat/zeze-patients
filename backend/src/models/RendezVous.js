@@ -14,6 +14,7 @@ module.exports = (sequelize) => {
   RendezVous.init(
     {
       id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+      cabinet_id: { type: DataTypes.UUID, allowNull: true },
       patient_id: { type: DataTypes.UUID, allowNull: false },
       medecin_id: { type: DataTypes.UUID, allowNull: true },
       created_by: { type: DataTypes.UUID, allowNull: false },

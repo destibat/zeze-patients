@@ -5,6 +5,7 @@ const { DataTypes } = require('sequelize');
 module.exports = (sequelize) => {
   const MouvementDelegue = sequelize.define('MouvementDelegue', {
     id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    cabinet_id: { type: DataTypes.UUID, allowNull: true },
     delegue_id: { type: DataTypes.UUID, allowNull: false },
     type: { type: DataTypes.ENUM('achat', 'vente'), allowNull: false },
     produit_id: { type: DataTypes.UUID, allowNull: true },
