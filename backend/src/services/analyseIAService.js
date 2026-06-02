@@ -213,15 +213,28 @@ const construireContenuMessage = (analyse, texte_brut, fichiers) => {
   return contenu;
 };
 
-// ── Clé API : DB en priorité, .env en fallback ────────────────────────────────
+// ── Clé API : DB en priorité (déchiffrée AES-256-GCM), .env en fallback ───────
 const obtenirCleAPI = async () => {
   try {
     const { sequelize } = require('../models');
+    const { dechiffrer, estChiffree, chiffrer } = require('../utils/chiffrement');
     const [row] = await sequelize.query(
       `SELECT valeur FROM parametres_cabinet WHERE cle = 'anthropic_api_key' LIMIT 1`,
       { type: sequelize.QueryTypes.SELECT },
     );
-    if (row?.valeur) return row.valeur;
+    if (!row?.valeur) return process.env.ANTHROPIC_API_KEY;
+
+    // Auto-migration : chiffre les clés encore stockées en clair
+    if (!estChiffree(row.valeur) && process.env.IA_ENCRYPTION_KEY) {
+      const valeurChiffree = chiffrer(row.valeur);
+      await sequelize.query(
+        `UPDATE parametres_cabinet SET valeur = :v, updated_at = NOW() WHERE cle = 'anthropic_api_key'`,
+        { replacements: { v: valeurChiffree } },
+      );
+      return row.valeur;
+    }
+
+    return dechiffrer(row.valeur);
   } catch {
     // ignore, utilise la variable d'environnement
   }

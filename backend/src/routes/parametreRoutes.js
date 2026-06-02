@@ -10,6 +10,7 @@ const { seulementAdmin, adminOuMedecin } = require('../middlewares/authorize');
 const { asyncHandler } = require('../middlewares/errorHandler');
 const ctrl = require('../controllers/parametreController');
 const { sequelize } = require('../models');
+const { chiffrer, dechiffrer, estChiffree } = require('../utils/chiffrement');
 
 const masquerCle = (cle) => {
   if (!cle || cle.length < 8) return '••••••••';
@@ -60,7 +61,7 @@ router.get('/images-ordonnance', authentifier, adminOuMedecin, asyncHandler(asyn
 router.get('/', authentifier, asyncHandler(ctrl.lister));
 router.put('/', authentifier, seulementAdmin, asyncHandler(ctrl.mettreAJour));
 
-// GET /api/parametres/cle-ia — statut de la clé Anthropic (masquée)
+// GET /api/parametres/cle-ia — statut de la clé Anthropic (masquée, jamais en clair)
 router.get('/cle-ia', authentifier, seulementAdmin, asyncHandler(async (req, res) => {
   const [row] = await sequelize.query(
     `SELECT valeur FROM parametres_cabinet WHERE cle = 'anthropic_api_key' LIMIT 1`,
@@ -69,23 +70,36 @@ router.get('/cle-ia', authentifier, seulementAdmin, asyncHandler(async (req, res
   if (!row?.valeur) {
     return res.json({ source: 'env', configuree: !!process.env.ANTHROPIC_API_KEY });
   }
-  res.json({ source: 'db', configuree: true, masquee: masquerCle(row.valeur) });
+  const cleEnClair = dechiffrer(row.valeur);
+  res.json({
+    source: 'db',
+    configuree: true,
+    chiffree: estChiffree(row.valeur),
+    masquee: masquerCle(cleEnClair),
+  });
 }));
 
-// PUT /api/parametres/cle-ia — enregistre la clé dans la DB
+// PUT /api/parametres/cle-ia — chiffre et enregistre la clé dans la DB
 router.put('/cle-ia', authentifier, seulementAdmin, asyncHandler(async (req, res) => {
   const cle = (req.body.cle || '').trim();
   if (!cle) return res.status(400).json({ message: 'Clé API requise' });
   if (!cle.startsWith('sk-ant-')) {
     return res.status(400).json({ message: 'Format invalide — la clé doit commencer par sk-ant-' });
   }
+  const valeurStockee = chiffrer(cle);
   await sequelize.query(
     `INSERT INTO parametres_cabinet (id, cle, valeur, created_at, updated_at)
-     VALUES (UUID(), 'anthropic_api_key', :cle, NOW(), NOW())
-     ON DUPLICATE KEY UPDATE valeur = :cle, updated_at = NOW()`,
-    { replacements: { cle } },
+     VALUES (UUID(), 'anthropic_api_key', :valeur, NOW(), NOW())
+     ON DUPLICATE KEY UPDATE valeur = :valeur, updated_at = NOW()`,
+    { replacements: { valeur: valeurStockee } },
   );
-  res.json({ ok: true, source: 'db', configuree: true, masquee: masquerCle(cle) });
+  res.json({
+    ok: true,
+    source: 'db',
+    configuree: true,
+    chiffree: estChiffree(valeurStockee),
+    masquee: masquerCle(cle),
+  });
 }));
 
 // DELETE /api/parametres/cle-ia — supprime la clé de la DB (retombe sur .env)

@@ -46,6 +46,7 @@ services:
       FRONTEND_URL: ${FRONTEND_URL}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
       SUPERADMIN_SECRET: ${SUPERADMIN_SECRET}
+      IA_ENCRYPTION_KEY: ${IA_ENCRYPTION_KEY}
     volumes:
       - uploads_alice:/app/uploads
     networks:

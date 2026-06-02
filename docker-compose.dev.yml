@@ -48,6 +48,7 @@ services:
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
       ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-claude-sonnet-4-6}
       SUPERADMIN_SECRET: ${SUPERADMIN_SECRET}
+      IA_ENCRYPTION_KEY: ${IA_ENCRYPTION_KEY}
     volumes:
       - uploads_dev:/app/uploads
     networks:
