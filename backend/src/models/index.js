@@ -42,7 +42,9 @@ Object.values(models).forEach((model) => {
 });
 
 // ── Hooks multi-tenant — isolation automatique par cabinet_id ─────────────────
-// Tables soumises à l'isolation (cabinets elle-même est exclue)
+// Enregistrés PAR MODÈLE (pas globalement) car options.model est undefined
+// dans les hooks globaux beforeFind de Sequelize 6.
+
 const TABLES_MT = new Set([
   'users', 'refresh_tokens', 'audit_logs',
   'patients', 'produits', 'consultations', 'ordonnances',
@@ -53,34 +55,35 @@ const TABLES_MT = new Set([
   'prets_emprunts',
 ]);
 
-// Injecte cabinet_id dans les WHERE de toutes les lectures
-sequelize.addHook('beforeFind', (options) => {
+const hookFind = (options) => {
   if (options._bypass_cabinet) return;
   const cabinetId = getCabinetId();
   if (!cabinetId) return;
-  if (!TABLES_MT.has(options.model?.tableName)) return;
   options.where = options.where
     ? { [Op.and]: [options.where, { cabinet_id: cabinetId }] }
     : { cabinet_id: cabinetId };
-});
+};
 
-// Injecte cabinet_id à la création d'une instance
-sequelize.addHook('beforeCreate', (instance, options) => {
+const hookCreate = (instance, options) => {
+  if (options._bypass_cabinet) return;
+  const cabinetId = getCabinetId();
+  if (cabinetId && !instance.cabinet_id) instance.cabinet_id = cabinetId;
+};
+
+const hookBulkCreate = (instances, options) => {
   if (options._bypass_cabinet) return;
   const cabinetId = getCabinetId();
   if (!cabinetId) return;
-  if (!TABLES_MT.has(instance.constructor?.tableName)) return;
-  if (!instance.cabinet_id) instance.cabinet_id = cabinetId;
-});
-
-// Injecte cabinet_id lors d'un bulkCreate
-sequelize.addHook('beforeBulkCreate', (instances, options) => {
-  if (options._bypass_cabinet) return;
-  const cabinetId = getCabinetId();
-  if (!cabinetId) return;
-  if (!TABLES_MT.has(options.model?.tableName)) return;
   instances.forEach((inst) => { if (!inst.cabinet_id) inst.cabinet_id = cabinetId; });
-});
+};
+
+// Application sur chaque modèle multi-tenant
+for (const model of Object.values(models)) {
+  if (!model.tableName || !TABLES_MT.has(model.tableName)) continue;
+  model.addHook('beforeFind', hookFind);
+  model.addHook('beforeCreate', hookCreate);
+  model.addHook('beforeBulkCreate', hookBulkCreate);
+}
 
 // ── Connexion ─────────────────────────────────────────────────────────────────
 const connecterDB = async () => {
