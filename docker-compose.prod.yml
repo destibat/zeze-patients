@@ -44,6 +44,7 @@ services:
       JWT_REFRESH_EXPIRES_IN: 7d
       FRONTEND_URL: ${FRONTEND_URL}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      SUPERADMIN_SECRET: ${SUPERADMIN_SECRET}
     volumes:
       - uploads_data:/app/uploads
     networks:

@@ -47,6 +47,7 @@ services:
       RATE_LIMIT_MAX: 500
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
       ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-claude-sonnet-4-6}
+      SUPERADMIN_SECRET: ${SUPERADMIN_SECRET}
     volumes:
       - uploads_dev:/app/uploads
     networks:
