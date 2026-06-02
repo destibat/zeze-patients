@@ -326,6 +326,8 @@ const SectionCleIA = () => {
   const [visible, setVisible] = useState(false);
   const [succes, setSucces] = useState('');
   const [erreur, setErreur] = useState('');
+  const [testResult, setTestResult] = useState(null); // { valide, modele, erreur }
+  const [testEnCours, setTestEnCours] = useState(false);
 
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['cle-ia-statut'],
@@ -351,11 +353,25 @@ const SectionCleIA = () => {
     onSuccess: () => {
       setSucces('Clé supprimée — retour sur la configuration serveur');
       setErreur('');
+      setTestResult(null);
       refetch();
       setTimeout(() => setSucces(''), 4000);
     },
     onError: (e) => { setErreur(e?.response?.data?.message || 'Erreur'); },
   });
+
+  const testerCle = async () => {
+    setTestEnCours(true);
+    setTestResult(null);
+    try {
+      const { data } = await api.post('/parametres/cle-ia/tester');
+      setTestResult(data);
+    } catch (e) {
+      setTestResult({ valide: false, erreur: e?.response?.data?.erreur || 'Erreur de connexion' });
+    } finally {
+      setTestEnCours(false);
+    }
+  };
 
   return (
     <Section titre="Clé API Anthropic" icone={Sparkles}>
@@ -373,8 +389,8 @@ const SectionCleIA = () => {
       ) : (
         <div className="space-y-4">
           {/* Statut actuel */}
-          <div className="flex items-center justify-between gap-3 p-3 bg-fond-secondaire rounded-bouton">
-            <div className="min-w-0">
+          <div className="flex items-start justify-between gap-3 p-3 bg-fond-secondaire rounded-bouton">
+            <div className="min-w-0 flex-1">
               {data?.source === 'db' ? (
                 <>
                   <p className="text-sm font-medium text-texte-principal flex items-center gap-1.5">
@@ -396,18 +412,40 @@ const SectionCleIA = () => {
                   </p>
                 </>
               )}
+
+              {/* Résultat du test */}
+              {testResult && (
+                <p className={`text-xs mt-1.5 flex items-center gap-1 font-medium ${testResult.valide ? 'text-green-600' : 'text-red-600'}`}>
+                  {testResult.valide
+                    ? <>✓ Clé valide{testResult.modele ? ` — ${testResult.modele}` : ''}</>
+                    : <>✗ {testResult.erreur}</>}
+                </p>
+              )}
             </div>
-            {data?.source === 'db' && (
-              <Button
-                variante="danger"
-                taille="petit"
-                icone={X}
-                chargement={supprimer.isPending}
-                onClick={() => supprimer.mutate()}
-              >
-                Supprimer
-              </Button>
-            )}
+
+            <div className="flex items-center gap-1.5 flex-shrink-0">
+              {data?.configuree && (
+                <Button
+                  variante="secondaire"
+                  taille="petit"
+                  chargement={testEnCours}
+                  onClick={testerCle}
+                >
+                  {testEnCours ? 'Test…' : 'Tester'}
+                </Button>
+              )}
+              {data?.source === 'db' && (
+                <Button
+                  variante="danger"
+                  taille="petit"
+                  icone={X}
+                  chargement={supprimer.isPending}
+                  onClick={() => supprimer.mutate()}
+                >
+                  Supprimer
+                </Button>
+              )}
+            </div>
           </div>
 
           {/* Saisie nouvelle clé */}

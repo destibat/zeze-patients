@@ -108,4 +108,43 @@ router.delete('/cle-ia', authentifier, seulementAdmin, asyncHandler(async (req, 
   res.json({ ok: true, source: 'env', configuree: !!process.env.ANTHROPIC_API_KEY });
 }));
 
+// POST /api/parametres/cle-ia/tester — vérifie que la clé active fonctionne
+router.post('/cle-ia/tester', authentifier, seulementAdmin, asyncHandler(async (req, res) => {
+  const { analyserBilanAvecIA } = require('../services/analyseIAService');
+  const Anthropic = require('@anthropic-ai/sdk');
+
+  // Lire la clé active (DB ou env)
+  const { dechiffrer, estChiffree } = require('../utils/chiffrement');
+  const [row] = await sequelize.query(
+    `SELECT valeur FROM parametres_cabinet WHERE cle = 'anthropic_api_key' LIMIT 1`,
+    { type: sequelize.QueryTypes.SELECT },
+  );
+  const apiKey = row?.valeur ? dechiffrer(row.valeur) : process.env.ANTHROPIC_API_KEY;
+
+  if (!apiKey) {
+    return res.status(400).json({ valide: false, erreur: 'Aucune clé API configurée' });
+  }
+
+  try {
+    const client = new Anthropic({ apiKey });
+    const response = await client.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 1,
+      messages: [{ role: 'user', content: 'ok' }],
+    });
+    res.json({
+      valide: true,
+      modele: response.model,
+      source: row?.valeur ? 'db' : 'env',
+    });
+  } catch (err) {
+    const msg = err?.message || 'Erreur inconnue';
+    const estAuth = msg.includes('401') || msg.includes('authentication') || msg.includes('API key');
+    res.json({
+      valide: false,
+      erreur: estAuth ? 'Clé invalide ou expirée' : msg,
+    });
+  }
+}));
+
 module.exports = router;
