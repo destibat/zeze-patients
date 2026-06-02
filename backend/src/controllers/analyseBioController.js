@@ -1,6 +1,6 @@
 'use strict';
 
-const { AnalyseBiologique, Patient, User } = require('../models');
+const { AnalyseBiologique, Patient, User, sequelize } = require('../models');
 const { extraireNFS, fusionnerValeurs } = require('../services/extractionNFSService');
 const { analyserBilanAvecIA } = require('../services/analyseIAService');
 const { genererPdfAnalyse } = require('../services/pdfAnalyseService');
@@ -11,6 +11,23 @@ const PANELS_VALIDES = ['nfs', 'renal', 'glycemie', 'lipidique', 'ionogramme', '
 const verifierPermissionIA = async (userId) => {
   const u = await User.findByPk(userId, { attributes: ['peut_utiliser_ia'] });
   return u?.peut_utiliser_ia !== false;
+};
+
+const verifierQuotaIA = async () => {
+  const debutMois = new Date();
+  debutMois.setDate(1);
+  debutMois.setHours(0, 0, 0, 0);
+  const [quotaRow] = await sequelize.query(
+    `SELECT valeur FROM parametres_cabinet WHERE cle = 'quota_ia_mensuel' LIMIT 1`,
+    { type: sequelize.QueryTypes.SELECT },
+  );
+  const quota = parseInt(quotaRow?.valeur || '100', 10);
+  const [countRow] = await sequelize.query(
+    `SELECT COUNT(*) AS nb FROM analyses_biologiques WHERE analyse_ia_texte IS NOT NULL AND created_at >= :debutMois`,
+    { replacements: { debutMois }, type: sequelize.QueryTypes.SELECT },
+  );
+  const nb = Number(countRow.nb);
+  return { quota, nb, depasse: nb >= quota };
 };
 
 // Garantit une date ISO YYYY-MM-DD valide, sinon retourne aujourd'hui
@@ -76,6 +93,13 @@ const creerAnalyse = async (req, res) => {
   if (req.body.lancer_ia) {
     if (!await verifierPermissionIA(req.utilisateur.id)) {
       return res.status(403).json({ message: 'Accès à l\'analyse IA non autorisé pour ce compte.' });
+    }
+    const quota = await verifierQuotaIA();
+    if (quota.depasse) {
+      return res.status(403).json({
+        code: 'QUOTA_IA_DEPASSE',
+        message: `Quota IA mensuel atteint (${quota.nb}/${quota.quota}). Contactez ZEZEPAGNON pour augmenter votre quota.`,
+      });
     }
     try {
       const resultat = await analyserBilanAvecIA(analyse, { texte_brut: req.body.texte_brut || null });
@@ -174,6 +198,13 @@ const analyserAvecIA = async (req, res) => {
   if (!await verifierPermissionIA(req.utilisateur.id)) {
     return res.status(403).json({ message: 'Accès à l\'analyse IA non autorisé pour ce compte.' });
   }
+  const quota = await verifierQuotaIA();
+  if (quota.depasse) {
+    return res.status(403).json({
+      code: 'QUOTA_IA_DEPASSE',
+      message: `Quota IA mensuel atteint (${quota.nb}/${quota.quota}). Contactez ZEZEPAGNON pour augmenter votre quota.`,
+    });
+  }
   const analyse = await AnalyseBiologique.findByPk(req.params.analyseId);
   if (!analyse) return res.status(404).json({ message: 'Analyse introuvable' });
 
@@ -232,6 +263,13 @@ const telechargerDocx = async (req, res) => {
 const creerEtAnalyserAvecDocuments = async (req, res) => {
   if (!await verifierPermissionIA(req.utilisateur.id)) {
     return res.status(403).json({ message: 'Accès à l\'analyse IA non autorisé pour ce compte.' });
+  }
+  const quota = await verifierQuotaIA();
+  if (quota.depasse) {
+    return res.status(403).json({
+      code: 'QUOTA_IA_DEPASSE',
+      message: `Quota IA mensuel atteint (${quota.nb}/${quota.quota}). Contactez ZEZEPAGNON pour augmenter votre quota.`,
+    });
   }
   const { patientId } = req.params;
   const patient = await Patient.findByPk(patientId, { attributes: ['id'] });

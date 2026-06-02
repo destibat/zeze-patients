@@ -2,6 +2,7 @@ import { useState, useMemo, useRef, useEffect, Component } from 'react';
 import { useAnalysesBio, useExtraireAnalyseBio, useCreerAnalyseBio, useCreerEtAnalyserIA, useModifierAnalyseBio, useSupprimerAnalyseBio, useAnalyserAvecIA, useValiderAnalyseBio, useTelechargePdfAnalyse, useTelechargeDocxAnalyse } from '../../../hooks/useAnalysesBio';
 import { interpreterPanels, couleurSeverite, iconesSeverite, SEVERITE } from '../../../utils/interpretationBio';
 import { useAuth } from '../../../contexts/AuthContext';
+import { useAbonnement } from '../../../hooks/useAbonnement';
 import Button from '../../../components/ui/Button';
 import { Plus, Trash2, ChevronDown, ChevronUp, FlaskConical, Upload, FileText, Image, Loader2, CheckCircle2, X, Sparkles, RefreshCw, Download, Pencil, Check, ShieldCheck } from 'lucide-react';
 
@@ -305,16 +306,21 @@ const RenderTexteIA = ({ texte }) => {
 // ── Zone d'upload ─────────────────────────────────────────────────────────────
 const TYPES_ACCEPTES = ['application/pdf', 'image/png', 'image/jpeg', 'image/jpg'];
 
-const BanniereIADesactivee = () => (
+const BanniereIADesactivee = ({ raison }) => (
   <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 border border-gray-200 rounded-bouton text-xs text-gray-500">
     <Sparkles size={13} className="flex-shrink-0 text-gray-400" />
-    L&apos;accès à l&apos;analyse IA n&apos;est pas activé pour votre compte. Contactez l&apos;administrateur.
+    {raison === 'quota'
+      ? 'Quota IA mensuel atteint. Contactez ZEZEPAGNON pour augmenter votre quota.'
+      : 'L\'accès à l\'analyse IA n\'est pas activé pour votre compte. Contactez l\'administrateur.'}
   </div>
 );
 
 const ZoneUpload = ({ patientId, onTermine, onAnnuler }) => {
   const { utilisateur } = useAuth();
-  const peutIA = utilisateur?.peut_utiliser_ia !== false;
+  const { data: abonnement } = useAbonnement();
+  const peutIAUser = utilisateur?.peut_utiliser_ia !== false;
+  const quotaDepasse = abonnement && !abonnement.peut_utiliser_ia && peutIAUser;
+  const peutIA = peutIAUser && abonnement?.peut_utiliser_ia !== false;
   const [fichiers, setFichiers] = useState([]);
   const [survol, setSurvol] = useState(false);
   const [extraction, setExtraction] = useState(null); // null = étape 1, objet = étape 2
@@ -503,7 +509,7 @@ const ZoneUpload = ({ patientId, onTermine, onAnnuler }) => {
                   Analyser avec l&apos;IA
                 </Button>
               ) : (
-                <BanniereIADesactivee />
+                <BanniereIADesactivee raison={quotaDepasse ? 'quota' : 'permission'} />
               )}
             </div>
           </div>
@@ -586,7 +592,8 @@ const ZoneUpload = ({ patientId, onTermine, onAnnuler }) => {
 // ── Carte d'une analyse sauvegardée ───────────────────────────────────────────
 const CarteAnalyseInterne = ({ analyse }) => {
   const { utilisateur } = useAuth();
-  const peutIA = utilisateur?.peut_utiliser_ia !== false;
+  const { data: abonnement } = useAbonnement();
+  const peutIA = utilisateur?.peut_utiliser_ia !== false && abonnement?.peut_utiliser_ia !== false;
   const [ouverte, setOuverte] = useState(false);
   const [editConclusion, setEditConclusion] = useState(false);
   const [texteConclusion, setTexteConclusion] = useState('');
@@ -766,17 +773,24 @@ const CarteAnalyseInterne = ({ analyse }) => {
                 Analyse IA — Médecin biologiste
               </span>
               {peutIA && (
-                <Button
-                  variante="fantome"
-                  icone={analyse.analyse_ia_texte ? RefreshCw : Sparkles}
-                  taille="petit"
-                  chargement={analyserIA.isPending}
-                  onClick={() => analyserIA.mutate(analyse.id)}
-                  disabled={analyserIA.isPending}
-                  className="text-purple-700 hover:bg-purple-100 text-xs"
-                >
-                  {analyserIA.isPending ? 'Analyse en cours…' : analyse.analyse_ia_texte ? 'Ré-analyser' : "Lancer l'analyse IA"}
-                </Button>
+                <div className="flex items-center gap-2">
+                  {abonnement && abonnement.quota_ia_mensuel > 0 && (
+                    <span className="text-xs text-purple-400">
+                      {abonnement.nb_analyses_ce_mois}/{abonnement.quota_ia_mensuel} ce mois
+                    </span>
+                  )}
+                  <Button
+                    variante="fantome"
+                    icone={analyse.analyse_ia_texte ? RefreshCw : Sparkles}
+                    taille="petit"
+                    chargement={analyserIA.isPending}
+                    onClick={() => analyserIA.mutate(analyse.id)}
+                    disabled={analyserIA.isPending}
+                    className="text-purple-700 hover:bg-purple-100 text-xs"
+                  >
+                    {analyserIA.isPending ? 'Analyse en cours…' : analyse.analyse_ia_texte ? 'Ré-analyser' : "Lancer l'analyse IA"}
+                  </Button>
+                </div>
               )}
             </div>
 

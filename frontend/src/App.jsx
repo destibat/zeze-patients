@@ -4,6 +4,8 @@ import { AuthProvider } from './contexts/AuthContext';
 import ProtectedRoute from './components/layout/ProtectedRoute';
 import PWAInstallBanner from './components/PWAInstallBanner';
 import OfflineBanner from './components/OfflineBanner';
+import AbonnementBloqueBanner from './components/AbonnementBloqueBanner';
+import SuperAdminPage from './pages/SuperAdminPage';
 import AppLayout from './components/layout/AppLayout';
 import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
@@ -46,7 +48,11 @@ const App = () => (
         <>
           <OfflineBanner />
           <PWAInstallBanner />
+          <AbonnementBloqueBanner />
           <Routes>
+          {/* Routes super-admin — sans AuthProvider, sans layout */}
+          <Route path="/superadmin" element={<SuperAdminPage />} />
+
           {/* Route publique */}
           <Route path="/connexion" element={<LoginPage />} />
 
