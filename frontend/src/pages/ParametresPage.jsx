@@ -679,8 +679,8 @@ const ParametresPage = () => {
   });
 
   const soumettreCommissions = () => {
-    const s = parseFloat(commissions.commission_stockiste ?? parametres.commission_stockiste ?? 30);
-    const d = parseFloat(commissions.commission_delegue   ?? parametres.commission_delegue   ?? 15);
+    const s = parseFloat(commissions.commission_stockiste || parametres.commission_stockiste || 30);
+    const d = parseFloat(commissions.commission_delegue   || parametres.commission_delegue   || 15);
     if (isNaN(s) || s < 0 || s > 100 || isNaN(d) || d < 0 || d > 100) {
       setErreurComm('Les taux doivent être entre 0 et 100'); return;
     }
