@@ -110,7 +110,10 @@ const colonnes = async (conn, table) => {
      ORDER BY ORDINAL_POSITION`,
     [table],
   );
-  return rows.map((r) => r.COLUMN_NAME).filter((c) => c !== 'cabinet_id');
+  return rows.map((r) => {
+    const v = r.COLUMN_NAME;
+    return Buffer.isBuffer(v) ? v.toString() : String(v);
+  }).filter((c) => c !== 'cabinet_id');
 };
 
 const migrerTable = async (src, tgt, cabinetId, table) => {

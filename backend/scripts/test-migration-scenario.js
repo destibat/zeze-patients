@@ -108,14 +108,15 @@ const migrerVersUnifie = async (srcDb, cabinetCfg) => {
     [cabinetCfg.id, cabinetCfg.slug, cabinetCfg.domaine, cabinetCfg.nom]);
 
   for (const table of ['users', 'patients', 'parametres_cabinet']) {
-    const [[{ cols }]] = await src.execute(
+    const [[{ cols: rawCols }]] = await src.execute(
       `SELECT GROUP_CONCAT(COLUMN_NAME ORDER BY ORDINAL_POSITION) AS cols
        FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?`,
       [table]
     );
+    const cols = Buffer.isBuffer(rawCols) ? rawCols.toString() : String(rawCols || '');
     const colList = cols.split(',').filter(c => c !== 'cabinet_id').map(c => `\`${c}\``).join(', ');
     const [rows] = await src.execute(`SELECT ${colList} FROM \`${table}\``);
-    const colNames = cols.split(',').filter(c => c !== 'cabinet_id');
+    const colNames = cols.split(',').filter((c) => c !== 'cabinet_id');
     const ph = `?, ${colNames.map(() => '?').join(', ')}`;
 
     for (const row of rows) {
