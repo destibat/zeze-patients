@@ -5,6 +5,7 @@ const jwt = require('jsonwebtoken');
 const { asyncHandler } = require('../middlewares/errorHandler');
 const { sequelize } = require('../models');
 const { invaliderCache } = require('../middlewares/verifierAbonnement');
+const { getCabinetId } = require('../config/cabinetContext');
 
 const router = express.Router();
 
@@ -35,10 +36,10 @@ router.post('/auth', (req, res) => {
   res.json({ token });
 });
 
-const lireAbonnement = async () => {
+const lireAbonnement = async (cabinetId) => {
   const rows = await sequelize.query(
-    `SELECT cle, valeur FROM parametres_cabinet WHERE cle IN ('abonnement_actif','abonnement_expire_le','quota_ia_mensuel','nom_cabinet')`,
-    { type: sequelize.QueryTypes.SELECT },
+    `SELECT cle, valeur FROM parametres_cabinet WHERE cle IN ('abonnement_actif','abonnement_expire_le','quota_ia_mensuel','nom_cabinet') AND cabinet_id = :cabinetId`,
+    { replacements: { cabinetId }, type: sequelize.QueryTypes.SELECT },
   );
   const map = Object.fromEntries(rows.map((r) => [r.cle, r.valeur]));
   return {
@@ -49,38 +50,40 @@ const lireAbonnement = async () => {
   };
 };
 
-const ecrireParam = async (cle, valeur) => {
+const ecrireParam = async (cabinetId, cle, valeur) => {
   await sequelize.query(
-    `INSERT INTO parametres_cabinet (id, cle, valeur, created_at, updated_at)
-     VALUES (UUID(), :cle, :valeur, NOW(), NOW())
+    `INSERT INTO parametres_cabinet (id, cabinet_id, cle, valeur, created_at, updated_at)
+     VALUES (UUID(), :cabinetId, :cle, :valeur, NOW(), NOW())
      ON DUPLICATE KEY UPDATE valeur = :valeur, updated_at = NOW()`,
-    { replacements: { cle, valeur } },
+    { replacements: { cabinetId, cle, valeur } },
   );
 };
 
 // GET /api/superadmin/abonnement
 router.get('/abonnement', authentifierSuperAdmin, asyncHandler(async (req, res) => {
-  const abonnement = await lireAbonnement();
+  const cabinetId = getCabinetId();
+  const abonnement = await lireAbonnement(cabinetId);
   const debutMois = new Date();
   debutMois.setDate(1);
   debutMois.setHours(0, 0, 0, 0);
   const [stats] = await sequelize.query(
-    `SELECT COUNT(*) AS nb FROM analyses_biologiques WHERE analyse_ia_texte IS NOT NULL AND created_at >= :debutMois`,
-    { replacements: { debutMois }, type: sequelize.QueryTypes.SELECT },
+    `SELECT COUNT(*) AS nb FROM analyses_biologiques WHERE analyse_ia_texte IS NOT NULL AND created_at >= :debutMois AND cabinet_id = :cabinetId`,
+    { replacements: { debutMois, cabinetId }, type: sequelize.QueryTypes.SELECT },
   );
   res.json({ ...abonnement, nb_analyses_ce_mois: Number(stats.nb) });
 }));
 
 // PUT /api/superadmin/abonnement
 router.put('/abonnement', authentifierSuperAdmin, asyncHandler(async (req, res) => {
+  const cabinetId = getCabinetId();
   const { actif, expire_le, quota_ia_mensuel } = req.body;
-  if (actif !== undefined) await ecrireParam('abonnement_actif', actif ? '1' : '0');
-  if (expire_le !== undefined) await ecrireParam('abonnement_expire_le', expire_le || '');
+  if (actif !== undefined) await ecrireParam(cabinetId, 'abonnement_actif', actif ? '1' : '0');
+  if (expire_le !== undefined) await ecrireParam(cabinetId, 'abonnement_expire_le', expire_le || '');
   if (quota_ia_mensuel !== undefined) {
-    await ecrireParam('quota_ia_mensuel', String(Math.max(0, parseInt(quota_ia_mensuel, 10) || 100)));
+    await ecrireParam(cabinetId, 'quota_ia_mensuel', String(Math.max(0, parseInt(quota_ia_mensuel, 10) || 100)));
   }
-  invaliderCache();
-  res.json({ ok: true, abonnement: await lireAbonnement() });
+  invaliderCache(cabinetId);
+  res.json({ ok: true, abonnement: await lireAbonnement(cabinetId) });
 }));
 
 module.exports = router;

@@ -204,7 +204,7 @@ const main = async () => {
     // Ordonnance depuis la consultation
     const consultId = rConsult.body?.data?.id || rConsult.body?.id;
     if (consultId) {
-      const rOrd = await api('POST', '/ordonnances', {
+      const rOrd = await api('POST', '/ordonnances/directe', {
         consultation_id: consultId, patient_id: pA1.id,
         medicaments: [], notes: 'Test MT',
       }, tokenA, CAB_A.domaine);

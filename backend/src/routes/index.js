@@ -12,6 +12,7 @@ const { obtenirStats, obtenirStatsDetaillees } = require('../controllers/statsCo
 const { verifierAbonnement, obtenirStatut } = require('../middlewares/verifierAbonnement');
 const { identifierCabinet } = require('../middlewares/identifierCabinet');
 const { sequelize } = require('../models');
+const { getCabinetId } = require('../config/cabinetContext');
 
 const router = express.Router();
 
@@ -28,16 +29,17 @@ router.use('/superadmin', require('./superadminRoutes'));
 // Statut de l'abonnement — accessible à tout utilisateur authentifié
 router.get('/abonnement/statut', authentifier, asyncHandler(async (req, res) => {
   const statut = await obtenirStatut();
+  const cabinetId = getCabinetId();
   const debutMois = new Date();
   debutMois.setDate(1);
   debutMois.setHours(0, 0, 0, 0);
   const [countRow] = await sequelize.query(
-    `SELECT COUNT(*) AS nb FROM analyses_biologiques WHERE analyse_ia_texte IS NOT NULL AND created_at >= :debutMois`,
-    { replacements: { debutMois }, type: sequelize.QueryTypes.SELECT },
+    `SELECT COUNT(*) AS nb FROM analyses_biologiques WHERE analyse_ia_texte IS NOT NULL AND created_at >= :debutMois AND cabinet_id = :cabinetId`,
+    { replacements: { debutMois, cabinetId }, type: sequelize.QueryTypes.SELECT },
   );
   const [quotaRow] = await sequelize.query(
-    `SELECT valeur FROM parametres_cabinet WHERE cle = 'quota_ia_mensuel' LIMIT 1`,
-    { type: sequelize.QueryTypes.SELECT },
+    `SELECT valeur FROM parametres_cabinet WHERE cle = 'quota_ia_mensuel' AND cabinet_id = :cabinetId LIMIT 1`,
+    { replacements: { cabinetId }, type: sequelize.QueryTypes.SELECT },
   );
   const quota = parseInt(quotaRow?.valeur || '100', 10);
   const nb = Number(countRow.nb);

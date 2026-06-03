@@ -2,6 +2,7 @@
 
 const { Patient, Consultation, Ordonnance, Facture, FactureAchat, RendezVous, MouvementDelegue, User, Exercice, sequelize } = require('../models');
 const { Op } = require('sequelize');
+const { getCabinetId } = require('../config/cabinetContext');
 
 const obtenirStats = async (req, res) => {
   const estAdmin = ['administrateur', 'stockiste'].includes(req.utilisateur.role);
@@ -127,6 +128,7 @@ const obtenirStats = async (req, res) => {
     caMois += caApproMoisAdmin || 0;
 
     // Gains sur Factures directes (hors délégués) depuis l'ouverture exercice
+    const cabinetIdStats = getCabinetId();
     const excludeClause = delegueIdsArr.length > 0 ? 'AND f.created_by NOT IN (:delegueIds)' : '';
     const rowsConsult = await sequelize.query(
       `SELECT
@@ -134,10 +136,11 @@ const obtenirStats = async (req, res) => {
          COALESCE(SUM(f.montant_paye * (100 - COALESCE(u.commission_rate, 0)) / 100), 0) AS mapa
        FROM factures f
        LEFT JOIN users u ON f.created_by = u.id AND u.role IN ('stockiste', 'administrateur')
-       WHERE f.date_facture >= :debut AND f.statut NOT IN ('annulee', 'partiellement_payee') ${excludeClause}`,
+       WHERE f.date_facture >= :debut AND f.statut NOT IN ('annulee', 'partiellement_payee') AND f.cabinet_id = :cabinetId ${excludeClause}`,
       {
         replacements: {
           debut: dateExercice,
+          cabinetId: cabinetIdStats,
           ...(delegueIdsArr.length > 0 ? { delegueIds: delegueIdsArr } : {}),
         },
         type: sequelize.QueryTypes.SELECT,
@@ -241,31 +244,33 @@ const obtenirStatsDetaillees = async (req, res) => {
   }
 
   // ── Requêtes SQL selon groupBy ────────────────────────────────────────────
+  const cabinetId = getCabinetId();
+
   const sqlGroupConsultations = {
-    mois:        `SELECT MONTH(date_consultation) AS cle, COUNT(*) AS total FROM consultations WHERE date_consultation BETWEEN :debut AND :fin GROUP BY MONTH(date_consultation)`,
-    jour:        `SELECT DAY(date_consultation) AS cle, COUNT(*) AS total FROM consultations WHERE date_consultation BETWEEN :debut AND :fin GROUP BY DAY(date_consultation)`,
-    jour_semaine:`SELECT DAY(date_consultation) AS cle, COUNT(*) AS total FROM consultations WHERE date_consultation BETWEEN :debut AND :fin GROUP BY DAY(date_consultation)`,
-    heure:       `SELECT HOUR(created_at) AS cle, COUNT(*) AS total FROM consultations WHERE date_consultation = :debutDate GROUP BY HOUR(created_at)`,
-    date:        `SELECT DATE(date_consultation) AS cle, COUNT(*) AS total FROM consultations WHERE date_consultation BETWEEN :debut AND :fin GROUP BY DATE(date_consultation)`,
+    mois:        `SELECT MONTH(date_consultation) AS cle, COUNT(*) AS total FROM consultations WHERE date_consultation BETWEEN :debut AND :fin AND cabinet_id = :cabinetId GROUP BY MONTH(date_consultation)`,
+    jour:        `SELECT DAY(date_consultation) AS cle, COUNT(*) AS total FROM consultations WHERE date_consultation BETWEEN :debut AND :fin AND cabinet_id = :cabinetId GROUP BY DAY(date_consultation)`,
+    jour_semaine:`SELECT DAY(date_consultation) AS cle, COUNT(*) AS total FROM consultations WHERE date_consultation BETWEEN :debut AND :fin AND cabinet_id = :cabinetId GROUP BY DAY(date_consultation)`,
+    heure:       `SELECT HOUR(created_at) AS cle, COUNT(*) AS total FROM consultations WHERE date_consultation = :debutDate AND cabinet_id = :cabinetId GROUP BY HOUR(created_at)`,
+    date:        `SELECT DATE(date_consultation) AS cle, COUNT(*) AS total FROM consultations WHERE date_consultation BETWEEN :debut AND :fin AND cabinet_id = :cabinetId GROUP BY DATE(date_consultation)`,
   };
 
   const filtreUser = estAdmin ? '' : `AND created_by = :userId`;
 
   const sqlGroupFactures = {
-    mois:        `SELECT MONTH(date_facture) AS cle, SUM(montant_total) AS facture, SUM(montant_paye) AS encaisse FROM factures WHERE date_facture BETWEEN :debut AND :fin AND statut NOT IN ('annulee', 'partiellement_payee') ${filtreUser} GROUP BY MONTH(date_facture)`,
-    jour:        `SELECT DAY(date_facture) AS cle, SUM(montant_total) AS facture, SUM(montant_paye) AS encaisse FROM factures WHERE date_facture BETWEEN :debut AND :fin AND statut NOT IN ('annulee', 'partiellement_payee') ${filtreUser} GROUP BY DAY(date_facture)`,
-    jour_semaine:`SELECT DAY(date_facture) AS cle, SUM(montant_total) AS facture, SUM(montant_paye) AS encaisse FROM factures WHERE date_facture BETWEEN :debut AND :fin AND statut NOT IN ('annulee', 'partiellement_payee') ${filtreUser} GROUP BY DAY(date_facture)`,
-    heure:       `SELECT HOUR(created_at) AS cle, SUM(montant_total) AS facture, SUM(montant_paye) AS encaisse FROM factures WHERE date_facture = :debutDate AND statut NOT IN ('annulee', 'partiellement_payee') ${filtreUser} GROUP BY HOUR(created_at)`,
-    date:        `SELECT DATE(date_facture) AS cle, SUM(montant_total) AS facture, SUM(montant_paye) AS encaisse FROM factures WHERE date_facture BETWEEN :debut AND :fin AND statut NOT IN ('annulee', 'partiellement_payee') ${filtreUser} GROUP BY DATE(date_facture)`,
+    mois:        `SELECT MONTH(date_facture) AS cle, SUM(montant_total) AS facture, SUM(montant_paye) AS encaisse FROM factures WHERE date_facture BETWEEN :debut AND :fin AND statut NOT IN ('annulee', 'partiellement_payee') AND cabinet_id = :cabinetId ${filtreUser} GROUP BY MONTH(date_facture)`,
+    jour:        `SELECT DAY(date_facture) AS cle, SUM(montant_total) AS facture, SUM(montant_paye) AS encaisse FROM factures WHERE date_facture BETWEEN :debut AND :fin AND statut NOT IN ('annulee', 'partiellement_payee') AND cabinet_id = :cabinetId ${filtreUser} GROUP BY DAY(date_facture)`,
+    jour_semaine:`SELECT DAY(date_facture) AS cle, SUM(montant_total) AS facture, SUM(montant_paye) AS encaisse FROM factures WHERE date_facture BETWEEN :debut AND :fin AND statut NOT IN ('annulee', 'partiellement_payee') AND cabinet_id = :cabinetId ${filtreUser} GROUP BY DAY(date_facture)`,
+    heure:       `SELECT HOUR(created_at) AS cle, SUM(montant_total) AS facture, SUM(montant_paye) AS encaisse FROM factures WHERE date_facture = :debutDate AND statut NOT IN ('annulee', 'partiellement_payee') AND cabinet_id = :cabinetId ${filtreUser} GROUP BY HOUR(created_at)`,
+    date:        `SELECT DATE(date_facture) AS cle, SUM(montant_total) AS facture, SUM(montant_paye) AS encaisse FROM factures WHERE date_facture BETWEEN :debut AND :fin AND statut NOT IN ('annulee', 'partiellement_payee') AND cabinet_id = :cabinetId ${filtreUser} GROUP BY DATE(date_facture)`,
   };
 
   const debutDate = dateDebut.toISOString().split('T')[0];
-  const replacements = { debut: dateDebut, fin: dateFin, debutDate, userId };
+  const replacements = { debut: dateDebut, fin: dateFin, debutDate, userId, cabinetId };
 
   const [rowsConsultations, rowsFactures, patientsParSexe, ordonnances] = await Promise.all([
     sequelize.query(sqlGroupConsultations[groupBy], { replacements, type: sequelize.QueryTypes.SELECT }),
     sequelize.query(sqlGroupFactures[groupBy], { replacements, type: sequelize.QueryTypes.SELECT }),
-    sequelize.query(`SELECT sexe, COUNT(*) AS total FROM patients WHERE archive = 0 GROUP BY sexe`, { type: sequelize.QueryTypes.SELECT }),
+    sequelize.query(`SELECT sexe, COUNT(*) AS total FROM patients WHERE archive = 0 AND cabinet_id = :cabinetId GROUP BY sexe`, { replacements: { cabinetId }, type: sequelize.QueryTypes.SELECT }),
     Ordonnance.findAll({
       where: { date_ordonnance: { [Op.between]: [dateDebut, dateFin] }, statut: { [Op.ne]: 'annulee' } },
       attributes: ['lignes'],
