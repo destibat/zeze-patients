@@ -1,0 +1,82 @@
+name: unified
+
+# Stack multi-tenant unique — remplace les 3 stacks séparés (alice, cisse, patients).
+# Tous les cabinets partagent un seul backend, un seul frontend et une seule DB.
+# L'isolation des données est garantie par cabinet_id en base (Phase 1-3 MT).
+
+services:
+  db:
+    image: mariadb:10.11
+    container_name: unified_db
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${DB_NAME}
+      MYSQL_USER: ${DB_USER}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - db_data_unified:/var/lib/mysql
+    networks:
+      - unified_network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DB_ROOT_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile.prod
+    image: zezepagnon-backend-unified
+    container_name: unified_backend
+    restart: always
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRES_IN: 15m
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+      JWT_REFRESH_EXPIRES_IN: 7d
+      # Toutes les origines autorisées — séparées par des virgules
+      FRONTEND_URL: ${FRONTEND_URL}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-claude-sonnet-4-6}
+      SUPERADMIN_SECRET: ${SUPERADMIN_SECRET}
+      IA_ENCRYPTION_KEY: ${IA_ENCRYPTION_KEY}
+    volumes:
+      - uploads_unified:/app/uploads
+    networks:
+      - unified_network
+      - zeze_proxy
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.prod
+    image: zezepagnon-frontend-unified
+    container_name: unified_frontend
+    restart: always
+    depends_on:
+      - backend
+    networks:
+      - unified_network
+      - zeze_proxy
+
+volumes:
+  db_data_unified:
+  uploads_unified:
+
+networks:
+  unified_network:
+  zeze_proxy:
+    external: true

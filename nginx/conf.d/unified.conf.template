@@ -1,0 +1,115 @@
+# nginx unifié multi-tenant — tous les domaines → même backend/frontend
+# À UTILISER EN PHASE 6 (bascule prod) en remplacement de alice.conf, cisse.conf, patients.conf
+# Renommer en unified.conf et supprimer les 3 anciennes configs.
+
+# Redirige HTTP → HTTPS pour tous les domaines
+server {
+    listen 80;
+    server_name patients.zezepagnon.solutions alice.zezepagnon.solutions cisse.zezepagnon.solutions;
+    return 301 https://$host$request_uri;
+}
+
+# ── Cabinet Patients ──────────────────────────────────────────────────────────
+server {
+    listen 443 ssl;
+    server_name patients.zezepagnon.solutions;
+
+    ssl_certificate     /etc/nginx/certs/patients/fullchain.pem;
+    ssl_certificate_key /etc/nginx/certs/patients/privkey.pem;
+    ssl_protocols       TLSv1.2 TLSv1.3;
+    ssl_ciphers         HIGH:!aNULL:!MD5;
+    ssl_prefer_server_ciphers on;
+
+    resolver 127.0.0.11 valid=30s;
+    set $backend  unified_backend;
+    set $frontend unified_frontend;
+
+    location /api/ {
+        proxy_pass http://$backend:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location /uploads/ {
+        proxy_pass http://$backend:3000;
+    }
+
+    location / {
+        proxy_pass http://$frontend:80;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+    }
+}
+
+# ── Cabinet Alice ─────────────────────────────────────────────────────────────
+server {
+    listen 443 ssl;
+    server_name alice.zezepagnon.solutions;
+
+    ssl_certificate     /etc/nginx/certs/alice/fullchain.pem;
+    ssl_certificate_key /etc/nginx/certs/alice/privkey.pem;
+    ssl_protocols       TLSv1.2 TLSv1.3;
+    ssl_ciphers         HIGH:!aNULL:!MD5;
+    ssl_prefer_server_ciphers on;
+
+    resolver 127.0.0.11 valid=30s;
+    set $backend  unified_backend;
+    set $frontend unified_frontend;
+
+    location /api/ {
+        proxy_pass http://$backend:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location /uploads/ {
+        proxy_pass http://$backend:3000;
+    }
+
+    location / {
+        proxy_pass http://$frontend:80;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+    }
+}
+
+# ── Cabinet Cisse ─────────────────────────────────────────────────────────────
+server {
+    listen 443 ssl;
+    server_name cisse.zezepagnon.solutions;
+
+    ssl_certificate     /etc/nginx/certs/cisse/fullchain.pem;
+    ssl_certificate_key /etc/nginx/certs/cisse/privkey.pem;
+    ssl_protocols       TLSv1.2 TLSv1.3;
+    ssl_ciphers         HIGH:!aNULL:!MD5;
+    ssl_prefer_server_ciphers on;
+
+    resolver 127.0.0.11 valid=30s;
+    set $backend  unified_backend;
+    set $frontend unified_frontend;
+
+    location /api/ {
+        proxy_pass http://$backend:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location /uploads/ {
+        proxy_pass http://$backend:3000;
+    }
+
+    location / {
+        proxy_pass http://$frontend:80;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+    }
+}
