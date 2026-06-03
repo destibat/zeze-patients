@@ -12,35 +12,31 @@ const router = express.Router();
 router.use(authentifier, autoriser('administrateur'));
 
 // POST /api/admin/reset
-// Remet tout à zéro. Conserve uniquement : users, patients, produits (catalogue), parametres_cabinet.
+// Remet à zéro les données transactionnelles du cabinet courant uniquement.
 router.post('/reset', asyncHandler(async (req, res) => {
+  const cabinetId = getCabinetId();
   await sequelize.transaction(async (t) => {
-    await sequelize.query('SET FOREIGN_KEY_CHECKS = 0', { transaction: t });
-
-    const tables = [
-      'prets_emprunts',
-      'audit_logs',
-      'fichiers_patient',
-      'analyses_nfs',
-      'analyses_biologiques',
-      'factures_achat',
-      'commandes_approvisionnement',
-      'mouvements_delegue',
-      'stock_delegue',
-      'factures',
-      'ordonnances',
-      'rendez_vous',
-      'consultations',
-      'exercices',
+    // Tables avec cabinet_id — DELETE scopé au cabinet
+    const tablesAvecCabinet = [
+      'prets_emprunts', 'fichiers_patient', 'analyses_nfs', 'analyses_biologiques',
+      'factures_achat', 'commandes_approvisionnement', 'mouvements_delegue',
+      'stock_delegue', 'factures', 'ordonnances', 'rendez_vous', 'consultations', 'exercices',
     ];
-    for (const table of tables) {
-      await sequelize.query(`TRUNCATE TABLE \`${table}\``, { transaction: t });
+    for (const table of tablesAvecCabinet) {
+      await sequelize.query(`DELETE FROM \`${table}\` WHERE cabinet_id = :cabinetId`, {
+        replacements: { cabinetId }, transaction: t,
+      });
     }
-
-    // Remet le stock à 20 pour tous les produits actifs
-    await sequelize.query('UPDATE produits SET quantite_stock = 20 WHERE actif = 1', { transaction: t });
-
-    await sequelize.query('SET FOREIGN_KEY_CHECKS = 1', { transaction: t });
+    // audit_logs : pas de cabinet_id — on supprime uniquement les logs du cabinet via les users
+    await sequelize.query(
+      `DELETE FROM audit_logs WHERE user_id IN (SELECT id FROM users WHERE cabinet_id = :cabinetId)`,
+      { replacements: { cabinetId }, transaction: t },
+    );
+    // Remet le stock à 20 pour les produits actifs du cabinet uniquement
+    await sequelize.query(
+      `UPDATE produits SET quantite_stock = 20 WHERE actif = 1 AND cabinet_id = :cabinetId`,
+      { replacements: { cabinetId }, transaction: t },
+    );
   });
 
   res.json({
@@ -59,13 +55,18 @@ router.post('/reset', asyncHandler(async (req, res) => {
 // POST /api/admin/reset-stock-delegues
 // Vide le stock de tous les revendeurs et le réinitialise avec N unités par produit actif.
 router.post('/reset-stock-delegues', asyncHandler(async (req, res) => {
+  const cabinetId = getCabinetId();
   const unites = Math.max(0, parseInt(req.body.unites_par_produit ?? 5, 10) || 0);
 
   await sequelize.transaction(async (t) => {
-    await sequelize.query('SET FOREIGN_KEY_CHECKS = 0', { transaction: t });
-    await sequelize.query('TRUNCATE TABLE `stock_delegue`', { transaction: t });
-    await sequelize.query('TRUNCATE TABLE `mouvements_delegue`', { transaction: t });
-    await sequelize.query('SET FOREIGN_KEY_CHECKS = 1', { transaction: t });
+    await sequelize.query(
+      `DELETE FROM stock_delegue WHERE cabinet_id = :cabinetId`,
+      { replacements: { cabinetId }, transaction: t },
+    );
+    await sequelize.query(
+      `DELETE FROM mouvements_delegue WHERE cabinet_id = :cabinetId`,
+      { replacements: { cabinetId }, transaction: t },
+    );
 
     if (unites > 0) {
       const delegues = await User.findAll({ where: { role: 'delegue' }, attributes: ['id'], transaction: t });
