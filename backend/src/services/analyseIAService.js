@@ -1,6 +1,7 @@
 'use strict';
 
 const Anthropic = require('@anthropic-ai/sdk');
+const { getCabinetId } = require('../config/cabinetContext');
 
 const MODEL = process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-6';
 
@@ -218,9 +219,10 @@ const obtenirCleAPI = async () => {
   try {
     const { sequelize } = require('../models');
     const { dechiffrer, estChiffree, chiffrer } = require('../utils/chiffrement');
+    const cabinetId = getCabinetId();
     const [row] = await sequelize.query(
-      `SELECT valeur FROM parametres_cabinet WHERE cle = 'anthropic_api_key' LIMIT 1`,
-      { type: sequelize.QueryTypes.SELECT },
+      `SELECT valeur FROM parametres_cabinet WHERE cle = 'anthropic_api_key' AND cabinet_id = :cabinetId LIMIT 1`,
+      { replacements: { cabinetId }, type: sequelize.QueryTypes.SELECT },
     );
     if (!row?.valeur) return process.env.ANTHROPIC_API_KEY;
 
@@ -228,8 +230,8 @@ const obtenirCleAPI = async () => {
     if (!estChiffree(row.valeur) && process.env.IA_ENCRYPTION_KEY) {
       const valeurChiffree = chiffrer(row.valeur);
       await sequelize.query(
-        `UPDATE parametres_cabinet SET valeur = :v, updated_at = NOW() WHERE cle = 'anthropic_api_key'`,
-        { replacements: { v: valeurChiffree } },
+        `UPDATE parametres_cabinet SET valeur = :v, updated_at = NOW() WHERE cle = 'anthropic_api_key' AND cabinet_id = :cabinetId`,
+        { replacements: { v: valeurChiffree, cabinetId } },
       );
       return row.valeur;
     }
