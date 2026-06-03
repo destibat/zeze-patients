@@ -141,7 +141,7 @@ const verifier = async (cabinetA, cabinetB) => {
   let ok = 0; let ko = 0;
   const affirmer = (label, cond) => { if (cond) { console.log(`  ✓  ${label}`); ok++; } else { console.error(`  ✗  ${label}`); ko++; } };
 
-  const cnt = async (table, where) => { const [[r]] = await tgt.execute(`SELECT COUNT(*) AS n FROM \`${table}\` WHERE ${where}`); return Number(r.n); };
+  const cnt = async (table, where) => { const [[r]] = await tgt.query(`SELECT COUNT(*) AS n FROM \`${table}\` WHERE ${where}`); return Number(r.n); };
 
   affirmer('Cabinet A a 1 user',    await cnt('users',   `cabinet_id='${cabinetA.id}'`) === 1);
   affirmer('Cabinet B a 1 user',    await cnt('users',   `cabinet_id='${cabinetB.id}'`) === 1);
