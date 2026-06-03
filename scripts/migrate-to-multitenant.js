@@ -103,12 +103,12 @@ const connect = async (cfg) => mysql.createConnection({
   typeCast: false, // récupère toutes les valeurs brutes (évite les conversions)
 });
 
+// query() (text protocol) évite les problèmes de binary protocol avec information_schema
 const colonnes = async (conn, table) => {
-  const [rows] = await conn.execute(
+  const [rows] = await conn.query(
     `SELECT COLUMN_NAME FROM information_schema.COLUMNS
-     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = '${table}'
      ORDER BY ORDINAL_POSITION`,
-    [table],
   );
   return rows.map((r) => {
     const v = r.COLUMN_NAME;
@@ -118,10 +118,9 @@ const colonnes = async (conn, table) => {
 
 const migrerTable = async (src, tgt, cabinetId, table) => {
   // Vérifier si la table existe dans la source
-  const [exists] = await src.execute(
+  const [exists] = await src.query(
     `SELECT COUNT(*) AS n FROM information_schema.TABLES
-     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?`,
-    [table],
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = '${table}'`,
   );
   if (!exists[0].n) {
     console.log(`    ⚠  ${table} absente dans la source — ignorée`);
@@ -135,7 +134,7 @@ const migrerTable = async (src, tgt, cabinetId, table) => {
   const targetCols   = `\`cabinet_id\`, ${colList}`;
   const placeholders = `?, ${cols.map(() => '?').join(', ')}`;
 
-  const [rows] = await src.execute(`SELECT ${colList} FROM \`${table}\``);
+  const [rows] = await src.query(`SELECT ${colList} FROM \`${table}\``);
   if (!rows.length) { console.log(`    ✓  ${table}: 0 lignes`); return 0; }
 
   let total = 0;

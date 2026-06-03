@@ -108,19 +108,23 @@ const migrerVersUnifie = async (srcDb, cabinetCfg) => {
     [cabinetCfg.id, cabinetCfg.slug, cabinetCfg.domaine, cabinetCfg.nom]);
 
   for (const table of ['users', 'patients', 'parametres_cabinet']) {
-    const [[{ cols: rawCols }]] = await src.execute(
-      `SELECT GROUP_CONCAT(COLUMN_NAME ORDER BY ORDINAL_POSITION) AS cols
-       FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?`,
-      [table]
+    // Utiliser query() (protocole texte) pour éviter les problèmes de binary protocol
+    const [colRows] = await src.query(
+      `SELECT COLUMN_NAME FROM information_schema.COLUMNS
+       WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = '${table}'
+       ORDER BY ORDINAL_POSITION`
     );
-    const cols = Buffer.isBuffer(rawCols) ? rawCols.toString() : String(rawCols || '');
-    const colList = cols.split(',').filter(c => c !== 'cabinet_id').map(c => `\`${c}\``).join(', ');
-    const [rows] = await src.execute(`SELECT ${colList} FROM \`${table}\``);
-    const colNames = cols.split(',').filter((c) => c !== 'cabinet_id');
+    const colNames = colRows
+      .map((r) => { const v = r.COLUMN_NAME; return Buffer.isBuffer(v) ? v.toString() : String(v); })
+      .filter((c) => c !== 'cabinet_id');
+    if (!colNames.length) { console.log(`    ⚠  ${table} — colonnes non trouvées`); continue; }
+
+    const colList = colNames.map((c) => `\`${c}\``).join(', ');
     const ph = `?, ${colNames.map(() => '?').join(', ')}`;
 
+    const [rows] = await src.query(`SELECT ${colList} FROM \`${table}\``);
     for (const row of rows) {
-      const vals = [cabinetCfg.id, ...colNames.map(c => row[c] ?? null)];
+      const vals = [cabinetCfg.id, ...colNames.map((c) => row[c] ?? null)];
       await tgt.execute(`INSERT IGNORE INTO \`${table}\` (\`cabinet_id\`, ${colList}) VALUES (${ph})`, vals);
     }
     console.log(`    ✓  ${table}: ${rows.length} lignes depuis ${srcDb}`);
