@@ -27,7 +27,7 @@ module.exports = (sequelize) => {
     {
       id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
       cabinet_id: { type: DataTypes.UUID, allowNull: true },
-      numero: { type: DataTypes.STRING(20), allowNull: false, unique: true },
+      numero: { type: DataTypes.STRING(20), allowNull: false },
       date_ouverture: { type: DataTypes.DATE, allowNull: false },
       date_cloture: { type: DataTypes.DATE, allowNull: true, defaultValue: null },
       statut: {
