@@ -14,10 +14,11 @@ const mettreAJour = async (req, res) => {
   const updates = req.body; // { commission_stockiste: '30', commission_delegue: '15', nom_cabinet: '...', ... }
 
   for (const [cle, valeur] of Object.entries(updates)) {
-    const param = await ParametreCabinet.findOne({ where: { cle } });
-    if (param) {
-      await param.update({ valeur: String(valeur) });
-    }
+    const [param, created] = await ParametreCabinet.findOrCreate({
+      where: { cle },
+      defaults: { cle, valeur: String(valeur) },
+    });
+    if (!created) await param.update({ valeur: String(valeur) });
   }
 
   // Propager le taux stockiste global vers commission_rate de tous les stockistes actifs

@@ -138,7 +138,7 @@ const main = async () => {
   console.log('\n3. Produits — isolation');
 
   const creerProduit = async (token, domaine, nom) => {
-    const r = await api('POST', '/produits', { nom, description: 'Test', prix_vente: 1000, prix_achat: 500, quantite_stock: 10 }, token, domaine);
+    const r = await api('POST', '/produits', { nom, description: 'Test', prix_unitaire: 1000, quantite_stock: 10, seuil_alerte: 2 }, token, domaine);
     return r.status === 201 ? r.body.data || r.body : null;
   };
 
@@ -206,9 +206,10 @@ const main = async () => {
     if (consultId) {
       const rOrd = await api('POST', '/ordonnances', {
         consultation_id: consultId, patient_id: pA1.id,
-        produits: [],
+        medicaments: [], notes: 'Test MT',
       }, tokenA, CAB_A.domaine);
       affirmer('Ordonnance créée pour consultation A', rOrd.status === 201);
+      if (rOrd.status !== 201) console.log('    Ordonnance err:', JSON.stringify(rOrd.body).slice(0, 120));
     }
   }
 
@@ -219,10 +220,12 @@ const main = async () => {
     const rAnalyse = await api('POST', `/patients/${pA1.id}/analyses-biologiques`, {
       date_analyse: new Date().toISOString().slice(0, 10),
       panels_demandes: ['nfs'], valeurs_brutes: { nfs: { hemoglobine: 14.5 } },
-      sexe_patient: 'M', age_patient: 35,
+      sexe_patient: 'M', age_patient: 35, source: 'manuelle',
     }, tokenA, CAB_A.domaine);
+    if (rAnalyse.status !== 201) console.log('    Analyse err:', JSON.stringify(rAnalyse.body).slice(0, 120));
     affirmer('Analyse biologique créée', rAnalyse.status === 201);
-    affirmer('Analyse a cabinet_id A', (rAnalyse.body?.data || rAnalyse.body)?.cabinet_id === CAB_A.id);
+    const analyseBody = rAnalyse.body?.data || rAnalyse.body;
+    affirmer('Analyse a cabinet_id A', analyseBody?.cabinet_id === CAB_A.id);
   }
 
   // ── 9. Stats admin ────────────────────────────────────────────────────────
