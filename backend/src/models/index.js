@@ -78,11 +78,13 @@ const hookBulkCreate = (instances, options) => {
 };
 
 // Application sur chaque modèle multi-tenant
+// beforeCount couvre le COUNT séparé émis par findAndCountAll (Sequelize 6)
 for (const model of Object.values(models)) {
   if (!model.tableName || !TABLES_MT.has(model.tableName)) continue;
-  model.addHook('beforeFind', hookFind);
-  model.addHook('beforeCreate', hookCreate);
-  model.addHook('beforeBulkCreate', hookBulkCreate);
+  model.addHook('beforeFind',        hookFind);
+  model.addHook('beforeCount',       hookFind);
+  model.addHook('beforeCreate',      hookCreate);
+  model.addHook('beforeBulkCreate',  hookBulkCreate);
 }
 
 // ── Connexion ─────────────────────────────────────────────────────────────────
