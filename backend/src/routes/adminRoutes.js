@@ -6,6 +6,7 @@ const { autoriser } = require('../middlewares/authorize');
 const { asyncHandler } = require('../middlewares/errorHandler');
 const { sequelize, User, Produit, StockDelegue } = require('../models');
 const { Op } = require('sequelize');
+const { getCabinetId } = require('../config/cabinetContext');
 
 const router = express.Router();
 router.use(authentifier, autoriser('administrateur'));
@@ -89,6 +90,7 @@ router.post('/reset-stock-delegues', asyncHandler(async (req, res) => {
 
 // GET /api/admin/consommation-ia
 router.get('/consommation-ia', asyncHandler(async (req, res) => {
+  const cabinetId = getCabinetId();
   const debutMois = new Date();
   debutMois.setDate(1);
   debutMois.setHours(0, 0, 0, 0);
@@ -101,16 +103,16 @@ router.get('/consommation-ia', asyncHandler(async (req, res) => {
       COALESCE(SUM(tokens_output), 0)                              AS tokens_output_mois,
       SUM(CASE WHEN valide_par_medecin = 1 THEN 1 ELSE 0 END)     AS nb_validees
     FROM analyses_biologiques
-    WHERE analyse_ia_texte IS NOT NULL AND created_at >= :debutMois
-  `, { replacements: { debutMois }, type: sequelize.QueryTypes.SELECT });
+    WHERE analyse_ia_texte IS NOT NULL AND created_at >= :debutMois AND cabinet_id = :cabinetId
+  `, { replacements: { debutMois, cabinetId }, type: sequelize.QueryTypes.SELECT });
 
   const [statsTotal] = await sequelize.query(`
     SELECT
       COUNT(*)                           AS nb_total,
       COALESCE(SUM(cout_estime_usd), 0)  AS cout_total_usd
     FROM analyses_biologiques
-    WHERE analyse_ia_texte IS NOT NULL
-  `, { type: sequelize.QueryTypes.SELECT });
+    WHERE analyse_ia_texte IS NOT NULL AND cabinet_id = :cabinetId
+  `, { replacements: { cabinetId }, type: sequelize.QueryTypes.SELECT });
 
   const parJour = await sequelize.query(`
     SELECT
@@ -120,9 +122,10 @@ router.get('/consommation-ia', asyncHandler(async (req, res) => {
     FROM analyses_biologiques
     WHERE analyse_ia_texte IS NOT NULL
       AND created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+      AND cabinet_id = :cabinetId
     GROUP BY DATE(created_at)
     ORDER BY jour ASC
-  `, { type: sequelize.QueryTypes.SELECT });
+  `, { replacements: { cabinetId }, type: sequelize.QueryTypes.SELECT });
 
   const topUtilisateurs = await sequelize.query(`
     SELECT
@@ -133,10 +136,11 @@ router.get('/consommation-ia', asyncHandler(async (req, res) => {
     JOIN users u ON ab.created_by = u.id
     WHERE ab.analyse_ia_texte IS NOT NULL
       AND ab.created_at >= :debutMois
+      AND ab.cabinet_id = :cabinetId
     GROUP BY ab.created_by, u.prenom, u.nom, u.role
     ORDER BY nb_analyses DESC
     LIMIT 5
-  `, { replacements: { debutMois }, type: sequelize.QueryTypes.SELECT });
+  `, { replacements: { debutMois, cabinetId }, type: sequelize.QueryTypes.SELECT });
 
   const dernieres = await sequelize.query(`
     SELECT
@@ -148,13 +152,14 @@ router.get('/consommation-ia', asyncHandler(async (req, res) => {
     FROM analyses_biologiques ab
     JOIN users u ON ab.created_by = u.id
     WHERE ab.analyse_ia_texte IS NOT NULL
+      AND ab.cabinet_id = :cabinetId
     ORDER BY ab.created_at DESC
     LIMIT 10
-  `, { type: sequelize.QueryTypes.SELECT });
+  `, { replacements: { cabinetId }, type: sequelize.QueryTypes.SELECT });
 
   const [paramNomCabinet] = await sequelize.query(
-    `SELECT valeur FROM parametres_cabinet WHERE cle = 'nom_cabinet' LIMIT 1`,
-    { type: sequelize.QueryTypes.SELECT },
+    `SELECT valeur FROM parametres_cabinet WHERE cle = 'nom_cabinet' AND cabinet_id = :cabinetId LIMIT 1`,
+    { replacements: { cabinetId }, type: sequelize.QueryTypes.SELECT },
   );
 
   res.json({

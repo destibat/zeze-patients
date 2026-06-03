@@ -10,6 +10,7 @@ const { seulementAdmin, adminOuMedecin } = require('../middlewares/authorize');
 const { asyncHandler } = require('../middlewares/errorHandler');
 const ctrl = require('../controllers/parametreController');
 const { sequelize } = require('../models');
+const { getCabinetId } = require('../config/cabinetContext');
 const { chiffrer, dechiffrer, estChiffree } = require('../utils/chiffrement');
 
 const masquerCle = (cle) => {
@@ -63,9 +64,10 @@ router.put('/', authentifier, seulementAdmin, asyncHandler(ctrl.mettreAJour));
 
 // GET /api/parametres/cle-ia — statut de la clé Anthropic (masquée, jamais en clair)
 router.get('/cle-ia', authentifier, seulementAdmin, asyncHandler(async (req, res) => {
+  const cabinetId = getCabinetId();
   const [row] = await sequelize.query(
-    `SELECT valeur FROM parametres_cabinet WHERE cle = 'anthropic_api_key' LIMIT 1`,
-    { type: sequelize.QueryTypes.SELECT },
+    `SELECT valeur FROM parametres_cabinet WHERE cle = 'anthropic_api_key' AND cabinet_id = :cabinetId LIMIT 1`,
+    { replacements: { cabinetId }, type: sequelize.QueryTypes.SELECT },
   );
   if (!row?.valeur) {
     return res.json({ source: 'env', configuree: !!process.env.ANTHROPIC_API_KEY });
@@ -81,6 +83,7 @@ router.get('/cle-ia', authentifier, seulementAdmin, asyncHandler(async (req, res
 
 // PUT /api/parametres/cle-ia — chiffre et enregistre la clé dans la DB
 router.put('/cle-ia', authentifier, seulementAdmin, asyncHandler(async (req, res) => {
+  const cabinetId = getCabinetId();
   const cle = (req.body.cle || '').trim();
   if (!cle) return res.status(400).json({ message: 'Clé API requise' });
   if (!cle.startsWith('sk-ant-')) {
@@ -88,10 +91,10 @@ router.put('/cle-ia', authentifier, seulementAdmin, asyncHandler(async (req, res
   }
   const valeurStockee = chiffrer(cle);
   await sequelize.query(
-    `INSERT INTO parametres_cabinet (id, cle, valeur, created_at, updated_at)
-     VALUES (UUID(), 'anthropic_api_key', :valeur, NOW(), NOW())
+    `INSERT INTO parametres_cabinet (id, cabinet_id, cle, valeur, created_at, updated_at)
+     VALUES (UUID(), :cabinetId, 'anthropic_api_key', :valeur, NOW(), NOW())
      ON DUPLICATE KEY UPDATE valeur = :valeur, updated_at = NOW()`,
-    { replacements: { valeur: valeurStockee } },
+    { replacements: { cabinetId, valeur: valeurStockee } },
   );
   res.json({
     ok: true,
@@ -104,7 +107,11 @@ router.put('/cle-ia', authentifier, seulementAdmin, asyncHandler(async (req, res
 
 // DELETE /api/parametres/cle-ia — supprime la clé de la DB (retombe sur .env)
 router.delete('/cle-ia', authentifier, seulementAdmin, asyncHandler(async (req, res) => {
-  await sequelize.query(`DELETE FROM parametres_cabinet WHERE cle = 'anthropic_api_key'`);
+  const cabinetId = getCabinetId();
+  await sequelize.query(
+    `DELETE FROM parametres_cabinet WHERE cle = 'anthropic_api_key' AND cabinet_id = :cabinetId`,
+    { replacements: { cabinetId } },
+  );
   res.json({ ok: true, source: 'env', configuree: !!process.env.ANTHROPIC_API_KEY });
 }));
 
@@ -115,9 +122,10 @@ router.post('/cle-ia/tester', authentifier, seulementAdmin, asyncHandler(async (
 
   // Lire la clé active (DB ou env)
   const { dechiffrer, estChiffree } = require('../utils/chiffrement');
+  const cabinetId = getCabinetId();
   const [row] = await sequelize.query(
-    `SELECT valeur FROM parametres_cabinet WHERE cle = 'anthropic_api_key' LIMIT 1`,
-    { type: sequelize.QueryTypes.SELECT },
+    `SELECT valeur FROM parametres_cabinet WHERE cle = 'anthropic_api_key' AND cabinet_id = :cabinetId LIMIT 1`,
+    { replacements: { cabinetId }, type: sequelize.QueryTypes.SELECT },
   );
   const apiKey = row?.valeur ? dechiffrer(row.valeur) : process.env.ANTHROPIC_API_KEY;
 

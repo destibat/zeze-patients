@@ -5,6 +5,7 @@ const { extraireNFS, fusionnerValeurs } = require('../services/extractionNFSServ
 const { analyserBilanAvecIA } = require('../services/analyseIAService');
 const { genererPdfAnalyse } = require('../services/pdfAnalyseService');
 const { genererDocxAnalyse } = require('../services/docxAnalyseService');
+const { getCabinetId } = require('../config/cabinetContext');
 
 const PANELS_VALIDES = ['nfs', 'renal', 'glycemie', 'lipidique', 'ionogramme', 'hepatique'];
 
@@ -14,17 +15,18 @@ const verifierPermissionIA = async (userId) => {
 };
 
 const verifierQuotaIA = async () => {
+  const cabinetId = getCabinetId();
   const debutMois = new Date();
   debutMois.setDate(1);
   debutMois.setHours(0, 0, 0, 0);
   const [quotaRow] = await sequelize.query(
-    `SELECT valeur FROM parametres_cabinet WHERE cle = 'quota_ia_mensuel' LIMIT 1`,
-    { type: sequelize.QueryTypes.SELECT },
+    `SELECT valeur FROM parametres_cabinet WHERE cle = 'quota_ia_mensuel' AND cabinet_id = :cabinetId LIMIT 1`,
+    { replacements: { cabinetId }, type: sequelize.QueryTypes.SELECT },
   );
   const quota = parseInt(quotaRow?.valeur || '100', 10);
   const [countRow] = await sequelize.query(
-    `SELECT COUNT(*) AS nb FROM analyses_biologiques WHERE analyse_ia_texte IS NOT NULL AND created_at >= :debutMois`,
-    { replacements: { debutMois }, type: sequelize.QueryTypes.SELECT },
+    `SELECT COUNT(*) AS nb FROM analyses_biologiques WHERE analyse_ia_texte IS NOT NULL AND created_at >= :debutMois AND cabinet_id = :cabinetId`,
+    { replacements: { debutMois, cabinetId }, type: sequelize.QueryTypes.SELECT },
   );
   const nb = Number(countRow.nb);
   return { quota, nb, depasse: nb >= quota };
