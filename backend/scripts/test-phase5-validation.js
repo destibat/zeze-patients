@@ -201,12 +201,13 @@ const main = async () => {
     }, tokenA, CAB_A.domaine);
     affirmer('Consultation créée pour patient A', rConsult.status === 201);
 
-    // Ordonnance depuis la consultation
+    // Ordonnance depuis la consultation (avec un produit du cabinet A)
     const consultId = rConsult.body?.data?.id || rConsult.body?.id;
-    if (consultId) {
+    if (consultId && prodA?.id) {
       const rOrd = await api('POST', '/ordonnances/directe', {
         consultation_id: consultId, patient_id: pA1.id,
-        medicaments: [], notes: 'Test MT',
+        lignes: [{ produit_id: prodA.id, nom_produit: prodA.nom || 'Produit test', quantite: 1, prix_unitaire: 1000, source: 'stock' }],
+        notes: 'Test MT',
       }, tokenA, CAB_A.domaine);
       affirmer('Ordonnance créée pour consultation A', rOrd.status === 201);
       if (rOrd.status !== 201) console.log('    Ordonnance err:', JSON.stringify(rOrd.body).slice(0, 120));
@@ -217,7 +218,7 @@ const main = async () => {
   console.log('\n8. Analyses biologiques — isolation');
 
   if (pA1?.id) {
-    const rAnalyse = await api('POST', `/patients/${pA1.id}/analyses-biologiques`, {
+    const rAnalyse = await api('POST', `/patients/${pA1.id}/analyses-bio`, {
       date_analyse: new Date().toISOString().slice(0, 10),
       panels_demandes: ['nfs'], valeurs_brutes: { nfs: { hemoglobine: 14.5 } },
       sexe_patient: 'M', age_patient: 35, source: 'manuelle',
