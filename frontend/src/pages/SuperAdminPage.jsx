@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Shield, LogOut, Save, RefreshCw, CheckCircle2, XCircle, Loader2, AlertTriangle, PlusCircle, Building2 } from 'lucide-react';
-import { loginSuperAdmin, getAbonnement, updateAbonnement, listerCabinets, creerCabinet } from '../services/superadminService';
+import { Shield, LogOut, Save, RefreshCw, CheckCircle2, XCircle, Loader2, AlertTriangle, PlusCircle, Building2, KeyRound, ChevronDown, ChevronUp } from 'lucide-react';
+import { loginSuperAdmin, getAbonnement, updateAbonnement, listerCabinets, creerCabinet, resetPasswordAdmin } from '../services/superadminService';
 
 const TOKEN_KEY = 'superadmin_token';
 
@@ -312,6 +312,69 @@ const FormulaireCabinet = ({ token, onCreated }) => {
   );
 };
 
+// ── Réinitialisation mot de passe dans une fiche cabinet ─────────────────────
+const ResetPassword = ({ token, cabinet }) => {
+  const [ouvert, setOuvert] = useState(false);
+  const [email, setEmail] = useState('');
+  const [mdp, setMdp] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState(null);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    setMsg(null);
+    try {
+      await resetPasswordAdmin(token, cabinet.id, email, mdp);
+      setMsg({ ok: true, texte: 'Mot de passe mis à jour' });
+      setEmail(''); setMdp('');
+    } catch (err) {
+      setMsg({ ok: false, texte: err?.response?.data?.message || 'Erreur' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="border-t border-gray-100 mt-2 pt-2">
+      <button
+        type="button"
+        onClick={() => setOuvert(!ouvert)}
+        className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-600 transition-colors w-full"
+      >
+        <KeyRound size={12} /> Réinitialiser mot de passe admin
+        {ouvert ? <ChevronUp size={11} className="ml-auto" /> : <ChevronDown size={11} className="ml-auto" />}
+      </button>
+      {ouvert && (
+        <form onSubmit={handleSubmit} className="mt-3 space-y-2">
+          {msg && (
+            <p className={`text-xs flex items-center gap-1 ${msg.ok ? 'text-green-700' : 'text-red-600'}`}>
+              {msg.ok ? <CheckCircle2 size={12} /> : <AlertTriangle size={12} />} {msg.texte}
+            </p>
+          )}
+          <input
+            type="email" value={email} onChange={(e) => setEmail(e.target.value)}
+            placeholder="Email de l'utilisateur" required
+            className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-green-500"
+          />
+          <input
+            type="password" value={mdp} onChange={(e) => setMdp(e.target.value)}
+            placeholder="Nouveau mot de passe" required
+            className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-green-500"
+          />
+          <button
+            type="submit" disabled={saving}
+            className="flex items-center gap-1.5 bg-gray-800 hover:bg-gray-900 text-white text-xs font-medium px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50"
+          >
+            {saving ? <Loader2 size={11} className="animate-spin" /> : <Save size={11} />}
+            Enregistrer
+          </button>
+        </form>
+      )}
+    </div>
+  );
+};
+
 // ── Liste des cabinets ────────────────────────────────────────────────────────
 const ListeCabinets = ({ token }) => {
   const [cabinets, setCabinets] = useState([]);
@@ -333,14 +396,17 @@ const ListeCabinets = ({ token }) => {
   return (
     <div className="space-y-2">
       {cabinets.map((c) => (
-        <div key={c.id} className="bg-white border border-gray-200 rounded-xl p-3 flex items-center justify-between">
-          <div>
-            <p className="font-medium text-sm text-gray-900">{c.nom}</p>
-            <p className="text-xs text-gray-400 font-mono">{c.domaine}</p>
+        <div key={c.id} className="bg-gray-50 border border-gray-200 rounded-xl p-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="font-medium text-sm text-gray-900">{c.nom}</p>
+              <p className="text-xs text-gray-400 font-mono">{c.domaine}</p>
+            </div>
+            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${c.actif ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+              {c.actif ? 'Actif' : 'Suspendu'}
+            </span>
           </div>
-          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${c.actif ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-            {c.actif ? 'Actif' : 'Suspendu'}
-          </span>
+          <ResetPassword token={token} cabinet={c} />
         </div>
       ))}
     </div>

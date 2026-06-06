@@ -36,3 +36,8 @@ export const creerCabinet = async (token, payload) => {
   const { data } = await superadminApi(token).post('/superadmin/cabinets', payload);
   return data;
 };
+
+export const resetPasswordAdmin = async (token, cabinetId, email, new_password) => {
+  const { data } = await superadminApi(token).put(`/superadmin/cabinets/${cabinetId}/reset-password`, { email, new_password });
+  return data;
+};

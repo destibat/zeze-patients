@@ -87,6 +87,19 @@ router.put('/abonnement', authentifierSuperAdmin, asyncHandler(async (req, res) 
   res.json({ ok: true, abonnement: await lireAbonnement(cabinetId) });
 }));
 
+// PUT /api/superadmin/cabinets/:cabinetId/reset-password — réinitialise le mot de passe d'un user
+router.put('/cabinets/:cabinetId/reset-password', authentifierSuperAdmin, asyncHandler(async (req, res) => {
+  const { cabinetId } = req.params;
+  const { email, new_password } = req.body;
+  if (!email || !new_password) return res.status(400).json({ message: 'email et new_password requis' });
+
+  const user = await User.findOne({ where: { email, cabinet_id: cabinetId }, _bypass_cabinet: true });
+  if (!user) return res.status(404).json({ message: 'Utilisateur introuvable dans ce cabinet' });
+
+  await user.update({ password_hash: new_password }, { _bypass_cabinet: true });
+  res.json({ ok: true, message: `Mot de passe mis à jour pour ${email}` });
+}));
+
 // GET /api/superadmin/cabinets — liste tous les cabinets
 router.get('/cabinets', authentifierSuperAdmin, asyncHandler(async (req, res) => {
   const cabinets = await Cabinet.findAll({
