@@ -174,15 +174,18 @@ const rechercherPatients = async (req, res) => {
   const q = (req.query.q || '').trim();
   if (q.length < 2) return succes(res, []);
 
+  const whereRecherche = {
+    archive: false,
+    ...(req.utilisateur.role === 'stockiste' ? { created_by: req.utilisateur.id } : {}),
+    [Op.or]: [
+      { nom: { [Op.like]: `%${q}%` } },
+      { prenom: { [Op.like]: `%${q}%` } },
+      { numero_dossier: { [Op.like]: `%${q}%` } },
+    ],
+  };
+
   const patients = await Patient.findAll({
-    where: {
-      archive: false,
-      [Op.or]: [
-        { nom: { [Op.like]: `%${q}%` } },
-        { prenom: { [Op.like]: `%${q}%` } },
-        { numero_dossier: { [Op.like]: `%${q}%` } },
-      ],
-    },
+    where: whereRecherche,
     attributes: ['id', 'nom', 'prenom', 'numero_dossier', 'date_naissance'],
     order: [['nom', 'ASC'], ['prenom', 'ASC']],
     limit: 15,

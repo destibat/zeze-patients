@@ -38,11 +38,14 @@ const obtenirStats = async (req, res) => {
     ...(estAdmin ? {} : { created_by: userId }),
   };
 
+  // Stockiste : consultations filtrées sur ses propres ordonnances (pas globales)
+  const filtreConsultStockiste = req.utilisateur.role === 'stockiste' ? { medecin_id: userId } : {};
+
   const [patientsActifs, consultationsAujourdhui, consultationsMois, facturesMois, rdvAujourdhui, facturesARelancer] =
     await Promise.all([
       Patient.count({ where: { archive: 0 } }),
-      Consultation.count({ where: { date_consultation: aujourdhui } }),
-      Consultation.count({ where: { date_consultation: { [Op.gte]: debutMois } } }),
+      Consultation.count({ where: { date_consultation: aujourdhui, ...filtreConsultStockiste } }),
+      Consultation.count({ where: { date_consultation: { [Op.gte]: debutMois }, ...filtreConsultStockiste } }),
       Facture.findAll({
         where: whereFacturesMois,
         attributes: ['montant_paye', 'montant_total'],

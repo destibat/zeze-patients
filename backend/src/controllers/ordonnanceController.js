@@ -248,7 +248,7 @@ const _appliquerStockEtMouvements = async (req, lignes, dateOrdonnance, transact
       for (const ligne of lignesAchat) {
         const montant_ligne = ligne.prix_unitaire * ligne.quantite;
         await MouvementDelegue.create({
-          delegue_id: req.utilisateur.id, type: 'achat', statut: 'valide',
+          delegue_id: req.utilisateur.id, type: 'achat', statut: 'en_attente',
           produit_id: ligne.produit_id, quantite: ligne.quantite,
           montant_total: montant_ligne,
           gain_delegue: Math.round(montant_ligne * tauxDelegue),

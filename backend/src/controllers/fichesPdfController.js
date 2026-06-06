@@ -132,7 +132,8 @@ const ficheBilanDelegue = async (req, res) => {
     return res.status(404).json({ message: 'Délégué introuvable' });
   }
 
-  // Achats appro : commandeAppro validées + ordonnances source='achat' (MouvementDelegue type='achat')
+  // Achats appro : commandeAppro validées uniquement (MouvementDelegue type='achat' AVEC lignes JSON)
+  // Les ordonnances source='achat' (sans lignes) sont des ventes directes cabinet → passent dans ventesDirectes
   const filtreDate = {
     [Op.gte]: new Date(exercice.date_ouverture).toISOString().split('T')[0],
     ...(exercice.date_cloture ? { [Op.lte]: new Date(exercice.date_cloture).toISOString().split('T')[0] } : {}),
@@ -149,10 +150,8 @@ const ficheBilanDelegue = async (req, res) => {
     order: [['date_mouvement', 'ASC'], ['created_at', 'ASC']],
   });
 
-  // Normalise les lignes : les mouvements créés par ordonnance (source='achat') n'ont pas de champ
-  // `lignes` JSON — on reconstitue depuis produit_id + quantite + montant_total.
-  const achatsAppro = achatsRaw.map((a) => {
-    const raw = a.toJSON();
+  const normaliserLignes = (a) => {
+    const raw = a.toJSON ? a.toJSON() : a;
     let lignes = raw.lignes;
     if (typeof lignes === 'string') { try { lignes = JSON.parse(lignes); } catch { lignes = []; } }
     if (!Array.isArray(lignes) || lignes.length === 0) {
@@ -162,14 +161,28 @@ const ficheBilanDelegue = async (req, res) => {
       }
     }
     return { ...raw, lignes };
-  });
+  };
+
+  const hasLignes = (a) => {
+    const raw = a.toJSON ? a.toJSON() : a;
+    let l = raw.lignes;
+    if (typeof l === 'string') { try { l = JSON.parse(l); } catch { l = []; } }
+    return Array.isArray(l) && l.length > 0;
+  };
+
+  // commandeAppro = avec lignes JSON ; ventes cabinet direct = sans lignes (reconstituées depuis produit_id)
+  const achatsAppro = achatsRaw.filter(hasLignes).map(normaliserLignes);
+  const ventesCabinetDirect = achatsRaw.filter((a) => !hasLignes(a)).map(normaliserLignes);
 
   // Ventes directes : ventes depuis le stock personnel du délégué (MouvementDelegue type='vente')
-  const ventesDirectes = await MouvementDelegue.findAll({
+  const ventesStockPerso = await MouvementDelegue.findAll({
     where: { delegue_id: delegueId, exercice_id: exerciceId, type: 'vente' },
     order: [['date_mouvement', 'ASC'], ['created_at', 'ASC']],
     raw: true,
   });
+
+  // Combiner ventes cabinet direct + ventes stock perso dans la section "Ventes directes" du PDF
+  const ventesDirectes = [...ventesCabinetDirect, ...ventesStockPerso];
 
   // Stock actuel du délégué (produits avec quantité > 0)
   const stockItems = await StockDelegue.findAll({

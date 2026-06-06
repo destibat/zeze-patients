@@ -203,7 +203,7 @@ const obtenirStatsStock = async (req, res) => {
   const exercice = await getExerciceOuvert();
   const dateOuverture = exercice?.date_ouverture;
 
-  const whereAchat = { delegue_id: req.utilisateur.id, type: 'achat' };
+  const whereAchat = { delegue_id: req.utilisateur.id, type: 'achat', statut: 'valide' };
   if (dateOuverture) whereAchat.date_mouvement = { [Op.gte]: dateOuverture };
 
   const whereVente = { delegue_id: req.utilisateur.id, type: 'vente' };
@@ -280,6 +280,7 @@ const obtenirGainsDelegues = async (req, res) => {
       where: {
         delegue_id: { [Op.in]: ids },
         type: 'achat',
+        statut: 'valide',
         date_mouvement: { [Op.gte]: exercice.date_ouverture },
       },
       attributes: ['delegue_id', 'montant_total', 'gain_delegue', 'commission_stockiste'],

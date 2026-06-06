@@ -1,7 +1,25 @@
 'use strict';
 
-const { Facture, Ordonnance, Patient, User, Exercice } = require('../models');
+const { Facture, Ordonnance, Patient, User, Exercice, MouvementDelegue } = require('../models');
 const { Op } = require('sequelize');
+const { getCabinetId } = require('../config/cabinetContext');
+
+// Valide les MouvementDelegue type='achat' en_attente liés à une ordonnance
+const validerMouvDelegueOrdonnance = async (ordonnance) => {
+  if (!ordonnance?.medecin_id) return;
+  const cabinetId = getCabinetId();
+  await MouvementDelegue.update(
+    { statut: 'valide' },
+    { where: {
+      delegue_id: ordonnance.medecin_id,
+      type: 'achat',
+      statut: 'en_attente',
+      lignes: null,
+      date_mouvement: ordonnance.date_ordonnance,
+      cabinet_id: cabinetId,
+    }}
+  );
+};
 const { genererPdfFacture } = require('../services/pdfFactureService');
 
 const INCLUDE_BASE = [
@@ -101,6 +119,7 @@ const creerDepuisOrdonnance = async (req, res) => {
   }
 
   const paye = Math.min(parseInt(montant_paye) || 0, ordonnance.montant_total);
+  const statut = calculerStatut(ordonnance.montant_total, paye);
   const numero = await genererNumero();
 
   const facture = await Facture.create({
@@ -112,11 +131,13 @@ const creerDepuisOrdonnance = async (req, res) => {
     montant_total: ordonnance.montant_total,
     montant_paye: paye,
     mode_paiement: mode_paiement || null,
-    statut: calculerStatut(ordonnance.montant_total, paye),
+    statut,
     lignes: ordonnance.lignes,
     notes,
     exercice_id: exercice.id,
   });
+
+  if (statut === 'payee') await validerMouvDelegueOrdonnance(ordonnance);
 
   const factureComplete = await Facture.findByPk(facture.id, { include: INCLUDE_BASE });
   res.status(201).json(factureComplete);
@@ -149,6 +170,14 @@ const enregistrerPaiement = async (req, res) => {
   }
 
   await facture.update(updateData);
+
+  if (nouveauStatut === 'payee' && facture.ordonnance_id) {
+    const ordonnance = await Ordonnance.findByPk(facture.ordonnance_id, {
+      attributes: ['medecin_id', 'date_ordonnance'],
+    });
+    await validerMouvDelegueOrdonnance(ordonnance);
+  }
+
   res.json(facture);
 };
 
