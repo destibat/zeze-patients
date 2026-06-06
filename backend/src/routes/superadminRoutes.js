@@ -3,9 +3,10 @@
 const express = require('express');
 const jwt = require('jsonwebtoken');
 const { asyncHandler } = require('../middlewares/errorHandler');
-const { sequelize } = require('../models');
+const { sequelize, Cabinet, User, ParametreCabinet } = require('../models');
 const { invaliderCache } = require('../middlewares/verifierAbonnement');
 const { getCabinetId } = require('../config/cabinetContext');
+const { v4: uuidv4 } = require('uuid');
 
 const router = express.Router();
 
@@ -84,6 +85,65 @@ router.put('/abonnement', authentifierSuperAdmin, asyncHandler(async (req, res) 
   }
   invaliderCache(cabinetId);
   res.json({ ok: true, abonnement: await lireAbonnement(cabinetId) });
+}));
+
+// GET /api/superadmin/cabinets — liste tous les cabinets
+router.get('/cabinets', authentifierSuperAdmin, asyncHandler(async (req, res) => {
+  const cabinets = await Cabinet.findAll({
+    attributes: ['id', 'slug', 'domaine', 'nom', 'actif', 'created_at'],
+    order: [['created_at', 'ASC']],
+    _bypass_cabinet: true,
+  });
+  res.json(cabinets);
+}));
+
+// POST /api/superadmin/cabinets — crée un cabinet + son premier admin
+router.post('/cabinets', authentifierSuperAdmin, asyncHandler(async (req, res) => {
+  const { slug, domaine, nom, adresse = '', admin_email, admin_password, admin_nom, admin_prenom } = req.body;
+
+  if (!slug || !domaine || !nom || !admin_email || !admin_password) {
+    return res.status(400).json({ message: 'Champs requis : slug, domaine, nom, admin_email, admin_password' });
+  }
+
+  const slugNormalise = slug.toLowerCase().replace(/[^a-z0-9-]/g, '-');
+
+  const existant = await Cabinet.findOne({ where: { slug: slugNormalise }, _bypass_cabinet: true });
+  if (existant) return res.status(409).json({ message: `Un cabinet avec le slug "${slugNormalise}" existe déjà` });
+
+  const cabinetId = uuidv4();
+  const opts = { _bypass_cabinet: true };
+
+  const transaction = await sequelize.transaction();
+  try {
+    await Cabinet.create({ id: cabinetId, slug: slugNormalise, domaine, nom, actif: true }, { ...opts, transaction });
+
+    await User.create({
+      nom: admin_nom || 'Admin',
+      prenom: admin_prenom || '',
+      email: admin_email,
+      password_hash: admin_password,
+      role: 'administrateur',
+      cabinet_id: cabinetId,
+      actif: true,
+    }, { ...opts, transaction });
+
+    const params = [
+      ['nom_cabinet', nom],
+      ['adresse', adresse],
+      ['commission_stockiste', '30'],
+      ['commission_delegue', '15'],
+      ['abonnement_actif', '1'],
+    ];
+    for (const [cle, valeur] of params) {
+      await ParametreCabinet.create({ cabinet_id: cabinetId, cle, valeur }, { ...opts, transaction });
+    }
+
+    await transaction.commit();
+    res.status(201).json({ ok: true, cabinet_id: cabinetId, slug: slugNormalise, domaine });
+  } catch (err) {
+    await transaction.rollback();
+    throw err;
+  }
 }));
 
 module.exports = router;

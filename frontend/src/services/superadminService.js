@@ -26,3 +26,13 @@ export const updateAbonnement = async (token, payload) => {
   const { data } = await superadminApi(token).put('/superadmin/abonnement', payload);
   return data;
 };
+
+export const listerCabinets = async (token) => {
+  const { data } = await superadminApi(token).get('/superadmin/cabinets');
+  return data;
+};
+
+export const creerCabinet = async (token, payload) => {
+  const { data } = await superadminApi(token).post('/superadmin/cabinets', payload);
+  return data;
+};

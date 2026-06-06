@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Shield, LogOut, Save, RefreshCw, CheckCircle2, XCircle, Loader2, AlertTriangle } from 'lucide-react';
-import { loginSuperAdmin, getAbonnement, updateAbonnement } from '../services/superadminService';
+import { Shield, LogOut, Save, RefreshCw, CheckCircle2, XCircle, Loader2, AlertTriangle, PlusCircle, Building2 } from 'lucide-react';
+import { loginSuperAdmin, getAbonnement, updateAbonnement, listerCabinets, creerCabinet } from '../services/superadminService';
 
 const TOKEN_KEY = 'superadmin_token';
 
@@ -232,12 +232,129 @@ const FormulaireAbonnement = ({ data, token, onSaved }) => {
   );
 };
 
+// ── Formulaire création cabinet ───────────────────────────────────────────────
+const FormulaireCabinet = ({ token, onCreated }) => {
+  const vide = { slug: '', domaine: '', nom: '', adresse: '', admin_email: '', admin_password: '', admin_nom: '', admin_prenom: '' };
+  const [form, setForm] = useState(vide);
+  const [saving, setSaving] = useState(false);
+  const [succes, setSucces] = useState(null);
+  const [erreur, setErreur] = useState('');
+
+  const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    setErreur('');
+    setSucces(null);
+    try {
+      const res = await creerCabinet(token, form);
+      setSucces(res);
+      setForm(vide);
+      onCreated();
+    } catch (err) {
+      setErreur(err?.response?.data?.message || 'Erreur lors de la création');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const champ = (label, key, type = 'text', placeholder = '') => (
+    <div>
+      <label className="block text-xs font-medium text-gray-600 mb-1">{label}</label>
+      <input
+        type={type}
+        value={form[key]}
+        onChange={set(key)}
+        placeholder={placeholder}
+        className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+      />
+    </div>
+  );
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      {succes && (
+        <div className="bg-green-50 border border-green-200 rounded-xl p-4 text-sm text-green-800">
+          <p className="font-semibold flex items-center gap-1.5"><CheckCircle2 size={14} /> Cabinet créé</p>
+          <p className="mt-1 font-mono text-xs">{succes.domaine} · ID {succes.cabinet_id.slice(0, 8)}…</p>
+        </div>
+      )}
+      {erreur && (
+        <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-sm text-red-700 flex items-center gap-2">
+          <AlertTriangle size={14} />{erreur}
+        </div>
+      )}
+
+      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Cabinet</p>
+      {champ('Nom du cabinet *', 'nom', 'text', 'Ex: Cabinet Dupont')}
+      {champ('Slug (URL) *', 'slug', 'text', 'ex: dupont → dupont.zezepagnon.solutions')}
+      {champ('Domaine complet *', 'domaine', 'text', 'dupont.zezepagnon.solutions')}
+      {champ('Adresse', 'adresse', 'text', 'Rue, ville…')}
+
+      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide pt-2">Premier administrateur</p>
+      <div className="grid grid-cols-2 gap-3">
+        {champ('Prénom', 'admin_prenom', 'text', 'Jean')}
+        {champ('Nom', 'admin_nom', 'text', 'Dupont')}
+      </div>
+      {champ('Email *', 'admin_email', 'email', 'admin@cabinet.com')}
+      {champ('Mot de passe *', 'admin_password', 'password', '••••••••')}
+
+      <button
+        type="submit"
+        disabled={saving}
+        className="w-full flex items-center justify-center gap-2 bg-green-700 hover:bg-green-800 text-white font-semibold py-2.5 rounded-xl text-sm transition-colors disabled:opacity-50"
+      >
+        {saving ? <Loader2 size={15} className="animate-spin" /> : <PlusCircle size={15} />}
+        Créer le cabinet
+      </button>
+    </form>
+  );
+};
+
+// ── Liste des cabinets ────────────────────────────────────────────────────────
+const ListeCabinets = ({ token }) => {
+  const [cabinets, setCabinets] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const charger = async () => {
+    try {
+      const data = await listerCabinets(token);
+      setCabinets(data);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { charger(); }, []);
+
+  if (loading) return <div className="flex justify-center py-6"><Loader2 className="animate-spin text-green-600 w-5 h-5" /></div>;
+
+  return (
+    <div className="space-y-2">
+      {cabinets.map((c) => (
+        <div key={c.id} className="bg-white border border-gray-200 rounded-xl p-3 flex items-center justify-between">
+          <div>
+            <p className="font-medium text-sm text-gray-900">{c.nom}</p>
+            <p className="text-xs text-gray-400 font-mono">{c.domaine}</p>
+          </div>
+          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${c.actif ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+            {c.actif ? 'Actif' : 'Suspendu'}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+};
+
 // ── Page principale ───────────────────────────────────────────────────────────
 const SuperAdminPage = () => {
   const [token, setToken] = useState(() => sessionStorage.getItem(TOKEN_KEY) || '');
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [erreur, setErreur] = useState('');
+  const [onglet, setOnglet] = useState('abonnement');
+  const [refreshCabinets, setRefreshCabinets] = useState(0);
 
   const charger = async (tok) => {
     setLoading(true);
@@ -262,6 +379,7 @@ const SuperAdminPage = () => {
   }, [token]);
 
   const handleLogin = (tok) => {
+    sessionStorage.setItem(TOKEN_KEY, tok);
     setToken(tok);
   };
 
@@ -272,6 +390,11 @@ const SuperAdminPage = () => {
   };
 
   if (!token) return <LoginForm onLogin={handleLogin} />;
+
+  const ONGLETS = [
+    { id: 'abonnement', label: 'Abonnement', icone: Shield },
+    { id: 'cabinets',   label: 'Cabinets',   icone: Building2 },
+  ];
 
   return (
     <div className="min-h-screen bg-gray-50 px-4 py-8">
@@ -287,55 +410,62 @@ const SuperAdminPage = () => {
               <p className="text-xs text-gray-500 mt-0.5">ZEZEPAGNON</p>
             </div>
           </div>
-          <button
-            onClick={handleLogout}
-            className="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1.5 transition-colors"
-          >
-            <LogOut size={14} />
-            Déconnexion
+          <button onClick={handleLogout} className="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1.5 transition-colors">
+            <LogOut size={14} /> Déconnexion
           </button>
         </div>
 
-        {loading && (
-          <div className="flex items-center justify-center py-16">
-            <Loader2 className="w-7 h-7 animate-spin text-green-600" />
-          </div>
-        )}
+        {/* Onglets */}
+        <div className="flex gap-1 bg-gray-200 rounded-xl p-1 mb-6">
+          {ONGLETS.map(({ id, label, icone: Icone }) => (
+            <button
+              key={id}
+              onClick={() => setOnglet(id)}
+              className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-sm font-medium transition-colors ${onglet === id ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+            >
+              <Icone size={14} /> {label}
+            </button>
+          ))}
+        </div>
 
-        {erreur && (
-          <div className="bg-red-50 border border-red-200 rounded-2xl p-4 text-sm text-red-700 flex items-center gap-2">
-            <AlertTriangle size={15} />
-            {erreur}
-          </div>
-        )}
-
-        {data && !loading && (
+        {/* Onglet Abonnement */}
+        {onglet === 'abonnement' && (
           <>
-            {/* Cabinet info */}
-            <div className="bg-white rounded-2xl border border-gray-200 p-5 mb-5 flex items-center justify-between">
-              <div>
-                <p className="text-xs text-gray-500 uppercase tracking-wide font-medium">Cabinet</p>
-                <p className="font-semibold text-gray-900 mt-0.5">{data.nom_cabinet || '—'}</p>
-                <p className="text-xs text-gray-400 mt-0.5">{window.location.hostname}</p>
-              </div>
-              <div className="flex flex-col items-end gap-1.5">
-                {badgeStatut(data.actif, data.expire_le)}
-                <button
-                  onClick={() => charger(token)}
-                  className="text-xs text-gray-400 hover:text-gray-600 flex items-center gap-1 transition-colors"
-                >
-                  <RefreshCw size={11} />
-                  Actualiser
-                </button>
-              </div>
-            </div>
-
-            <FormulaireAbonnement
-              data={data}
-              token={token}
-              onSaved={() => charger(token)}
-            />
+            {loading && <div className="flex justify-center py-16"><Loader2 className="w-7 h-7 animate-spin text-green-600" /></div>}
+            {erreur && <div className="bg-red-50 border border-red-200 rounded-2xl p-4 text-sm text-red-700 flex items-center gap-2"><AlertTriangle size={15} />{erreur}</div>}
+            {data && !loading && (
+              <>
+                <div className="bg-white rounded-2xl border border-gray-200 p-5 mb-5 flex items-center justify-between">
+                  <div>
+                    <p className="text-xs text-gray-500 uppercase tracking-wide font-medium">Cabinet</p>
+                    <p className="font-semibold text-gray-900 mt-0.5">{data.nom_cabinet || '—'}</p>
+                    <p className="text-xs text-gray-400 mt-0.5">{window.location.hostname}</p>
+                  </div>
+                  <div className="flex flex-col items-end gap-1.5">
+                    {badgeStatut(data.actif, data.expire_le)}
+                    <button onClick={() => charger(token)} className="text-xs text-gray-400 hover:text-gray-600 flex items-center gap-1 transition-colors">
+                      <RefreshCw size={11} /> Actualiser
+                    </button>
+                  </div>
+                </div>
+                <FormulaireAbonnement data={data} token={token} onSaved={() => charger(token)} />
+              </>
+            )}
           </>
+        )}
+
+        {/* Onglet Cabinets */}
+        {onglet === 'cabinets' && (
+          <div className="space-y-6">
+            <div className="bg-white rounded-2xl border border-gray-200 p-5">
+              <h2 className="font-semibold text-gray-900 mb-4 flex items-center gap-2"><PlusCircle size={16} className="text-green-600" /> Nouveau cabinet</h2>
+              <FormulaireCabinet token={token} onCreated={() => setRefreshCabinets(r => r + 1)} />
+            </div>
+            <div className="bg-white rounded-2xl border border-gray-200 p-5">
+              <h2 className="font-semibold text-gray-900 mb-4 flex items-center gap-2"><Building2 size={16} className="text-green-600" /> Cabinets existants</h2>
+              <ListeCabinets key={refreshCabinets} token={token} />
+            </div>
+          </div>
         )}
       </div>
     </div>
