@@ -535,7 +535,8 @@ const genererPdfAnalyse = (analyse, patient) =>
     }
 
     // ── Pagination ─────────────────────────────────────────────────────────────
-    doc.flushPages();
+    // flushPages() vidait le buffer avant le loop — bufferedPageRange().count
+    // retournait 0 et les footers n'étaient jamais dessinés. doc.end() flush automatiquement.
     const total = doc.bufferedPageRange().count;
     for (let i = 0; i < total; i++) {
       doc.switchToPage(i);
