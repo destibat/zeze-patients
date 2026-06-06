@@ -25,13 +25,24 @@ const originesAutorisees = config.app.frontendUrl
   .map((u) => u.trim())
   .filter(Boolean);
 
+// Domaines wildcard autorisés (ex: *.zezepagnon.solutions pour tous les cabinets MT)
+const WILDCARD_DOMAINS = ['zezepagnon.solutions'];
+
+const origineAutorisee = (origin) => {
+  if (!origin) return true;
+  if (config.env === 'development') return true;
+  if (originesAutorisees.includes(origin)) return true;
+  try {
+    const host = new URL(origin).hostname;
+    return WILDCARD_DOMAINS.some((d) => host === d || host.endsWith(`.${d}`));
+  } catch {
+    return false;
+  }
+};
+
 app.use(cors({
   origin: (origin, callback) => {
-    // Autorise les requêtes sans Origin (ex: Postman, curl)
-    if (!origin) return callback(null, true);
-    // En développement, autorise tout le réseau local
-    if (config.env === 'development') return callback(null, true);
-    if (originesAutorisees.includes(origin)) return callback(null, true);
+    if (origineAutorisee(origin)) return callback(null, true);
     callback(new Error(`Origine CORS non autorisée : ${origin}`));
   },
   credentials: true,
