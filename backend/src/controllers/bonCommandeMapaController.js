@@ -45,7 +45,7 @@ const mettreAJour = async (req, res) => {
     return res.status(409).json({ message: 'Seul un brouillon peut être modifié.' });
   }
 
-  const { lignes, notes } = req.body;
+  const { lignes, notes, nom_commandeur, prenoms_commandeur, telephone_commandeur, lieu_livraison, nom_stockiste_mapa, date_livraison_prevue } = req.body;
   const montant_total = Array.isArray(lignes)
     ? lignes.reduce((s, l) => s + (l.prix_unitaire || 0) * (l.quantite || 0), 0)
     : bc.montant_total;
@@ -53,6 +53,12 @@ const mettreAJour = async (req, res) => {
   await bc.update({
     ...(Array.isArray(lignes) ? { lignes, montant_total } : {}),
     ...(notes !== undefined ? { notes } : {}),
+    ...(nom_commandeur !== undefined ? { nom_commandeur } : {}),
+    ...(prenoms_commandeur !== undefined ? { prenoms_commandeur } : {}),
+    ...(telephone_commandeur !== undefined ? { telephone_commandeur } : {}),
+    ...(lieu_livraison !== undefined ? { lieu_livraison } : {}),
+    ...(nom_stockiste_mapa !== undefined ? { nom_stockiste_mapa } : {}),
+    ...(date_livraison_prevue !== undefined ? { date_livraison_prevue } : {}),
   });
 
   const bcMaj = await BonCommandeMapa.findByPk(bc.id, { include: includeCreateur });
@@ -70,6 +76,9 @@ const confirmer = async (req, res) => {
   const lignes = Array.isArray(bc.lignes) ? bc.lignes : [];
   if (lignes.length === 0) {
     return res.status(400).json({ message: 'Ajoutez au moins un produit avant d\'envoyer.' });
+  }
+  if (!bc.nom_stockiste_mapa?.trim()) {
+    return res.status(400).json({ message: 'Le nom du stockiste MAPA est obligatoire.' });
   }
 
   await bc.update({

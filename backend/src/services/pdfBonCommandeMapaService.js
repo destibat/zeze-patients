@@ -4,22 +4,23 @@ const PDFDocument = require('pdfkit');
 const path = require('path');
 const fs = require('fs');
 
-const ASSETS     = path.resolve(__dirname, '../assets');
-const LOGO_MAPA  = path.join(ASSETS, 'logo-mapa.jpg');
-const FOOTER     = path.join(ASSETS, 'footer-mapa.jpg');
+const ASSETS    = path.resolve(__dirname, '../assets');
+const LOGO_MAPA = path.join(ASSETS, 'logo-mapa.jpg');
+const FOOTER    = path.join(ASSETS, 'footer-mapa.jpg');
 
 const PAGE_W      = 495;
 const MARGIN_LEFT = 50;
 const MARGIN_TOP  = 20;
-const FOOTER_H    = Math.round(PAGE_W * 360 / 1800);
+const FOOTER_H    = 99;
 const FOOTER_Y    = 842 - 20 - FOOTER_H;
 
-const VERT       = '#1B5E20';
-const VERT_FOND  = '#E8F5E9';
-const GRIS       = '#616161';
+// Couleurs MAPA officielles
+const BLEU       = '#1A237E';
+const ROUGE      = '#B71C1C';
+const BLEU_CLAIR = '#E8EAF6';
+const GRIS       = '#424242';
 const GRIS_BORD  = '#BDBDBD';
 const NOIR       = '#212121';
-const ORANGE     = '#E65100';
 
 const formatDate = (d) => {
   if (!d) return '—';
@@ -28,7 +29,9 @@ const formatDate = (d) => {
 
 const formatMontant = (n) => new Intl.NumberFormat('fr-FR').format(n || 0) + ' FCFA';
 
-const genererPdfBonCommande = (bonCommande, infosCabinet) =>
+const tirets = (nb) => '.'.repeat(nb);
+
+const genererPdfBonCommande = (bc, infosCabinet) =>
   new Promise((resolve, reject) => {
     const doc = new PDFDocument({ margin: MARGIN_LEFT, size: 'A4', autoFirstPage: true });
     const chunks = [];
@@ -36,152 +39,169 @@ const genererPdfBonCommande = (bonCommande, infosCabinet) =>
     doc.on('end', () => resolve(Buffer.concat(chunks)));
     doc.on('error', reject);
 
-    const lignes    = Array.isArray(bonCommande.lignes) ? bonCommande.lignes : [];
-    const createur  = bonCommande.createur;
-    const nomCabinet = infosCabinet?.nom_cabinet || `${createur?.prenom || ''} ${createur?.nom || ''}`.trim() || 'Cabinet';
-    const telCabinet = infosCabinet?.telephone_cabinet || '';
-    const villeCabinet = infosCabinet?.ville_cabinet || '';
-
+    const lignes = Array.isArray(bc.lignes) ? bc.lignes : [];
     let y = MARGIN_TOP;
 
-    // ── Logo MAPA ────────────────────────────────────────────────────────────
-    const logoH = 70;
+    // ── Logo MAPA en filigrane (centré, semi-transparent) ───────────────────
     if (fs.existsSync(LOGO_MAPA)) {
-      doc.image(LOGO_MAPA, MARGIN_LEFT, y, { height: logoH, align: 'left' });
+      doc.save();
+      doc.opacity(0.08);
+      const logoSize = 260;
+      const logoX = MARGIN_LEFT + (PAGE_W - logoSize) / 2;
+      const logoY = 200;
+      doc.image(LOGO_MAPA, logoX, logoY, { width: logoSize });
+      doc.restore();
     }
 
-    // Titre et numéro côte-à-côte avec le logo
-    const titreX = MARGIN_LEFT + 120;
-    const titreW = PAGE_W - 120;
-    doc.fontSize(20).font('Helvetica-Bold').fillColor(VERT)
-       .text('BON DE COMMANDE', titreX, y + 8, { width: titreW, align: 'right' });
-    doc.fontSize(10).font('Helvetica').fillColor(GRIS)
-       .text(`N° ${bonCommande.numero}`, titreX, y + 34, { width: titreW, align: 'right' });
+    // ── En-tête : logo à gauche, titre à droite ──────────────────────────────
+    if (fs.existsSync(LOGO_MAPA)) {
+      doc.image(LOGO_MAPA, MARGIN_LEFT, y, { height: 70 });
+    }
+
+    const titreX = MARGIN_LEFT + 90;
+    const titreW = PAGE_W - 90;
+    doc.fontSize(20).font('Helvetica-Bold').fillColor(BLEU)
+       .text('BON DE COMMANDE', titreX, y + 4, { width: titreW, align: 'right' });
+    doc.fontSize(9).font('Helvetica').fillColor(ROUGE)
+       .text('MAXIMIZING AMERICAN POTENTIAL IN AFRICA', titreX, y + 30, { width: titreW, align: 'right' });
     doc.fontSize(9).font('Helvetica').fillColor(GRIS)
-       .text(`Date : ${formatDate(bonCommande.date_commande)}`, titreX, y + 48, { width: titreW, align: 'right' });
+       .text(`N° ${bc.numero}`, titreX, y + 46, { width: titreW, align: 'right' });
 
-    y = MARGIN_TOP + logoH + 14;
+    y += 80;
+
+    // Ligne rouge séparatrice
     doc.moveTo(MARGIN_LEFT, y).lineTo(MARGIN_LEFT + PAGE_W, y)
-       .strokeColor(VERT).lineWidth(1.5).stroke();
-    y += 12;
+       .strokeColor(ROUGE).lineWidth(2).stroke();
+    y += 10;
 
-    // ── Bloc commandeur / destinataire ───────────────────────────────────────
-    const colG = MARGIN_LEFT;
-    const colD = MARGIN_LEFT + PAGE_W / 2 + 10;
-    const halfW = PAGE_W / 2 - 14;
+    // ── Section formulaire (format officiel MAPA) ────────────────────────────
+    const nomPrenom = [bc.nom_commandeur, bc.prenoms_commandeur].filter(Boolean).join(' ');
+    const nomStockiste = bc.nom_stockiste_mapa || '';
 
-    // Bloc "Commandeur"
-    doc.rect(colG, y, halfW, 14).fill(VERT);
-    doc.fontSize(8).font('Helvetica-Bold').fillColor('white')
-       .text('COMMANDEUR', colG + 4, y + 3, { width: halfW - 8 });
-    y += 18;
+    // NOM ET PRENOM
+    doc.fontSize(10).font('Helvetica-Bold').fillColor(NOIR)
+       .text('NOM ET PRENOM : ', MARGIN_LEFT, y, { continued: true })
+       .font('Helvetica').fillColor(GRIS)
+       .text(nomPrenom || tirets(60));
+    y += 16;
+
+    // CONTACT + ABIDJAN LE (même ligne)
     doc.font('Helvetica-Bold').fontSize(10).fillColor(NOIR)
-       .text(nomCabinet, colG, y, { width: halfW });
-    y += 14;
-    doc.font('Helvetica').fontSize(8).fillColor(GRIS);
-    if (telCabinet) { doc.text(`Tél : ${telCabinet}`, colG, y, { width: halfW }); y += 11; }
-    if (villeCabinet) { doc.text(villeCabinet, colG, y, { width: halfW }); y += 11; }
-    if (createur?.email) { doc.text(createur.email, colG, y, { width: halfW }); y += 11; }
+       .text('CONTACT : ', MARGIN_LEFT, y, { continued: true })
+       .font('Helvetica').fillColor(GRIS)
+       .text(bc.telephone_commandeur || tirets(25), { continued: true })
+       .font('Helvetica-Bold').fillColor(NOIR)
+       .text('          ABIDJAN LE : ', { continued: true })
+       .font('Helvetica').fillColor(GRIS)
+       .text(formatDate(bc.date_commande));
+    y += 16;
 
-    const yApresCmdeur = y;
-
-    // Bloc "Destinataire" (MAPA)
-    let yD = MARGIN_TOP + logoH + 26;
-    doc.rect(colD, yD, halfW, 14).fill(ORANGE);
-    doc.fontSize(8).font('Helvetica-Bold').fillColor('white')
-       .text('DESTINATAIRE', colD + 4, yD + 3, { width: halfW - 8 });
-    yD += 18;
+    // LIEU
     doc.font('Helvetica-Bold').fontSize(10).fillColor(NOIR)
-       .text('MAPA — Marché Africain', colD, yD, { width: halfW });
-    yD += 14;
-    doc.font('Helvetica').fontSize(8).fillColor(GRIS)
-       .text('des Produits Alimentaires', colD, yD, { width: halfW });
+       .text('LIEU : ', MARGIN_LEFT, y, { continued: true })
+       .font('Helvetica').fillColor(GRIS)
+       .text(bc.lieu_livraison || tirets(55));
+    y += 16;
 
-    y = Math.max(yApresCmdeur, yD + 14) + 14;
+    // STOCKISTE (remplace l'email)
+    doc.font('Helvetica-Bold').fontSize(10).fillColor(NOIR)
+       .text('STOCKISTE : ', MARGIN_LEFT, y, { continued: true })
+       .font('Helvetica').fillColor(GRIS)
+       .text(nomStockiste || tirets(55));
+    y += 16;
 
-    // ── Titre tableau ────────────────────────────────────────────────────────
-    doc.font('Helvetica-Bold').fontSize(9).fillColor(VERT)
-       .text('DÉTAIL DE LA COMMANDE', MARGIN_LEFT, y);
-    y += 14;
+    // Date de livraison prévue si renseignée
+    if (bc.date_livraison_prevue) {
+      doc.font('Helvetica-Bold').fontSize(10).fillColor(NOIR)
+         .text('LIVRAISON PRÉVUE : ', MARGIN_LEFT, y, { continued: true })
+         .font('Helvetica').fillColor(GRIS)
+         .text(formatDate(bc.date_livraison_prevue));
+      y += 16;
+    }
 
-    // En-têtes colonnes
+    y += 8;
+
+    // Ligne bleue avant le tableau
+    doc.moveTo(MARGIN_LEFT, y).lineTo(MARGIN_LEFT + PAGE_W, y)
+       .strokeColor(BLEU).lineWidth(1).stroke();
+    y += 8;
+
+    // ── Tableau produits ─────────────────────────────────────────────────────
+    // Colonnes : Désignation | Quantité | Prix unitaire | Montant
     const C = {
-      ref:    MARGIN_LEFT,
-      nom:    MARGIN_LEFT + 70,
-      qte:    MARGIN_LEFT + 295,
-      pu:     MARGIN_LEFT + 345,
-      total:  MARGIN_LEFT + 415,
+      nom:   MARGIN_LEFT,
+      qte:   MARGIN_LEFT + 300,
+      pu:    MARGIN_LEFT + 355,
+      total: MARGIN_LEFT + 420,
     };
     const W = {
-      ref:   66,
-      nom:   220,
-      qte:   46,
-      pu:    66,
-      total: 80,
+      nom:   296,
+      qte:   52,
+      pu:    62,
+      total: 75,
     };
 
-    doc.rect(MARGIN_LEFT, y, PAGE_W, 16).fill(VERT);
-    doc.fontSize(8).font('Helvetica-Bold').fillColor('white')
-       .text('Réf.',       C.ref + 3,   y + 4, { width: W.ref - 3 })
-       .text('Désignation', C.nom + 3,  y + 4, { width: W.nom - 3 })
-       .text('Qté',        C.qte,       y + 4, { width: W.qte,   align: 'center' })
-       .text('P.U.',       C.pu,        y + 4, { width: W.pu,    align: 'right' })
-       .text('Montant',    C.total,     y + 4, { width: W.total, align: 'right' });
-    y += 18;
-
-    // Lignes produits
-    lignes.forEach((l, idx) => {
-      const fond = idx % 2 === 0 ? VERT_FOND : 'white';
-      doc.rect(MARGIN_LEFT, y, PAGE_W, 20).fill(fond);
-      doc.rect(MARGIN_LEFT, y, PAGE_W, 20).strokeColor(GRIS_BORD).lineWidth(0.2).stroke();
-
-      const ref = l.reference_mapa || '—';
-      doc.font('Helvetica').fontSize(8).fillColor(NOIR)
-         .text(ref,                                                      C.ref + 3,  y + 5, { width: W.ref - 3,    lineBreak: false })
-         .text(l.nom_produit || '—',                                     C.nom + 3,  y + 5, { width: W.nom - 3,    lineBreak: false })
-         .text(String(l.quantite || 0),                                  C.qte,      y + 5, { width: W.qte,   align: 'center', lineBreak: false })
-         .text(formatMontant(l.prix_unitaire),                           C.pu,       y + 5, { width: W.pu,    align: 'right',  lineBreak: false })
-         .text(formatMontant((l.prix_unitaire || 0) * (l.quantite || 0)), C.total,   y + 5, { width: W.total, align: 'right',  lineBreak: false });
-      y += 22;
-    });
+    // En-tête tableau
+    doc.rect(MARGIN_LEFT, y, PAGE_W, 18).fill(BLEU);
+    doc.fontSize(8.5).font('Helvetica-Bold').fillColor('white')
+       .text('DÉSIGNATION',   C.nom + 4,   y + 5, { width: W.nom - 4 })
+       .text('QTÉ',           C.qte,        y + 5, { width: W.qte,   align: 'center' })
+       .text('PRIX UNIT.',    C.pu,         y + 5, { width: W.pu,    align: 'right' })
+       .text('MONTANT',       C.total,      y + 5, { width: W.total, align: 'right' });
+    y += 20;
 
     if (lignes.length === 0) {
-      doc.rect(MARGIN_LEFT, y, PAGE_W, 24).fill(VERT_FOND);
-      doc.font('Helvetica').fontSize(9).fillColor(GRIS)
-         .text('Aucune ligne de commande', MARGIN_LEFT, y + 7, { width: PAGE_W, align: 'center' });
-      y += 26;
+      doc.rect(MARGIN_LEFT, y, PAGE_W, 22).fill(BLEU_CLAIR);
+      doc.fontSize(9).font('Helvetica').fillColor(GRIS)
+         .text('Aucune ligne de commande', MARGIN_LEFT, y + 6, { width: PAGE_W, align: 'center' });
+      y += 24;
+    } else {
+      lignes.forEach((l, idx) => {
+        const fond = idx % 2 === 0 ? BLEU_CLAIR : 'white';
+        doc.rect(MARGIN_LEFT, y, PAGE_W, 20).fill(fond);
+        doc.rect(MARGIN_LEFT, y, PAGE_W, 20).strokeColor(GRIS_BORD).lineWidth(0.2).stroke();
+
+        doc.font('Helvetica-Bold').fontSize(8.5).fillColor(NOIR)
+           .text(l.nom_produit || '—', C.nom + 4, y + 5, { width: W.nom - 8, lineBreak: false });
+        doc.font('Helvetica').fontSize(8.5).fillColor(NOIR)
+           .text(String(l.quantite || 0),                                    C.qte,   y + 5, { width: W.qte,   align: 'center', lineBreak: false })
+           .text(formatMontant(l.prix_unitaire),                              C.pu,    y + 5, { width: W.pu,    align: 'right',  lineBreak: false })
+           .text(formatMontant((l.prix_unitaire || 0) * (l.quantite || 0)),  C.total, y + 5, { width: W.total, align: 'right',  lineBreak: false });
+        y += 22;
+      });
     }
 
+    // Ligne rouge sous le tableau
+    doc.moveTo(MARGIN_LEFT, y).lineTo(MARGIN_LEFT + PAGE_W, y)
+       .strokeColor(ROUGE).lineWidth(1.5).stroke();
+    y += 10;
+
     // ── Total ────────────────────────────────────────────────────────────────
-    y += 8;
     const totalX = MARGIN_LEFT + PAGE_W / 2;
     const totalW = PAGE_W / 2;
-    doc.moveTo(totalX, y - 2).lineTo(MARGIN_LEFT + PAGE_W, y - 2)
-       .strokeColor(VERT).lineWidth(0.8).stroke();
 
-    doc.rect(totalX, y, totalW, 20).fill(VERT);
-    doc.fontSize(10).font('Helvetica-Bold').fillColor('white')
-       .text('MONTANT TOTAL',            totalX + 6,           y + 5, { width: totalW / 2 })
-       .text(formatMontant(bonCommande.montant_total), totalX + totalW / 2, y + 5, { width: totalW / 2 - 6, align: 'right' });
-    y += 28;
+    doc.rect(totalX, y, totalW, 22).fill(BLEU);
+    doc.fontSize(10.5).font('Helvetica-Bold').fillColor('white')
+       .text('TOTAL GÉNÉRAL',          totalX + 6,          y + 5, { width: totalW / 2 })
+       .text(formatMontant(bc.montant_total), totalX + totalW / 2, y + 5, { width: totalW / 2 - 6, align: 'right' });
+    y += 30;
 
     // ── Notes ────────────────────────────────────────────────────────────────
-    if (bonCommande.notes) {
-      y += 6;
-      doc.font('Helvetica-Bold').fontSize(8).fillColor(GRIS).text('Remarques :', MARGIN_LEFT, y);
+    if (bc.notes) {
+      doc.font('Helvetica-Bold').fontSize(8).fillColor(BLEU).text('REMARQUES :', MARGIN_LEFT, y);
       y += 12;
       doc.font('Helvetica').fontSize(8).fillColor(NOIR)
-         .text(bonCommande.notes, MARGIN_LEFT, y, { width: PAGE_W });
+         .text(bc.notes, MARGIN_LEFT, y, { width: PAGE_W });
       y += 20;
     }
 
-    // ── Zone signatures ──────────────────────────────────────────────────────
-    const ySign = Math.max(y + 20, FOOTER_Y - 70);
-    doc.font('Helvetica').fontSize(8).fillColor(GRIS)
-       .text('Signature & Cachet Commandeur', MARGIN_LEFT, ySign, { width: 200, align: 'center' })
-       .text('Signature & Cachet MAPA',       MARGIN_LEFT + 295, ySign, { width: 200, align: 'center' });
-    doc.moveTo(MARGIN_LEFT,       ySign + 36).lineTo(MARGIN_LEFT + 200,       ySign + 36).strokeColor(GRIS_BORD).lineWidth(0.5).stroke();
-    doc.moveTo(MARGIN_LEFT + 295, ySign + 36).lineTo(MARGIN_LEFT + PAGE_W,   ySign + 36).strokeColor(GRIS_BORD).lineWidth(0.5).stroke();
+    // ── Signatures ───────────────────────────────────────────────────────────
+    const ySign = Math.max(y + 20, FOOTER_Y - 65);
+    doc.font('Helvetica-Bold').fontSize(8).fillColor(BLEU)
+       .text('Signature Commandeur', MARGIN_LEFT, ySign, { width: 200, align: 'center' })
+       .text('Signature MAPA',       MARGIN_LEFT + 295, ySign, { width: 200, align: 'center' });
+    doc.moveTo(MARGIN_LEFT,       ySign + 38).lineTo(MARGIN_LEFT + 200,     ySign + 38).strokeColor(GRIS_BORD).lineWidth(0.5).stroke();
+    doc.moveTo(MARGIN_LEFT + 295, ySign + 38).lineTo(MARGIN_LEFT + PAGE_W, ySign + 38).strokeColor(GRIS_BORD).lineWidth(0.5).stroke();
 
     // ── Footer image ─────────────────────────────────────────────────────────
     if (fs.existsSync(FOOTER)) {

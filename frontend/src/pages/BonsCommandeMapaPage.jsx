@@ -37,41 +37,55 @@ const EditeurBrouillon = ({ bc, produits, onClose }) => {
   const supprimer   = useSupprimerBC();
 
   const [lignes, setLignes] = useState(Array.isArray(bc.lignes) ? bc.lignes : []);
-  const [notes, setNotes]   = useState(bc.notes || '');
+  const [infos, setInfos]   = useState({
+    nom_commandeur:       bc.nom_commandeur || '',
+    prenoms_commandeur:   bc.prenoms_commandeur || '',
+    telephone_commandeur: bc.telephone_commandeur || '',
+    lieu_livraison:       bc.lieu_livraison || '',
+    date_livraison_prevue: bc.date_livraison_prevue || '',
+    nom_stockiste_mapa:   bc.nom_stockiste_mapa || '',
+    notes:                bc.notes || '',
+  });
   const [erreur, setErreur] = useState('');
 
   const produitsDejaDans = lignes.map((l) => l.produit_id);
   const total = lignes.reduce((s, l) => s + (l.prix_unitaire || 0) * (l.quantite || 0), 0);
 
-  const sauvegarder = (nouvelles, nouvellesNotes) => {
-    const l = nouvelles !== undefined ? nouvelles : lignes;
-    const n = nouvellesNotes !== undefined ? nouvellesNotes : notes;
-    setLignes(l);
-    mettreAJour.mutate({ id: bc.id, lignes: l, notes: n }, {
+  const sauvegarderLignes = (nouvelles) => {
+    setLignes(nouvelles);
+    mettreAJour.mutate({ id: bc.id, lignes: nouvelles, ...infos }, {
+      onError: (e) => setErreur(e?.response?.data?.message || 'Erreur lors de la sauvegarde'),
+    });
+  };
+
+  const sauvegarderInfos = (nouveauxInfos) => {
+    const merged = { ...infos, ...nouveauxInfos };
+    setInfos(merged);
+    mettreAJour.mutate({ id: bc.id, lignes, ...merged }, {
       onError: (e) => setErreur(e?.response?.data?.message || 'Erreur lors de la sauvegarde'),
     });
   };
 
   const ajouterProduit = (produit) => {
     if (produitsDejaDans.includes(produit.id)) return;
-    sauvegarder([...lignes, {
+    sauvegarderLignes([...lignes, {
       produit_id: produit.id,
       nom_produit: produit.nom,
-      reference_mapa: produit.reference_mapa || '',
       quantite: 1,
       prix_unitaire: produit.prix_unitaire || 0,
     }]);
   };
 
-  const retirerLigne = (idx) => sauvegarder(lignes.filter((_, i) => i !== idx));
+  const retirerLigne = (idx) => sauvegarderLignes(lignes.filter((_, i) => i !== idx));
 
   const modifierQte = (idx, val) => {
     const qte = Math.max(1, parseInt(val) || 1);
-    sauvegarder(lignes.map((l, i) => i === idx ? { ...l, quantite: qte } : l));
+    sauvegarderLignes(lignes.map((l, i) => i === idx ? { ...l, quantite: qte } : l));
   };
 
   const handleConfirmer = async () => {
     if (lignes.length === 0) { setErreur('Ajoutez au moins un produit avant d\'envoyer.'); return; }
+    if (!infos.nom_stockiste_mapa.trim()) { setErreur('Le nom du Stockiste est obligatoire.'); return; }
     if (!window.confirm(`Envoyer le BC ${bc.numero} à MAPA ? Cette action est irréversible.`)) return;
     setErreur('');
     try {
@@ -88,8 +102,24 @@ const EditeurBrouillon = ({ bc, produits, onClose }) => {
     onClose();
   };
 
+  const champ = (label, key, type = 'text', placeholder = '', obligatoire = false) => (
+    <div>
+      <label className="block text-xs font-medium text-texte-principal mb-1">
+        {label}{obligatoire && <span className="text-red-500 ml-0.5">*</span>}
+      </label>
+      <input
+        type={type}
+        value={infos[key]}
+        onChange={(e) => setInfos((prev) => ({ ...prev, [key]: e.target.value }))}
+        onBlur={() => sauvegarderInfos({ [key]: infos[key] })}
+        className="champ-input text-sm"
+        placeholder={placeholder}
+      />
+    </div>
+  );
+
   return (
-    <div className="carte space-y-4">
+    <div className="carte space-y-5">
       <div className="flex items-center justify-between">
         <div>
           <h2 className="font-semibold text-texte-principal flex items-center gap-2">
@@ -105,9 +135,34 @@ const EditeurBrouillon = ({ bc, produits, onClose }) => {
 
       {erreur && <Alert type="erreur" message={erreur} />}
 
+      {/* Informations commandeur */}
+      <div>
+        <p className="text-xs font-semibold text-texte-secondaire uppercase tracking-wide mb-3">
+          Informations commandeur
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {champ('Nom', 'nom_commandeur', 'text', 'Nom de famille')}
+          {champ('Prénoms', 'prenoms_commandeur', 'text', 'Prénoms')}
+          {champ('Téléphone', 'telephone_commandeur', 'tel', '+225 00 00 00 00 00')}
+          {champ('Lieu de livraison', 'lieu_livraison', 'text', 'ex: Abidjan Cocody')}
+          <div>
+            <label className="block text-xs font-medium text-texte-principal mb-1">Date de livraison souhaitée</label>
+            <input
+              type="date"
+              value={infos.date_livraison_prevue}
+              onChange={(e) => setInfos((prev) => ({ ...prev, date_livraison_prevue: e.target.value }))}
+              onBlur={() => sauvegarderInfos({ date_livraison_prevue: infos.date_livraison_prevue })}
+              className="champ-input text-sm"
+            />
+          </div>
+          {champ('Nom du Stockiste', 'nom_stockiste_mapa', 'text', 'Nom du stockiste MAPA', true)}
+        </div>
+      </div>
+
       {/* Sélection de produits */}
       <div>
-        <p className="text-xs font-medium text-texte-secondaire mb-2">Ajouter un produit</p>
+        <p className="text-xs font-semibold text-texte-secondaire uppercase tracking-wide mb-2">Produits</p>
+        <p className="text-xs text-texte-secondaire mb-2">Ajouter un produit</p>
         <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto">
           {produits
             .filter((p) => !produitsDejaDans.includes(p.id))
@@ -187,13 +242,14 @@ const EditeurBrouillon = ({ bc, produits, onClose }) => {
         </div>
       )}
 
-      {/* Notes */}
+      {/* Remarques */}
       <div>
         <label className="block text-xs font-medium text-texte-principal mb-1">Remarques (optionnel)</label>
         <input
           type="text"
-          value={notes}
-          onChange={(e) => { setNotes(e.target.value); sauvegarder(lignes, e.target.value); }}
+          value={infos.notes}
+          onChange={(e) => setInfos((prev) => ({ ...prev, notes: e.target.value }))}
+          onBlur={() => sauvegarderInfos({ notes: infos.notes })}
           className="champ-input text-sm"
           placeholder="ex: livraison urgente, quantités à confirmer..."
         />
