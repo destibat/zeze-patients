@@ -9,18 +9,18 @@ import Button from '../components/ui/Button';
 import Alert from '../components/ui/Alert';
 import {
   ClipboardList, Plus, X, Send, Trash2, FileText,
-  CheckCircle, Clock, Package, ExternalLink,
+  CheckCircle, Clock, Package, Edit3,
 } from 'lucide-react';
 import useFormatMontant from '../hooks/useFormatMontant';
 
 const STATUT_CFG = {
-  brouillon: { label: 'Brouillon',  couleur: 'bg-gray-100 text-gray-600',    icone: Clock },
-  envoye:    { label: 'Envoyé',     couleur: 'bg-blue-100 text-blue-800',    icone: CheckCircle },
-  livre:     { label: 'Livré',      couleur: 'bg-green-100 text-green-800',  icone: CheckCircle },
+  brouillon: { label: 'Brouillon', couleur: 'bg-gray-100 text-gray-600',   icone: Clock },
+  envoye:    { label: 'Envoyé',    couleur: 'bg-blue-100 text-blue-800',   icone: Send },
+  livre:     { label: 'Livré',     couleur: 'bg-green-100 text-green-800', icone: CheckCircle },
 };
 
 const BadgeStatut = ({ statut }) => {
-  const cfg  = STATUT_CFG[statut] || STATUT_CFG.brouillon;
+  const cfg = STATUT_CFG[statut] || STATUT_CFG.brouillon;
   const Icone = cfg.icone;
   return (
     <span className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium ${cfg.couleur}`}>
@@ -29,46 +29,35 @@ const BadgeStatut = ({ statut }) => {
   );
 };
 
-// ── Éditeur d'un brouillon ────────────────────────────────────────────────
-const EditeurBrouillon = ({ bc, produits, onClose }) => {
-  const { formatMontant } = useFormatMontant();
-  const mettreAJour = useMettreAJourBC();
-  const confirmer   = useConfirmerBC();
-  const supprimer   = useSupprimerBC();
+const fmtDate = (d) =>
+  d ? new Date(d).toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' }) : '—';
 
-  const [lignes, setLignes] = useState(Array.isArray(bc.lignes) ? bc.lignes : []);
-  const [infos, setInfos]   = useState({
-    nom_commandeur:       bc.nom_commandeur || '',
-    prenoms_commandeur:   bc.prenoms_commandeur || '',
-    telephone_commandeur: bc.telephone_commandeur || '',
-    lieu_livraison:       bc.lieu_livraison || '',
-    date_livraison_prevue: bc.date_livraison_prevue || '',
-    nom_stockiste_mapa:   bc.nom_stockiste_mapa || '',
-    notes:                bc.notes || '',
+// ── Formulaire (création et modification) ────────────────────────────────────
+const FormulaireBc = ({ bcExistant, produits, onSauvegarder, onAnnuler }) => {
+  const { formatMontant } = useFormatMontant();
+  const creer       = useCreerBonCommande();
+  const mettreAJour = useMettreAJourBC();
+
+  const [lignes, setLignes] = useState(Array.isArray(bcExistant?.lignes) ? bcExistant.lignes : []);
+  const [infos,  setInfos]  = useState({
+    nom_commandeur:       bcExistant?.nom_commandeur       || '',
+    prenoms_commandeur:   bcExistant?.prenoms_commandeur   || '',
+    telephone_commandeur: bcExistant?.telephone_commandeur || '',
+    lieu_livraison:       bcExistant?.lieu_livraison       || '',
+    date_livraison_prevue: bcExistant?.date_livraison_prevue || '',
+    nom_stockiste_mapa:   bcExistant?.nom_stockiste_mapa   || '',
+    notes:                bcExistant?.notes                || '',
   });
   const [erreur, setErreur] = useState('');
 
-  const produitsDejaDans = lignes.map((l) => l.produit_id);
+  const enEdition = !!bcExistant;
+  const isPending  = creer.isPending || mettreAJour.isPending;
   const total = lignes.reduce((s, l) => s + (l.prix_unitaire || 0) * (l.quantite || 0), 0);
-
-  const sauvegarderLignes = (nouvelles) => {
-    setLignes(nouvelles);
-    mettreAJour.mutate({ id: bc.id, lignes: nouvelles, ...infos }, {
-      onError: (e) => setErreur(e?.response?.data?.message || 'Erreur lors de la sauvegarde'),
-    });
-  };
-
-  const sauvegarderInfos = (nouveauxInfos) => {
-    const merged = { ...infos, ...nouveauxInfos };
-    setInfos(merged);
-    mettreAJour.mutate({ id: bc.id, lignes, ...merged }, {
-      onError: (e) => setErreur(e?.response?.data?.message || 'Erreur lors de la sauvegarde'),
-    });
-  };
+  const produitsDejaDans = lignes.map((l) => l.produit_id);
 
   const ajouterProduit = (produit) => {
     if (produitsDejaDans.includes(produit.id)) return;
-    sauvegarderLignes([...lignes, {
+    setLignes((prev) => [...prev, {
       produit_id: produit.id,
       nom_produit: produit.nom,
       quantite: 1,
@@ -76,33 +65,30 @@ const EditeurBrouillon = ({ bc, produits, onClose }) => {
     }]);
   };
 
-  const retirerLigne = (idx) => sauvegarderLignes(lignes.filter((_, i) => i !== idx));
+  const retirerLigne = (idx) => setLignes((prev) => prev.filter((_, i) => i !== idx));
 
   const modifierQte = (idx, val) => {
     const qte = Math.max(1, parseInt(val) || 1);
-    sauvegarderLignes(lignes.map((l, i) => i === idx ? { ...l, quantite: qte } : l));
+    setLignes((prev) => prev.map((l, i) => i === idx ? { ...l, quantite: qte } : l));
   };
 
-  const handleConfirmer = async () => {
-    if (lignes.length === 0) { setErreur('Ajoutez au moins un produit avant d\'envoyer.'); return; }
-    if (!infos.nom_stockiste_mapa.trim()) { setErreur('Le nom du Stockiste est obligatoire.'); return; }
-    if (!window.confirm(`Envoyer le BC ${bc.numero} à MAPA ? Cette action est irréversible.`)) return;
+  const handleSauvegarder = async () => {
     setErreur('');
+    const payload = { lignes, ...infos };
     try {
-      await confirmer.mutateAsync(bc.id);
-      onClose();
+      let bc;
+      if (enEdition) {
+        bc = await mettreAJour.mutateAsync({ id: bcExistant.id, ...payload });
+      } else {
+        bc = await creer.mutateAsync(payload);
+      }
+      onSauvegarder(bc);
     } catch (e) {
-      setErreur(e?.response?.data?.message || 'Erreur lors de la confirmation');
+      setErreur(e?.response?.data?.message || 'Erreur lors de la sauvegarde');
     }
   };
 
-  const handleSupprimer = async () => {
-    if (!window.confirm('Supprimer ce brouillon ?')) return;
-    await supprimer.mutateAsync(bc.id);
-    onClose();
-  };
-
-  const champ = (label, key, type = 'text', placeholder = '', obligatoire = false) => (
+  const champTexte = (label, key, type = 'text', placeholder = '', obligatoire = false) => (
     <div>
       <label className="block text-xs font-medium text-texte-principal mb-1">
         {label}{obligatoire && <span className="text-red-500 ml-0.5">*</span>}
@@ -110,8 +96,7 @@ const EditeurBrouillon = ({ bc, produits, onClose }) => {
       <input
         type={type}
         value={infos[key]}
-        onChange={(e) => setInfos((prev) => ({ ...prev, [key]: e.target.value }))}
-        onBlur={() => sauvegarderInfos({ [key]: infos[key] })}
+        onChange={(e) => setInfos((p) => ({ ...p, [key]: e.target.value }))}
         className="champ-input text-sm"
         placeholder={placeholder}
       />
@@ -121,12 +106,206 @@ const EditeurBrouillon = ({ bc, produits, onClose }) => {
   return (
     <div className="carte space-y-5">
       <div className="flex items-center justify-between">
+        <h2 className="font-semibold text-texte-principal flex items-center gap-2">
+          <ClipboardList size={15} className="text-zeze-vert" />
+          {enEdition ? `Modifier — ${bcExistant.numero}` : 'Nouveau Bon de Commande MAPA'}
+        </h2>
+        <button onClick={onAnnuler} className="text-texte-secondaire hover:text-texte-principal">
+          <X size={18} />
+        </button>
+      </div>
+
+      {erreur && <Alert type="erreur" message={erreur} />}
+
+      {/* ── Informations commandeur ── */}
+      <div>
+        <p className="text-xs font-semibold text-texte-secondaire uppercase tracking-wide mb-3">
+          Informations commandeur
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {champTexte('Nom', 'nom_commandeur', 'text', 'Nom de famille')}
+          {champTexte('Prénoms', 'prenoms_commandeur', 'text', 'Prénoms')}
+          {champTexte('Téléphone', 'telephone_commandeur', 'tel', '+225 00 00 00 00 00')}
+          {champTexte('Lieu de livraison', 'lieu_livraison', 'text', 'ex: Abidjan Cocody')}
+          <div>
+            <label className="block text-xs font-medium text-texte-principal mb-1">
+              Date de livraison souhaitée
+            </label>
+            <input
+              type="date"
+              value={infos.date_livraison_prevue}
+              onChange={(e) => setInfos((p) => ({ ...p, date_livraison_prevue: e.target.value }))}
+              className="champ-input text-sm"
+            />
+          </div>
+          {champTexte('Nom du Stockiste MAPA', 'nom_stockiste_mapa', 'text', 'Nom du stockiste', true)}
+        </div>
+      </div>
+
+      {/* ── Produits ── */}
+      <div>
+        <p className="text-xs font-semibold text-texte-secondaire uppercase tracking-wide mb-2">Produits</p>
+        <div className="flex flex-wrap gap-2 max-h-36 overflow-y-auto mb-3">
+          {produits
+            .filter((p) => !produitsDejaDans.includes(p.id))
+            .map((p) => (
+              <button
+                key={p.id}
+                onClick={() => ajouterProduit(p)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs border rounded-bouton transition-colors ${
+                  p.actif
+                    ? 'border-zeze-vert text-zeze-vert hover:bg-zeze-vert/10'
+                    : 'border-gray-300 text-gray-400 hover:bg-gray-50'
+                }`}
+              >
+                <Plus size={11} />
+                {p.nom}{!p.actif && ' (désactivé)'} — {formatMontant(p.prix_unitaire)}
+              </button>
+            ))}
+          {produits.filter((p) => !produitsDejaDans.includes(p.id)).length === 0 && (
+            <p className="text-xs text-texte-secondaire italic">Tous les produits sont déjà dans la commande.</p>
+          )}
+        </div>
+
+        {lignes.length > 0 ? (
+          <div className="border border-bordure rounded-carte overflow-hidden">
+            <table className="w-full text-sm">
+              <thead className="bg-fond-secondaire">
+                <tr>
+                  <th className="text-left px-3 py-2 text-xs font-semibold text-texte-secondaire">Produit</th>
+                  <th className="text-center px-2 py-2 text-xs font-semibold text-texte-secondaire w-28">Quantité</th>
+                  <th className="text-right px-2 py-2 text-xs font-semibold text-texte-secondaire hidden sm:table-cell">Prix unit.</th>
+                  <th className="text-right px-2 py-2 text-xs font-semibold text-texte-secondaire">Sous-total</th>
+                  <th className="w-8" />
+                </tr>
+              </thead>
+              <tbody>
+                {lignes.map((l, idx) => (
+                  <tr key={idx} className="border-t border-bordure">
+                    <td className="px-3 py-2 text-xs font-medium text-texte-principal">{l.nom_produit}</td>
+                    <td className="px-2 py-2 text-center">
+                      <input
+                        type="number" min={1} value={l.quantite}
+                        onChange={(e) => modifierQte(idx, e.target.value)}
+                        className="w-16 text-center text-xs border border-bordure rounded px-1 py-0.5"
+                      />
+                    </td>
+                    <td className="px-2 py-2 text-right text-xs font-mono text-texte-secondaire hidden sm:table-cell">
+                      {formatMontant(l.prix_unitaire)}
+                    </td>
+                    <td className="px-2 py-2 text-right text-xs font-mono font-semibold">
+                      {formatMontant((l.prix_unitaire || 0) * (l.quantite || 0))}
+                    </td>
+                    <td className="px-1 py-2 text-center">
+                      <button onClick={() => retirerLigne(idx)} className="text-texte-secondaire hover:text-medical-critique">
+                        <X size={14} />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot className="bg-fond-secondaire border-t-2 border-bordure">
+                <tr>
+                  <td colSpan={3} className="px-3 py-2 text-xs font-bold text-texte-secondaire text-right">TOTAL</td>
+                  <td className="px-2 py-2 text-right text-sm font-bold text-texte-principal font-mono">
+                    {formatMontant(total)}
+                  </td>
+                  <td />
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        ) : (
+          <div className="text-center py-6 border border-dashed border-bordure rounded-carte text-texte-secondaire">
+            <Package size={24} className="mx-auto mb-2 opacity-30" />
+            <p className="text-xs">Cliquez sur un produit ci-dessus pour l'ajouter.</p>
+          </div>
+        )}
+      </div>
+
+      {/* ── Remarques ── */}
+      <div>
+        <label className="block text-xs font-medium text-texte-principal mb-1">Remarques (optionnel)</label>
+        <input
+          type="text"
+          value={infos.notes}
+          onChange={(e) => setInfos((p) => ({ ...p, notes: e.target.value }))}
+          className="champ-input text-sm"
+          placeholder="ex: livraison urgente, quantités à confirmer…"
+        />
+      </div>
+
+      {/* ── Actions ── */}
+      <div className="flex gap-2 flex-wrap">
+        <Button variante="primaire" icone={ClipboardList} chargement={isPending} onClick={handleSauvegarder}>
+          {enEdition ? 'Mettre à jour le brouillon' : 'Enregistrer comme brouillon'}
+        </Button>
+        <Button variante="fantome" icone={X} disabled={isPending} onClick={onAnnuler}>
+          Annuler
+        </Button>
+      </div>
+    </div>
+  );
+};
+
+// ── Vue d'un brouillon enregistré (relecture avant envoi) ─────────────────────
+const VueBrouillon = ({ bc, produits, onModifier, onClose }) => {
+  const { formatMontant } = useFormatMontant();
+  const confirmer  = useConfirmerBC();
+  const supprimer  = useSupprimerBC();
+
+  const [chargementPdf, setChargementPdf] = useState(false);
+  const [erreur, setErreur] = useState('');
+
+  const lignes = Array.isArray(bc.lignes) ? bc.lignes : [];
+
+  const handleConfirmer = async () => {
+    if (lignes.length === 0) { setErreur('Ajoutez au moins un produit avant d\'envoyer.'); return; }
+    if (!bc.nom_stockiste_mapa?.trim()) { setErreur('Le nom du Stockiste est obligatoire. Cliquez sur Modifier.'); return; }
+    if (!window.confirm(`Envoyer le BC ${bc.numero} à MAPA ? Cette action est irréversible.`)) return;
+    setErreur('');
+    try {
+      await confirmer.mutateAsync(bc.id);
+      onClose();
+    } catch (e) {
+      setErreur(e?.response?.data?.message || 'Erreur lors de l\'envoi');
+    }
+  };
+
+  const handleSupprimer = async () => {
+    if (!window.confirm('Supprimer ce brouillon définitivement ?')) return;
+    await supprimer.mutateAsync(bc.id);
+    onClose();
+  };
+
+  const handlePdf = async () => {
+    setChargementPdf(true);
+    try {
+      const response = await api.get(`/bons-commande-mapa/${bc.id}/pdf`, { responseType: 'blob' });
+      const url = URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }));
+      window.open(url, '_blank');
+      setTimeout(() => URL.revokeObjectURL(url), 30000);
+    } catch {
+      alert('Erreur lors de la génération du PDF');
+    } finally {
+      setChargementPdf(false);
+    }
+  };
+
+  const ligne = (label, valeur) =>
+    valeur ? (
+      <div className="flex gap-2 text-xs">
+        <span className="text-texte-secondaire min-w-[140px]">{label}</span>
+        <span className="text-texte-principal font-medium">{valeur}</span>
+      </div>
+    ) : null;
+
+  return (
+    <div className="carte space-y-4 border-l-4 border-l-amber-400">
+      <div className="flex items-start justify-between">
         <div>
-          <h2 className="font-semibold text-texte-principal flex items-center gap-2">
-            <ClipboardList size={15} className="text-zeze-vert" />
-            {bc.numero}
-          </h2>
-          <p className="text-xs text-texte-secondaire mt-0.5">Brouillon — non envoyé</p>
+          <p className="text-sm font-bold font-mono text-texte-principal">{bc.numero}</p>
+          <BadgeStatut statut="brouillon" />
         </div>
         <button onClick={onClose} className="text-texte-secondaire hover:text-texte-principal">
           <X size={18} />
@@ -135,150 +314,84 @@ const EditeurBrouillon = ({ bc, produits, onClose }) => {
 
       {erreur && <Alert type="erreur" message={erreur} />}
 
-      {/* Informations commandeur */}
-      <div>
-        <p className="text-xs font-semibold text-texte-secondaire uppercase tracking-wide mb-3">
-          Informations commandeur
-        </p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {champ('Nom', 'nom_commandeur', 'text', 'Nom de famille')}
-          {champ('Prénoms', 'prenoms_commandeur', 'text', 'Prénoms')}
-          {champ('Téléphone', 'telephone_commandeur', 'tel', '+225 00 00 00 00 00')}
-          {champ('Lieu de livraison', 'lieu_livraison', 'text', 'ex: Abidjan Cocody')}
-          <div>
-            <label className="block text-xs font-medium text-texte-principal mb-1">Date de livraison souhaitée</label>
-            <input
-              type="date"
-              value={infos.date_livraison_prevue}
-              onChange={(e) => setInfos((prev) => ({ ...prev, date_livraison_prevue: e.target.value }))}
-              onBlur={() => sauvegarderInfos({ date_livraison_prevue: infos.date_livraison_prevue })}
-              className="champ-input text-sm"
-            />
-          </div>
-          {champ('Nom du Stockiste', 'nom_stockiste_mapa', 'text', 'Nom du stockiste MAPA', true)}
-        </div>
+      {/* Infos commandeur */}
+      <div className="bg-fond-secondaire rounded-bouton p-3 space-y-1.5">
+        <p className="text-xs font-semibold text-texte-secondaire uppercase tracking-wide mb-2">Informations</p>
+        {ligne('Nom & Prénoms', [bc.nom_commandeur, bc.prenoms_commandeur].filter(Boolean).join(' '))}
+        {ligne('Téléphone', bc.telephone_commandeur)}
+        {ligne('Lieu de livraison', bc.lieu_livraison)}
+        {ligne('Date souhaitée', bc.date_livraison_prevue ? fmtDate(bc.date_livraison_prevue) : null)}
+        {ligne('Stockiste MAPA', bc.nom_stockiste_mapa)}
+        {!bc.nom_stockiste_mapa && (
+          <p className="text-xs text-amber-600 font-medium">⚠ Nom du Stockiste manquant — requis pour l'envoi</p>
+        )}
       </div>
 
-      {/* Sélection de produits */}
-      <div>
-        <p className="text-xs font-semibold text-texte-secondaire uppercase tracking-wide mb-2">Produits</p>
-        <p className="text-xs text-texte-secondaire mb-2">Ajouter un produit</p>
-        <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto">
-          {produits
-            .filter((p) => !produitsDejaDans.includes(p.id))
-            .map((p) => (
-              <button
-                key={p.id}
-                onClick={() => ajouterProduit(p)}
-                disabled={mettreAJour.isPending}
-                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs border rounded-bouton transition-colors disabled:opacity-50 ${
-                  p.actif
-                    ? 'border-zeze-vert text-zeze-vert hover:bg-zeze-vert/10'
-                    : 'border-gray-300 text-gray-400 hover:bg-gray-50'
-                }`}
-              >
-                <Plus size={11} /> {p.nom}{!p.actif && ' (désactivé)'} — {formatMontant(p.prix_unitaire)}
-              </button>
-            ))}
-          {produits.filter((p) => !produitsDejaDans.includes(p.id)).length === 0 && (
-            <p className="text-xs text-texte-secondaire italic">Tous les produits sont déjà dans la commande.</p>
-          )}
-        </div>
-      </div>
-
-      {/* Tableau des lignes */}
+      {/* Tableau produits */}
       {lignes.length > 0 ? (
         <div className="border border-bordure rounded-carte overflow-hidden">
-          <table className="w-full text-sm">
+          <table className="w-full text-xs">
             <thead className="bg-fond-secondaire">
               <tr>
-                <th className="text-left px-3 py-2 text-xs font-semibold text-texte-secondaire">Produit</th>
-                <th className="text-center px-2 py-2 text-xs font-semibold text-texte-secondaire w-28">Quantité</th>
-                <th className="text-right px-2 py-2 text-xs font-semibold text-texte-secondaire hidden sm:table-cell">Prix unit.</th>
-                <th className="text-right px-2 py-2 text-xs font-semibold text-texte-secondaire">Sous-total</th>
-                <th className="w-8" />
+                <th className="text-left px-3 py-2 font-semibold text-texte-secondaire">Produit</th>
+                <th className="text-center px-2 py-2 font-semibold text-texte-secondaire w-16">Qté</th>
+                <th className="text-right px-2 py-2 font-semibold text-texte-secondaire hidden sm:table-cell">Prix unit.</th>
+                <th className="text-right px-3 py-2 font-semibold text-texte-secondaire">Total</th>
               </tr>
             </thead>
-            <tbody>
-              {lignes.map((l, idx) => (
-                <tr key={idx} className="border-t border-bordure">
-                  <td className="px-3 py-2 text-xs font-medium text-texte-principal">{l.nom_produit}</td>
-                  <td className="px-2 py-2 text-center">
-                    <input
-                      type="number" min={1} value={l.quantite}
-                      onChange={(e) => modifierQte(idx, e.target.value)}
-                      className="w-16 text-center text-xs border border-bordure rounded px-1 py-0.5"
-                    />
-                  </td>
-                  <td className="px-2 py-2 text-right text-xs font-mono text-texte-secondaire hidden sm:table-cell">
+            <tbody className="divide-y divide-bordure">
+              {lignes.map((l, i) => (
+                <tr key={i}>
+                  <td className="px-3 py-1.5 font-medium text-texte-principal">{l.nom_produit}</td>
+                  <td className="px-2 py-1.5 text-center">{l.quantite}</td>
+                  <td className="px-2 py-1.5 text-right font-mono text-texte-secondaire hidden sm:table-cell">
                     {formatMontant(l.prix_unitaire)}
                   </td>
-                  <td className="px-2 py-2 text-right text-xs font-mono font-semibold">
+                  <td className="px-3 py-1.5 text-right font-mono font-semibold">
                     {formatMontant((l.prix_unitaire || 0) * (l.quantite || 0))}
-                  </td>
-                  <td className="px-1 py-2 text-center">
-                    <button onClick={() => retirerLigne(idx)} className="text-texte-secondaire hover:text-medical-critique">
-                      <X size={14} />
-                    </button>
                   </td>
                 </tr>
               ))}
             </tbody>
             <tfoot className="bg-fond-secondaire border-t-2 border-bordure">
               <tr>
-                <td colSpan={3} className="px-3 py-2 text-xs font-bold text-texte-secondaire text-right">TOTAL</td>
-                <td className="px-2 py-2 text-right text-sm font-bold text-texte-principal font-mono">
-                  {formatMontant(total)}
+                <td colSpan={2} className="px-3 py-2 text-xs font-bold text-texte-secondaire text-right">TOTAL</td>
+                <td className="px-3 py-2 text-right text-sm font-bold font-mono text-texte-principal" colSpan={2}>
+                  {formatMontant(lignes.reduce((s, l) => s + (l.prix_unitaire || 0) * (l.quantite || 0), 0))}
                 </td>
-                <td />
               </tr>
             </tfoot>
           </table>
         </div>
       ) : (
-        <div className="text-center py-6 text-texte-secondaire">
-          <Package size={28} className="mx-auto mb-2 opacity-30" />
-          <p className="text-sm">Sélectionnez des produits ci-dessus.</p>
-        </div>
+        <p className="text-xs text-amber-600 font-medium">⚠ Aucun produit — requis pour l'envoi</p>
       )}
 
-      {/* Remarques */}
-      <div>
-        <label className="block text-xs font-medium text-texte-principal mb-1">Remarques (optionnel)</label>
-        <input
-          type="text"
-          value={infos.notes}
-          onChange={(e) => setInfos((prev) => ({ ...prev, notes: e.target.value }))}
-          onBlur={() => sauvegarderInfos({ notes: infos.notes })}
-          className="champ-input text-sm"
-          placeholder="ex: livraison urgente, quantités à confirmer..."
-        />
-      </div>
+      {bc.notes && (
+        <p className="text-xs text-texte-secondaire italic">Remarques : {bc.notes}</p>
+      )}
 
       {/* Actions */}
-      <div className="flex gap-2 flex-wrap">
-        <Button
-          variante="primaire" icone={Send}
-          chargement={confirmer.isPending}
-          disabled={mettreAJour.isPending || confirmer.isPending}
-          onClick={handleConfirmer}
-        >
-          Confirmer et envoyer à MAPA
+      <div className="flex flex-wrap gap-2 pt-1">
+        <Button variante="primaire" icone={Send} chargement={confirmer.isPending} onClick={handleConfirmer}>
+          Valider et envoyer à MAPA
         </Button>
-        <Button
-          variante="fantome" icone={Trash2}
-          chargement={supprimer.isPending}
-          onClick={handleSupprimer}
-        >
-          Supprimer le brouillon
+        <Button variante="secondaire" icone={Edit3} onClick={onModifier} disabled={confirmer.isPending}>
+          Modifier
+        </Button>
+        <Button variante="fantome" icone={FileText} chargement={chargementPdf} onClick={handlePdf}>
+          Aperçu PDF
+        </Button>
+        <Button variante="fantome" icone={Trash2} chargement={supprimer.isPending} onClick={handleSupprimer}>
+          Supprimer
         </Button>
       </div>
     </div>
   );
 };
 
-// ── Carte BC (historique) ────────────────────────────────────────────────
-const CarteBonCommande = ({ bc }) => {
+// ── Carte historique (envoyé / livré) ────────────────────────────────────────
+const CarteHistorique = ({ bc }) => {
   const { formatMontant } = useFormatMontant();
   const [ouverte, setOuverte] = useState(false);
   const [chargementPdf, setChargementPdf] = useState(false);
@@ -299,20 +412,17 @@ const CarteBonCommande = ({ bc }) => {
   };
 
   return (
-    <div className={`carte border-l-4 ${bc.statut === 'livre' ? 'border-l-green-400' : bc.statut === 'envoye' ? 'border-l-blue-400' : 'border-l-gray-300'}`}>
+    <div className={`carte border-l-4 ${bc.statut === 'livre' ? 'border-l-green-400' : 'border-l-blue-400'}`}>
       <div
         className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 cursor-pointer"
         onClick={() => setOuverte(!ouverte)}
       >
         <div>
-          <p className="text-sm font-semibold text-texte-principal font-mono">{bc.numero}</p>
+          <p className="text-sm font-semibold font-mono text-texte-principal">{bc.numero}</p>
           <p className="text-xs text-texte-secondaire mt-0.5">
-            {bc.date_commande
-              ? new Date(bc.date_commande).toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' })
-              : '—'}
-            {bc.createur && (
-              <span className="ml-2">· {bc.createur.prenom} {bc.createur.nom}</span>
-            )}
+            {fmtDate(bc.date_commande)}
+            {bc.createur && <span className="ml-2">· {bc.createur.prenom} {bc.createur.nom}</span>}
+            {bc.nom_stockiste_mapa && <span className="ml-2">· Stockiste : {bc.nom_stockiste_mapa}</span>}
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -323,6 +433,30 @@ const CarteBonCommande = ({ bc }) => {
 
       {ouverte && (
         <div className="mt-3 space-y-3">
+          {/* Infos */}
+          <div className="bg-fond-secondaire rounded-bouton p-3 space-y-1 text-xs">
+            {[bc.nom_commandeur, bc.prenoms_commandeur].filter(Boolean).join(' ') && (
+              <p><span className="text-texte-secondaire">Commandeur : </span>
+                <span className="font-medium">{[bc.nom_commandeur, bc.prenoms_commandeur].filter(Boolean).join(' ')}</span>
+              </p>
+            )}
+            {bc.telephone_commandeur && (
+              <p><span className="text-texte-secondaire">Tél. : </span>
+                <span className="font-medium">{bc.telephone_commandeur}</span>
+              </p>
+            )}
+            {bc.lieu_livraison && (
+              <p><span className="text-texte-secondaire">Lieu : </span>
+                <span className="font-medium">{bc.lieu_livraison}</span>
+              </p>
+            )}
+            {bc.date_livraison_prevue && (
+              <p><span className="text-texte-secondaire">Livraison prévue : </span>
+                <span className="font-medium">{fmtDate(bc.date_livraison_prevue)}</span>
+              </p>
+            )}
+          </div>
+          {/* Produits */}
           <div className="bg-fond-secondaire rounded-bouton overflow-hidden">
             <table className="w-full text-xs">
               <thead>
@@ -349,11 +483,7 @@ const CarteBonCommande = ({ bc }) => {
               </tbody>
             </table>
           </div>
-
-          {bc.notes && (
-            <p className="text-xs text-texte-secondaire italic">Remarques : {bc.notes}</p>
-          )}
-
+          {bc.notes && <p className="text-xs text-texte-secondaire italic">Remarques : {bc.notes}</p>}
           <Button variante="fantome" icone={FileText} chargement={chargementPdf} onClick={handlePdf}>
             Télécharger le PDF
           </Button>
@@ -363,32 +493,24 @@ const CarteBonCommande = ({ bc }) => {
   );
 };
 
-// ── Page principale ──────────────────────────────────────────────────────
+// ── Page principale ──────────────────────────────────────────────────────────
 const BonsCommandeMapaPage = () => {
   const { data: bons = [], isLoading } = useBonsCommandeMapa();
-  const { data: produits = [] } = useProduits();
-  const creer = useCreerBonCommande();
+  const { data: produits = [] }        = useProduits();
 
-  const [bcActif, setBcActif] = useState(null);
-  const [erreur, setErreur]   = useState('');
+  // null = liste, 'nouveau' = formulaire création, string id = edition/vue brouillon
+  const [vue, setVue] = useState(null);
 
-  const brouillons  = bons.filter((b) => b.statut === 'brouillon');
+  const brouillons = bons.filter((b) => b.statut === 'brouillon');
   const historique  = bons.filter((b) => b.statut !== 'brouillon');
 
-  const handleNouveauBC = async () => {
-    setErreur('');
-    try {
-      const bc = await creer.mutateAsync();
-      setBcActif(bc.id);
-    } catch (e) {
-      setErreur(e?.response?.data?.message || 'Erreur lors de la création');
-    }
-  };
-
-  const bcEdite = brouillons.find((b) => b.id === bcActif);
+  const bcEdite = typeof vue === 'string' && vue !== 'nouveau'
+    ? brouillons.find((b) => b.id === vue)
+    : null;
 
   return (
     <div className="space-y-6">
+      {/* En-tête */}
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-titres font-bold text-texte-principal flex items-center gap-2">
@@ -396,56 +518,79 @@ const BonsCommandeMapaPage = () => {
             Bons de Commande MAPA
           </h1>
           <p className="text-sm text-texte-secondaire mt-1">
-            Créez et suivez vos commandes de produits auprès de MAPA
+            Créez et suivez vos commandes auprès de MAPA
           </p>
         </div>
-        <Button
-          variante="primaire" icone={Plus}
-          chargement={creer.isPending}
-          onClick={handleNouveauBC}
-        >
-          Nouveau BC
-        </Button>
+        {vue === null && (
+          <Button variante="primaire" icone={Plus} onClick={() => setVue('nouveau')}>
+            Nouveau BC
+          </Button>
+        )}
       </div>
 
-      {erreur && <Alert type="erreur" message={erreur} />}
-
-      {/* Éditeur de brouillon actif */}
-      {bcEdite && (
-        <EditeurBrouillon
-          bc={bcEdite}
+      {/* ── Formulaire de création ── */}
+      {vue === 'nouveau' && (
+        <FormulaireBc
+          bcExistant={null}
           produits={produits}
-          onClose={() => setBcActif(null)}
+          onSauvegarder={() => setVue(null)}
+          onAnnuler={() => setVue(null)}
         />
       )}
 
-      {/* Autres brouillons en attente */}
-      {brouillons.filter((b) => b.id !== bcActif).length > 0 && (
+      {/* ── Brouillons ── */}
+      {brouillons.length > 0 && vue !== 'nouveau' && (
         <div className="space-y-3">
           <h2 className="text-sm font-semibold text-texte-principal flex items-center gap-2">
-            <Clock size={14} className="text-gray-500" />
-            Brouillons
+            <Clock size={14} className="text-amber-500" /> Brouillons
+            <span className="bg-amber-100 text-amber-700 text-xs px-1.5 py-0.5 rounded-full font-bold">
+              {brouillons.length}
+            </span>
           </h2>
-          {brouillons
-            .filter((b) => b.id !== bcActif)
-            .map((bc) => (
+          {brouillons.map((bc) => {
+            if (vue === `edit-${bc.id}`) {
+              return (
+                <FormulaireBc
+                  key={bc.id}
+                  bcExistant={bc}
+                  produits={produits}
+                  onSauvegarder={() => setVue(bc.id)}
+                  onAnnuler={() => setVue(bc.id)}
+                />
+              );
+            }
+            if (vue === bc.id) {
+              return (
+                <VueBrouillon
+                  key={bc.id}
+                  bc={bc}
+                  produits={produits}
+                  onModifier={() => setVue(`edit-${bc.id}`)}
+                  onClose={() => setVue(null)}
+                />
+              );
+            }
+            // Carte collapsed pour les brouillons non actifs
+            return (
               <div
                 key={bc.id}
-                className="carte border-l-4 border-l-gray-300 flex items-center justify-between cursor-pointer hover:bg-fond-secondaire/50 transition-colors"
-                onClick={() => setBcActif(bc.id)}
+                className="carte border-l-4 border-l-amber-300 flex items-center justify-between cursor-pointer hover:bg-fond-secondaire/50 transition-colors"
+                onClick={() => setVue(bc.id)}
               >
                 <div>
-                  <p className="text-sm font-semibold text-texte-principal font-mono">{bc.numero}</p>
+                  <p className="text-sm font-semibold font-mono text-texte-principal">{bc.numero}</p>
                   <p className="text-xs text-texte-secondaire">
                     {Array.isArray(bc.lignes) ? bc.lignes.length : 0} produit(s)
+                    {bc.nom_stockiste_mapa && ` · Stockiste : ${bc.nom_stockiste_mapa}`}
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <BadgeStatut statut={bc.statut} />
-                  <ExternalLink size={14} className="text-texte-secondaire" />
+                  <BadgeStatut statut="brouillon" />
+                  <Edit3 size={14} className="text-texte-secondaire" />
                 </div>
               </div>
-            ))}
+            );
+          })}
         </div>
       )}
 
@@ -456,27 +601,24 @@ const BonsCommandeMapaPage = () => {
         </div>
       )}
 
-      {/* Historique */}
+      {/* ── Historique (envoyé / livré) ── */}
       {historique.length > 0 && (
         <div className="space-y-3">
           <h2 className="text-sm font-semibold text-texte-principal flex items-center gap-2">
-            <CheckCircle size={14} className="text-texte-secondaire" />
-            Historique
+            <CheckCircle size={14} className="text-texte-secondaire" /> Historique
             <span className="bg-gray-100 text-gray-700 text-xs px-1.5 py-0.5 rounded-full font-bold">
               {historique.length}
             </span>
           </h2>
-          {historique.map((bc) => (
-            <CarteBonCommande key={bc.id} bc={bc} />
-          ))}
+          {historique.map((bc) => <CarteHistorique key={bc.id} bc={bc} />)}
         </div>
       )}
 
-      {!isLoading && bons.length === 0 && (
+      {!isLoading && bons.length === 0 && vue === null && (
         <div className="carte text-center py-12 text-texte-secondaire">
           <ClipboardList size={32} className="mx-auto mb-3 opacity-30" />
-          <p className="text-sm">Aucun bon de commande pour le moment.</p>
-          <p className="text-xs mt-1">Cliquez sur « Nouveau BC » pour créer votre premier bon de commande MAPA.</p>
+          <p className="text-sm">Aucun bon de commande.</p>
+          <p className="text-xs mt-1">Cliquez sur « Nouveau BC » pour créer votre premier bon de commande.</p>
         </div>
       )}
     </div>

@@ -27,11 +27,27 @@ const obtenirParId = async (req, res) => {
 // ── Créer un nouveau brouillon ─────────────────────────────────────────────
 const creer = async (req, res) => {
   const numero = await genererNumeroBonCommande();
+  const {
+    lignes, notes,
+    nom_commandeur, prenoms_commandeur, telephone_commandeur,
+    lieu_livraison, nom_stockiste_mapa, date_livraison_prevue,
+  } = req.body || {};
+
+  const lignesValidees = Array.isArray(lignes) ? lignes : [];
+  const montant_total = lignesValidees.reduce((s, l) => s + (l.prix_unitaire || 0) * (l.quantite || 0), 0);
+
   const bc = await BonCommandeMapa.create({
     created_by: req.utilisateur.id,
     numero,
-    lignes: [],
-    montant_total: 0,
+    lignes: lignesValidees,
+    montant_total,
+    notes,
+    nom_commandeur,
+    prenoms_commandeur,
+    telephone_commandeur,
+    lieu_livraison,
+    nom_stockiste_mapa,
+    date_livraison_prevue,
   });
   const bcComplet = await BonCommandeMapa.findByPk(bc.id, { include: includeCreateur });
   res.status(201).json(bcComplet);
