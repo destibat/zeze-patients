@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import api from '../services/api';
 import { useProduits } from '../hooks/useProduits';
 import {
   useBonsCommandeMapa, useCreerBonCommande, useMettreAJourBC,
@@ -109,18 +110,22 @@ const EditeurBrouillon = ({ bc, produits, onClose }) => {
         <p className="text-xs font-medium text-texte-secondaire mb-2">Ajouter un produit</p>
         <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto">
           {produits
-            .filter((p) => p.actif && !produitsDejaDans.includes(p.id))
+            .filter((p) => !produitsDejaDans.includes(p.id))
             .map((p) => (
               <button
                 key={p.id}
                 onClick={() => ajouterProduit(p)}
                 disabled={mettreAJour.isPending}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs border border-zeze-vert text-zeze-vert rounded-bouton hover:bg-zeze-vert/10 transition-colors disabled:opacity-50"
+                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs border rounded-bouton transition-colors disabled:opacity-50 ${
+                  p.actif
+                    ? 'border-zeze-vert text-zeze-vert hover:bg-zeze-vert/10'
+                    : 'border-gray-300 text-gray-400 hover:bg-gray-50'
+                }`}
               >
-                <Plus size={11} /> {p.nom} — {formatMontant(p.prix_unitaire)}
+                <Plus size={11} /> {p.nom}{!p.actif && ' (désactivé)'} — {formatMontant(p.prix_unitaire)}
               </button>
             ))}
-          {produits.filter((p) => p.actif && !produitsDejaDans.includes(p.id)).length === 0 && (
+          {produits.filter((p) => !produitsDejaDans.includes(p.id)).length === 0 && (
             <p className="text-xs text-texte-secondaire italic">Tous les produits sont déjà dans la commande.</p>
           )}
         </div>
@@ -220,10 +225,21 @@ const EditeurBrouillon = ({ bc, produits, onClose }) => {
 const CarteBonCommande = ({ bc }) => {
   const { formatMontant } = useFormatMontant();
   const [ouverte, setOuverte] = useState(false);
+  const [chargementPdf, setChargementPdf] = useState(false);
   const lignes = Array.isArray(bc.lignes) ? bc.lignes : [];
 
-  const handlePdf = () => {
-    window.open(`/api/bons-commande-mapa/${bc.id}/pdf`, '_blank');
+  const handlePdf = async () => {
+    setChargementPdf(true);
+    try {
+      const response = await api.get(`/bons-commande-mapa/${bc.id}/pdf`, { responseType: 'blob' });
+      const url = URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }));
+      window.open(url, '_blank');
+      setTimeout(() => URL.revokeObjectURL(url), 30000);
+    } catch {
+      alert('Erreur lors de la génération du PDF');
+    } finally {
+      setChargementPdf(false);
+    }
   };
 
   return (
@@ -282,7 +298,7 @@ const CarteBonCommande = ({ bc }) => {
             <p className="text-xs text-texte-secondaire italic">Remarques : {bc.notes}</p>
           )}
 
-          <Button variante="fantome" icone={FileText} onClick={handlePdf}>
+          <Button variante="fantome" icone={FileText} chargement={chargementPdf} onClick={handlePdf}>
             Télécharger le PDF
           </Button>
         </div>
@@ -294,7 +310,7 @@ const CarteBonCommande = ({ bc }) => {
 // ── Page principale ──────────────────────────────────────────────────────
 const BonsCommandeMapaPage = () => {
   const { data: bons = [], isLoading } = useBonsCommandeMapa();
-  const { data: produits = [] } = useProduits({ actif: 'actif' });
+  const { data: produits = [] } = useProduits();
   const creer = useCreerBonCommande();
 
   const [bcActif, setBcActif] = useState(null);
