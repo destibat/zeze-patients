@@ -45,8 +45,18 @@ const FormulaireBc = ({ bcExistant, produits, onSauvegarder, onAnnuler }) => {
     telephone_commandeur: bcExistant?.telephone_commandeur || '',
     lieu_livraison:       bcExistant?.lieu_livraison       || '',
     date_livraison_prevue: bcExistant?.date_livraison_prevue || '',
+    mention_livraison:    bcExistant?.mention_livraison    || '',
     notes:                bcExistant?.notes                || '',
   });
+
+  // Détection du mode livraison initial
+  const detecterMode = () => {
+    if (bcExistant?.mention_livraison === 'Dès que possible') return 'asap';
+    if (bcExistant?.mention_livraison === "Aujourd'hui") return 'today';
+    if (bcExistant?.date_livraison_prevue) return 'date';
+    return null;
+  };
+  const [modeLivraison, setModeLivraison] = useState(detecterMode);
   const [erreur, setErreur] = useState('');
 
   const enEdition = !!bcExistant;
@@ -126,16 +136,47 @@ const FormulaireBc = ({ bcExistant, produits, onSauvegarder, onAnnuler }) => {
           {champTexte('Prénoms', 'prenoms_commandeur', 'text', 'Prénoms')}
           {champTexte('Téléphone', 'telephone_commandeur', 'tel', '+225 00 00 00 00 00')}
           {champTexte('Lieu de livraison', 'lieu_livraison', 'text', 'ex: Abidjan Cocody')}
-          <div>
+          <div className="sm:col-span-2">
             <label className="block text-xs font-medium text-texte-principal mb-1">
               Date de livraison souhaitée
             </label>
-            <input
-              type="date"
-              value={infos.date_livraison_prevue}
-              onChange={(e) => setInfos((p) => ({ ...p, date_livraison_prevue: e.target.value }))}
-              className="champ-input text-sm"
-            />
+            <div className="flex flex-wrap gap-2">
+              {[
+                { id: 'asap',  label: 'Dès que possible' },
+                { id: 'today', label: "Aujourd'hui" },
+                { id: 'date',  label: 'Choisir une date' },
+              ].map((opt) => (
+                <button
+                  key={opt.id}
+                  type="button"
+                  onClick={() => {
+                    setModeLivraison(opt.id);
+                    if (opt.id === 'asap') {
+                      setInfos((p) => ({ ...p, mention_livraison: 'Dès que possible', date_livraison_prevue: '' }));
+                    } else if (opt.id === 'today') {
+                      setInfos((p) => ({ ...p, mention_livraison: "Aujourd'hui", date_livraison_prevue: '' }));
+                    } else {
+                      setInfos((p) => ({ ...p, mention_livraison: '', date_livraison_prevue: '' }));
+                    }
+                  }}
+                  className={`px-3 py-1.5 text-xs rounded-bouton border transition-colors ${
+                    modeLivraison === opt.id
+                      ? 'bg-zeze-vert text-white border-zeze-vert'
+                      : 'border-bordure text-texte-secondaire hover:border-zeze-vert hover:text-zeze-vert'
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+            {modeLivraison === 'date' && (
+              <input
+                type="date"
+                value={infos.date_livraison_prevue}
+                onChange={(e) => setInfos((p) => ({ ...p, date_livraison_prevue: e.target.value, mention_livraison: '' }))}
+                className="champ-input text-sm mt-2"
+              />
+            )}
           </div>
         </div>
       </div>
@@ -317,7 +358,7 @@ const VueBrouillon = ({ bc, produits, onModifier, onClose }) => {
         {ligne('Nom & Prénoms', [bc.nom_commandeur, bc.prenoms_commandeur].filter(Boolean).join(' '))}
         {ligne('Téléphone', bc.telephone_commandeur)}
         {ligne('Lieu de livraison', bc.lieu_livraison)}
-        {ligne('Date souhaitée', bc.date_livraison_prevue ? fmtDate(bc.date_livraison_prevue) : null)}
+        {ligne('Date souhaitée', bc.mention_livraison || (bc.date_livraison_prevue ? fmtDate(bc.date_livraison_prevue) : null))}
       </div>
 
       {/* Tableau produits */}
@@ -443,9 +484,9 @@ const CarteHistorique = ({ bc }) => {
                 <span className="font-medium">{bc.lieu_livraison}</span>
               </p>
             )}
-            {bc.date_livraison_prevue && (
-              <p><span className="text-texte-secondaire">Livraison prévue : </span>
-                <span className="font-medium">{fmtDate(bc.date_livraison_prevue)}</span>
+            {(bc.mention_livraison || bc.date_livraison_prevue) && (
+              <p><span className="text-texte-secondaire">Date souhaitée : </span>
+                <span className="font-medium">{bc.mention_livraison || fmtDate(bc.date_livraison_prevue)}</span>
               </p>
             )}
           </div>

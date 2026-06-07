@@ -27,6 +27,7 @@ module.exports = (sequelize) => {
       defaultValue: 'brouillon',
     },
     notes:                   { type: DataTypes.STRING(500), allowNull: true },
+    mention_livraison:       { type: DataTypes.STRING(100), allowNull: true },
     nom_commandeur:          { type: DataTypes.STRING(100), allowNull: true },
     prenoms_commandeur:      { type: DataTypes.STRING(150), allowNull: true },
     telephone_commandeur:    { type: DataTypes.STRING(30),  allowNull: true },

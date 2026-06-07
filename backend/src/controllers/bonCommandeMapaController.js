@@ -30,7 +30,7 @@ const creer = async (req, res) => {
   const {
     lignes, notes,
     nom_commandeur, prenoms_commandeur, telephone_commandeur,
-    lieu_livraison, nom_stockiste_mapa, date_livraison_prevue,
+    lieu_livraison, nom_stockiste_mapa, date_livraison_prevue, mention_livraison,
   } = req.body || {};
 
   const lignesValidees = Array.isArray(lignes) ? lignes : [];
@@ -48,6 +48,7 @@ const creer = async (req, res) => {
     lieu_livraison,
     nom_stockiste_mapa,
     date_livraison_prevue,
+    mention_livraison,
   });
   const bcComplet = await BonCommandeMapa.findByPk(bc.id, { include: includeCreateur });
   res.status(201).json(bcComplet);
@@ -61,7 +62,7 @@ const mettreAJour = async (req, res) => {
     return res.status(409).json({ message: 'Seul un brouillon peut être modifié.' });
   }
 
-  const { lignes, notes, nom_commandeur, prenoms_commandeur, telephone_commandeur, lieu_livraison, nom_stockiste_mapa, date_livraison_prevue } = req.body;
+  const { lignes, notes, nom_commandeur, prenoms_commandeur, telephone_commandeur, lieu_livraison, nom_stockiste_mapa, date_livraison_prevue, mention_livraison } = req.body;
   const montant_total = Array.isArray(lignes)
     ? lignes.reduce((s, l) => s + (l.prix_unitaire || 0) * (l.quantite || 0), 0)
     : bc.montant_total;
@@ -75,6 +76,7 @@ const mettreAJour = async (req, res) => {
     ...(lieu_livraison !== undefined ? { lieu_livraison } : {}),
     ...(nom_stockiste_mapa !== undefined ? { nom_stockiste_mapa } : {}),
     ...(date_livraison_prevue !== undefined ? { date_livraison_prevue } : {}),
+    ...(mention_livraison !== undefined ? { mention_livraison } : {}),
   });
 
   const bcMaj = await BonCommandeMapa.findByPk(bc.id, { include: includeCreateur });

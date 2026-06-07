@@ -120,8 +120,9 @@ const genererPdfBonCommande = (bc, infosCabinet) =>
     champInfo('NOM ET PRENOM :  ', nomPrenom);
     champInfo('CONTACT :  ', bc.telephone_commandeur);
     champInfo('LIEU DE LIVRAISON :  ', bc.lieu_livraison);
-    if (bc.date_livraison_prevue) {
-      champInfo('LIVRAISON PRÉVUE :  ', fmtDate(bc.date_livraison_prevue));
+    const valeurLivraison = bc.mention_livraison || (bc.date_livraison_prevue ? fmtDate(bc.date_livraison_prevue) : null);
+    if (valeurLivraison) {
+      champInfo('DATE DE LIVRAISON SOUHAITÉE :  ', valeurLivraison);
     }
     y += 6;
 
