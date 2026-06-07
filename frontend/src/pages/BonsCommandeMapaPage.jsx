@@ -83,7 +83,11 @@ const FormulaireBc = ({ bcExistant, produits, onSauvegarder, onAnnuler }) => {
 
   const handleSauvegarder = async () => {
     setErreur('');
-    const payload = { lignes, ...infos };
+    const payload = {
+      lignes,
+      ...infos,
+      date_livraison_prevue: infos.date_livraison_prevue || null,
+    };
     try {
       let bc;
       if (enEdition) {
