@@ -17,7 +17,23 @@ Structure (n'inclure que ce qui est présent dans le document) :
   "hepatique": {
     "crp": nombre,
     "asat": nombre,
-    "alat": nombre
+    "alat": nombre,
+    "ggt": nombre,
+    "pal": nombre,
+    "bilirubine_totale": nombre,
+    "bilirubine_directe": nombre,
+    "albumine": nombre
+  },
+  "thyroide": {
+    "tsh": nombre,
+    "ft3": nombre,
+    "ft4": nombre
+  },
+  "coagulation": {
+    "tp": nombre,
+    "inr": nombre,
+    "tca": nombre,
+    "fibrinogene": nombre
   },
   "nfs": {
     "hemoglobine": nombre,
@@ -95,7 +111,21 @@ Bilan rénal :
 Bilan hépatique :
 - CRP en mg/L → garder tel quel (ex: 93.70 mg/L → 93.7)
 - ASAT (GOT) et ALAT (TGP) en UI/L ou U/L → garder tel quel
-- Ne pas confondre avec la NFS : ces valeurs sont dans le panel "hepatique"
+- GGT (Gamma-GT) en UI/L → garder tel quel
+- PAL (Phosphatases alcalines) en UI/L → garder tel quel
+- Bilirubine en µmol/L → garder tel quel ; en mg/dL → × 17.1 ; en mg/L → × 1.71
+- Albumine en g/L → garder tel quel ; en g/dL → × 10
+
+Bilan thyroïdien :
+- TSH en mUI/L ou µUI/mL → garder tel quel
+- T3 libre (FT3) en pmol/L → garder tel quel ; en pg/mL → × 1.536
+- T4 libre (FT4) en pmol/L → garder tel quel ; en ng/dL → × 12.87
+
+Coagulation :
+- TP en % → garder tel quel
+- INR → nombre sans unité, garder tel quel
+- TCA en secondes → garder tel quel
+- Fibrinogène en g/L → garder tel quel ; en mg/dL → ÷ 100
 
 Bilan lipidique :
 - Valeurs en mmol/L → garder tel quel

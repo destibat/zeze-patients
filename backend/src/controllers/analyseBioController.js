@@ -7,7 +7,7 @@ const { genererPdfAnalyse } = require('../services/pdfAnalyseService');
 const { genererDocxAnalyse } = require('../services/docxAnalyseService');
 const { getCabinetId } = require('../config/cabinetContext');
 
-const PANELS_VALIDES = ['nfs', 'renal', 'glycemie', 'lipidique', 'ionogramme', 'hepatique'];
+const PANELS_VALIDES = ['nfs', 'renal', 'glycemie', 'lipidique', 'ionogramme', 'hepatique', 'thyroide', 'coagulation'];
 
 const verifierPermissionIA = async (userId) => {
   const u = await User.findByPk(userId, { attributes: ['peut_utiliser_ia'] });

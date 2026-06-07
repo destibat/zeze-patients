@@ -384,16 +384,22 @@ function interpreterIonogramme(vals) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Bilan hépatique (CRP, ASAT, ALAT)
+// Bilan hépatique complet (CRP, transaminases, GGT, PAL, bilirubine, albumine)
 // ─────────────────────────────────────────────────────────────────────────────
-function interpreterHapatique(vals) {
+function interpreterHapatique(vals, sexe) {
+  const s = sexe === 'F' ? 'F' : 'H';
   const commentaires = [];
   const add = (code, titre, texte, severite = SEVERITE.ATTENTION) =>
     commentaires.push({ code, titre, texte, severite });
 
-  const crp  = v(vals.crp);
-  const asat = v(vals.asat);
-  const alat = v(vals.alat);
+  const crp   = v(vals.crp);
+  const asat  = v(vals.asat);
+  const alat  = v(vals.alat);
+  const ggt   = v(vals.ggt);
+  const pal   = v(vals.pal);
+  const bilT  = v(vals.bilirubine_totale);
+  const bilD  = v(vals.bilirubine_directe);
+  const alb   = v(vals.albumine);
   let anomalie = false;
 
   if (crp !== null) {
@@ -419,11 +425,193 @@ function interpreterHapatique(vals) {
     add('ALAT_ELEVEE', 'ALAT (TGP) élevée', `ALAT ${alat} UI/L (norme 10–35). L'ALAT est spécifique du foie. ${alat > 105 ? 'Cytolyse hépatique significative. ' : ''}Causes : hépatite virale, stéatose hépatique, toxicité médicamenteuse.`, alat > 105 ? SEVERITE.CRITIQUE : SEVERITE.ATTENTION);
   }
 
-  const saisies = [crp, asat, alat].filter((x) => x !== null).length;
+  const ggtMax = s === 'F' ? 35 : 50;
+  if (ggt !== null && ggt > ggtMax) {
+    anomalie = true;
+    const ratio = Math.round(ggt / ggtMax);
+    add('GGT_ELEVEE', 'GGT (Gamma-GT) élevée',
+      `GGT ${ggt} UI/L (norme ${s === 'F' ? '< 35' : '< 50'} UI/L pour ${s === 'F' ? 'la femme' : "l'homme"})${ratio >= 3 ? ' — élévation importante' : ''}. Causes : stéatose hépatique, alcool, médicaments hépatotoxiques, cholestase. Marqueur sensible mais peu spécifique.`,
+      ratio >= 5 ? SEVERITE.CRITIQUE : SEVERITE.ATTENTION);
+  }
+
+  if (pal !== null) {
+    if (pal > 130) {
+      anomalie = true;
+      add('PAL_ELEVEE', 'Phosphatases alcalines (PAL) élevées',
+        `PAL ${pal} UI/L (norme 40–130). ${pal > 3 * 130 ? 'Élévation majeure. ' : ''}Causes : cholestase (obstruction biliaire, cirrhose), maladie osseuse de Paget, métastases osseuses, grossesse.`,
+        pal > 3 * 130 ? SEVERITE.CRITIQUE : SEVERITE.ATTENTION);
+    } else if (pal < 40) {
+      add('PAL_BASSE', 'Phosphatases alcalines basses', `PAL ${pal} UI/L. Peut s'observer en cas de carence en zinc, hypothyroïdie, anémie pernicieuse.`, SEVERITE.INFO);
+    }
+  }
+
+  if (bilT !== null) {
+    if (bilT > 34) {
+      anomalie = true;
+      add('ICTERE', 'Ictère clinique (bilirubine totale)',
+        `Bilirubine totale ${bilT} µmol/L > 34 (seuil d'ictère clinique). ${bilD !== null ? (bilD / bilT > 0.5 ? 'Prédominance directe (conjuguée) → ictère cholestatique (obstacle biliaire, hépatite). ' : 'Prédominance indirecte (libre) → ictère hémolytique ou Gilbert. ') : ''}Bilan étiologique recommandé.`,
+        bilT > 100 ? SEVERITE.CRITIQUE : SEVERITE.ATTENTION);
+    } else if (bilT > 17) {
+      anomalie = true;
+      add('BILIRUBINE_ELEVEE', 'Hyperbilirubinémie modérée',
+        `Bilirubine totale ${bilT} µmol/L (norme < 17). Élévation infraclinique (ictère < 34 µmol/L). Peut orienter vers une hémolyse débutante ou une pathologie hépatique.`, SEVERITE.INFO);
+    }
+  }
+
+  if (alb !== null) {
+    if (alb < 30) {
+      anomalie = true;
+      add('HYPOALB_SEVERE', 'Hypoalbuminémie sévère',
+        `Albumine ${alb} g/L (norme 35–50). Marqueur d'insuffisance hépatocellulaire grave, dénutrition sévère ou syndrome néphrotique. Risque d'ascite et d'œdèmes.`, SEVERITE.CRITIQUE);
+    } else if (alb < 35) {
+      anomalie = true;
+      add('HYPOALB', 'Hypoalbuminémie',
+        `Albumine ${alb} g/L (norme 35–50). Causes : insuffisance hépatique chronique, dénutrition, syndrome inflammatoire chronique, pertes rénales.`, SEVERITE.ATTENTION);
+    }
+  }
+
+  const saisies = [crp, asat, alat, ggt, pal, bilT, alb].filter((x) => x !== null).length;
   if (!anomalie && saisies > 0) {
-    add('HEPATIQUE_NORMAL', 'Bilan hépatique normal', 'CRP, ASAT et ALAT dans les valeurs de référence. Pas de signe d\'inflammation ni de cytolyse hépatique.', SEVERITE.NORMAL);
+    add('HEPATIQUE_NORMAL', 'Bilan hépatique normal', 'Les paramètres hépatiques sont dans les valeurs de référence.', SEVERITE.NORMAL);
   } else if (saisies === 0) {
-    add('HEPATIQUE_INCOMPLET', 'Données insuffisantes', 'Saisir au moins CRP, ASAT ou ALAT.', SEVERITE.INFO);
+    add('HEPATIQUE_INCOMPLET', 'Données insuffisantes', 'Saisir au moins CRP, ASAT, ALAT ou GGT.', SEVERITE.INFO);
+  }
+
+  return commentaires;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Bilan thyroïdien (TSH, T3L, T4L)
+// ─────────────────────────────────────────────────────────────────────────────
+function interpreterThyroide(vals) {
+  const commentaires = [];
+  const add = (code, titre, texte, severite = SEVERITE.ATTENTION) =>
+    commentaires.push({ code, titre, texte, severite });
+
+  const tsh = v(vals.tsh);   // mUI/L — norme 0,4–4,0
+  const ft3 = v(vals.ft3);   // pmol/L — norme 3,5–6,5
+  const ft4 = v(vals.ft4);   // pmol/L — norme 10–26
+  let anomalie = false;
+
+  if (tsh !== null) {
+    if (tsh < 0.1) {
+      anomalie = true;
+      const ft4Elev = ft4 !== null && ft4 > 26;
+      const ft3Elev = ft3 !== null && ft3 > 6.5;
+      add('HYPER_FRANCHE', 'Hyperthyroïdie franche',
+        `TSH ${tsh} mUI/L < 0,1. ${ft4Elev || ft3Elev ? 'T3L/T4L élevées — hyperthyroïdie clinique confirmée. ' : ''}Causes : maladie de Basedow, nodule autonome, thyroïdite de De Quervain. Avis endocrinologique urgent.`,
+        SEVERITE.CRITIQUE);
+    } else if (tsh < 0.4) {
+      anomalie = true;
+      add('HYPER_FRUSTRE', 'Hyperthyroïdie fruste (TSH basse)',
+        `TSH ${tsh} mUI/L (norme 0,4–4,0). ${ft4 !== null && entre(ft4, 10, 26) && ft3 !== null && entre(ft3, 3.5, 6.5) ? 'T3L/T4L normales — hyperthyroïdie subclinique. ' : ''}Contrôle à 3 mois recommandé. Peut évoluer vers une hyperthyroïdie franche ou normalisation.`,
+        SEVERITE.ATTENTION);
+    } else if (tsh > 10) {
+      anomalie = true;
+      const ft4Bas = ft4 !== null && ft4 < 10;
+      add('HYPO_FRANCHE', 'Hypothyroïdie franche',
+        `TSH ${tsh} mUI/L > 10. ${ft4Bas ? 'T4L basse — hypothyroïdie primaire confirmée. ' : ''}Causes : thyroïdite de Hashimoto, post-thyroïdectomie, carence iodée. Substitution par L-thyroxine nécessaire.`,
+        SEVERITE.CRITIQUE);
+    } else if (tsh > 4.0) {
+      anomalie = true;
+      add('HYPO_FRUSTRE', 'Hypothyroïdie fruste (TSH haute)',
+        `TSH ${tsh} mUI/L (norme 0,4–4,0). ${ft4 !== null && entre(ft4, 10, 26) ? 'T4L normale — hypothyroïdie subclinique. ' : ''}Contrôle à 3 mois avec anticorps anti-TPO recommandé. Traitement à discuter si TSH > 10 ou symptômes.`,
+        SEVERITE.ATTENTION);
+    }
+  }
+
+  if (ft4 !== null && ft4 < 10 && (tsh === null || entre(tsh, 0.4, 4.0))) {
+    anomalie = true;
+    add('FT4_BASSE', 'T4 libre basse (euthyroïdie centrale ?)',
+      `T4 libre ${ft4} pmol/L < 10. TSH normale ou non saisie. Évoquer une pathologie hypophysaire (hypothyroïdie centrale) si la TSH n'est pas élevée. Bilan hypophysaire recommandé.`,
+      SEVERITE.ATTENTION);
+  }
+
+  if (ft3 !== null && ft3 > 6.5 && (tsh === null || tsh >= 0.4)) {
+    anomalie = true;
+    add('FT3_ELEVEE', 'T3 libre élevée',
+      `T3 libre ${ft3} pmol/L > 6,5. En l'absence de TSH basse, vérifier une éventuelle thyroïdite subaiguë ou contexte de traitement (liothyronine).`,
+      SEVERITE.ATTENTION);
+  }
+
+  const saisies = [tsh, ft3, ft4].filter((x) => x !== null).length;
+  if (!anomalie && saisies > 0) {
+    add('THYROIDE_NORMALE', 'Bilan thyroïdien normal',
+      `Les paramètres thyroïdiens sont dans les valeurs de référence.${tsh !== null ? ` TSH ${tsh} mUI/L.` : ''}`, SEVERITE.NORMAL);
+  } else if (saisies === 0) {
+    add('THYROIDE_INCOMPLET', 'Données insuffisantes', 'Saisir au moins la TSH.', SEVERITE.INFO);
+  }
+
+  return commentaires;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Coagulation (TP, INR, TCA, fibrinogène)
+// ─────────────────────────────────────────────────────────────────────────────
+function interpreterCoagulation(vals) {
+  const commentaires = [];
+  const add = (code, titre, texte, severite = SEVERITE.ATTENTION) =>
+    commentaires.push({ code, titre, texte, severite });
+
+  const tp    = v(vals.tp);           // %      norme 70–100
+  const inr   = v(vals.inr);          // ratio  norme 0,8–1,2
+  const tca   = v(vals.tca);          // s      norme 25–38
+  const fib   = v(vals.fibrinogene);  // g/L    norme 2,0–4,0
+  let anomalie = false;
+
+  if (tp !== null) {
+    if (tp < 50) {
+      anomalie = true;
+      add('TP_SEVERE', 'TP très abaissé — coagulopathie sévère',
+        `TP ${tp}% < 50%. Risque hémorragique majeur. Causes : insuffisance hépatocellulaire grave, CIVD, anticoagulants. Bilan urgence : fibrinogène, facteurs de coagulation, avis hématologique.`,
+        SEVERITE.CRITIQUE);
+    } else if (tp < 70) {
+      anomalie = true;
+      add('TP_ABAISSE', 'TP abaissé',
+        `TP ${tp}% (norme 70–100%). Hypocoagulabilité. Causes : déficit en facteurs II, V, VII, X (voie extrinsèque), insuffisance hépatique, carence en vitamine K, anticoagulants.`,
+        SEVERITE.ATTENTION);
+    }
+  }
+
+  if (inr !== null && inr > 1.2) {
+    anomalie = true;
+    add('INR_ELEVE', inr > 3.0 ? 'INR très élevé — risque hémorragique' : 'INR élevé',
+      `INR ${inr} (norme 0,8–1,2). ${inr > 3.0 ? 'Risque hémorragique important. ' : ''}${inr > 5 ? 'Antidote (vitamine K ou plasma frais congelé) à envisager. ' : ''}En l'absence de traitement anticoagulant : insuffisance hépatique, CIVD, carence en vitamine K.`,
+      inr > 3.0 ? SEVERITE.CRITIQUE : SEVERITE.ATTENTION);
+  }
+
+  if (tca !== null && tca > 38) {
+    anomalie = true;
+    add('TCA_ALLONGE', tca > 60 ? 'TCA très allongé' : 'TCA allongé',
+      `TCA ${tca} s (norme 25–38 s). ${tca > 60 ? 'Allongement majeur. ' : ''}Causes : déficit en facteurs VIII, IX, XI (voie intrinsèque), anticoagulants (héparines), CIVD, anticoagulant lupique. Ratio TCA patient/témoin > 1,5 : pathologique.`,
+      tca > 60 ? SEVERITE.CRITIQUE : SEVERITE.ATTENTION);
+  }
+
+  if (fib !== null) {
+    if (fib < 1.0) {
+      anomalie = true;
+      add('AFIBRINOGENEMIE', 'Fibrinogène très bas — CIVD probable',
+        `Fibrinogène ${fib} g/L < 1,0. Risque hémorragique vital. Évoquer une CIVD (coagulation intravasculaire disséminée) : paludisme sévère, sepsis, hémorragie obstétricale. Avis réanimation urgent.`,
+        SEVERITE.CRITIQUE);
+    } else if (fib < 2.0) {
+      anomalie = true;
+      add('HYPOFIBRINOGENEMIE', 'Hypofibrinogénémie',
+        `Fibrinogène ${fib} g/L (norme 2,0–4,0). Causes : CIVD, insuffisance hépatique sévère, déficit constitutionnel. Associer D-dimères pour CIVD.`,
+        SEVERITE.ATTENTION);
+    } else if (fib > 4.0) {
+      anomalie = true;
+      add('HYPERFIBRINOGENEMIE', 'Hyperfibrinogénémie',
+        `Fibrinogène ${fib} g/L (norme 2,0–4,0). Protéine de l'inflammation aiguë. Causes : infection, cancer, grossesse. Facteur de risque cardiovasculaire si chronique.`,
+        SEVERITE.INFO);
+    }
+  }
+
+  const saisies = [tp, inr, tca, fib].filter((x) => x !== null).length;
+  if (!anomalie && saisies > 0) {
+    add('COAG_NORMALE', 'Bilan de coagulation normal',
+      'Les paramètres de coagulation sont dans les valeurs de référence.', SEVERITE.NORMAL);
+  } else if (saisies === 0) {
+    add('COAG_INCOMPLET', 'Données insuffisantes', 'Saisir au moins le TP ou l\'INR.', SEVERITE.INFO);
   }
 
   return commentaires;
@@ -442,7 +630,9 @@ export function interpreterPanels(valeurs_brutes, panels, sexe) {
       case 'glycemie':   resultats.glycemie   = interpreterGlycemie(vals);        break;
       case 'lipidique':  resultats.lipidique  = interpreterLipidique(vals, sexe); break;
       case 'ionogramme': resultats.ionogramme = interpreterIonogramme(vals);      break;
-      case 'hepatique':  resultats.hepatique  = interpreterHapatique(vals);       break;
+      case 'hepatique':  resultats.hepatique  = interpreterHapatique(vals, sexe);  break;
+      case 'thyroide':   resultats.thyroide   = interpreterThyroide(vals);         break;
+      case 'coagulation':resultats.coagulation= interpreterCoagulation(vals);      break;
     }
   }
   return resultats;
@@ -480,6 +670,30 @@ export const NORMALES_LIPIDIQUE = (sexe = 'H') => ({
   ldl:               '< 3,4 mmol/L',
   hdl:               sexe === 'F' ? '> 1,3 mmol/L' : '> 1,0 mmol/L',
   triglycerides:     '< 1,7 mmol/L',
+});
+
+export const NORMALES_HEPATIQUE = (sexe = 'H') => ({
+  crp:               '< 6 mg/L',
+  asat:              '10–40 UI/L',
+  alat:              '10–35 UI/L',
+  ggt:               sexe === 'F' ? '< 35 UI/L' : '< 50 UI/L',
+  pal:               '40–130 UI/L',
+  bilirubine_totale: '< 17 µmol/L',
+  bilirubine_directe:'< 5 µmol/L',
+  albumine:          '35–50 g/L',
+});
+
+export const NORMALES_THYROIDE = () => ({
+  tsh: '0,4–4,0 mUI/L',
+  ft3: '3,5–6,5 pmol/L',
+  ft4: '10–26 pmol/L',
+});
+
+export const NORMALES_COAGULATION = () => ({
+  tp:          '70–100 %',
+  inr:         '0,8–1,2',
+  tca:         '25–38 s',
+  fibrinogene: '2,0–4,0 g/L',
 });
 
 export const NORMALES_IONOGRAMME = () => ({

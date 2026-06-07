@@ -4,7 +4,7 @@ import { interpreterPanels, couleurSeverite, iconesSeverite, SEVERITE } from '..
 import { useAuth } from '../../../contexts/AuthContext';
 import { useAbonnement } from '../../../hooks/useAbonnement';
 import Button from '../../../components/ui/Button';
-import { Plus, Trash2, ChevronDown, ChevronUp, FlaskConical, Upload, FileText, Image, Loader2, CheckCircle2, X, Sparkles, RefreshCw, Download, Pencil, Check, ShieldCheck } from 'lucide-react';
+import { Plus, Trash2, ChevronDown, ChevronUp, FlaskConical, Upload, FileText, Image, Loader2, CheckCircle2, X, Sparkles, RefreshCw, Download, Pencil, Check, ShieldCheck, TrendingUp } from 'lucide-react';
 
 // ── ErrorBoundary — empêche un crash d'une carte de vider toute la page ───────
 class CarteErreur extends Component {
@@ -34,12 +34,14 @@ const fmtDate = (d) =>
 
 // ── Labels des panels ─────────────────────────────────────────────────────────
 const PANEL_INFO = {
-  nfs:        { label: 'NFS',             couleur: 'bg-red-100 text-red-800 border-red-200' },
+  nfs:        { label: 'NFS',              couleur: 'bg-red-100 text-red-800 border-red-200' },
   renal:      { label: 'Bilan rénal',      couleur: 'bg-blue-100 text-blue-800 border-blue-200' },
   glycemie:   { label: 'Bilan glycémique', couleur: 'bg-yellow-100 text-yellow-800 border-yellow-200' },
   lipidique:  { label: 'Bilan lipidique',  couleur: 'bg-purple-100 text-purple-800 border-purple-200' },
   ionogramme: { label: 'Ionogramme',       couleur: 'bg-teal-100 text-teal-800 border-teal-200' },
   hepatique:  { label: 'Bilan hépatique',  couleur: 'bg-orange-100 text-orange-800 border-orange-200' },
+  thyroide:   { label: 'Bilan thyroïdien', couleur: 'bg-indigo-100 text-indigo-800 border-indigo-200' },
+  coagulation:{ label: 'Coagulation',      couleur: 'bg-rose-100 text-rose-800 border-rose-200' },
 };
 
 // ── Paramètres biologiques (labels + unités + normes) ─────────────────────────
@@ -139,9 +141,31 @@ const PARAMS_META = {
   hepatique: {
     label: 'Bilan hépatique',
     params: {
-      crp:  { label: 'CRP (Protéine C-réactive)', unite: 'mg/L', ref: () => '< 6' },
-      asat: { label: 'ASAT (GOT)',                unite: 'UI/L', ref: () => '10–40' },
-      alat: { label: 'ALAT (TGP)',                unite: 'UI/L', ref: () => '10–35' },
+      crp:               { label: 'CRP (Protéine C-réactive)', unite: 'mg/L',   ref: () => '< 6' },
+      asat:              { label: 'ASAT (GOT)',                 unite: 'UI/L',   ref: () => '10–40' },
+      alat:              { label: 'ALAT (TGP)',                 unite: 'UI/L',   ref: () => '10–35' },
+      ggt:               { label: 'GGT (Gamma-GT)',             unite: 'UI/L',   ref: (s) => s === 'F' ? '< 35' : '< 50' },
+      pal:               { label: 'PAL (Phosphatases alcalines)', unite: 'UI/L', ref: () => '40–130' },
+      bilirubine_totale: { label: 'Bilirubine totale',          unite: 'µmol/L', ref: () => '< 17' },
+      bilirubine_directe:{ label: 'Bilirubine directe',         unite: 'µmol/L', ref: () => '< 5' },
+      albumine:          { label: 'Albumine',                   unite: 'g/L',    ref: () => '35–50' },
+    },
+  },
+  thyroide: {
+    label: 'Bilan thyroïdien',
+    params: {
+      tsh: { label: 'TSH (Thyréostimuline)', unite: 'mUI/L',  ref: () => '0,4–4,0' },
+      ft3: { label: 'T3 libre (FT3)',        unite: 'pmol/L', ref: () => '3,5–6,5' },
+      ft4: { label: 'T4 libre (FT4)',        unite: 'pmol/L', ref: () => '10–26' },
+    },
+  },
+  coagulation: {
+    label: 'Coagulation',
+    params: {
+      tp:          { label: 'TP (Taux de Prothrombine)', unite: '%',   ref: () => '70–100' },
+      inr:         { label: 'INR',                        unite: '',    ref: () => '0,8–1,2' },
+      tca:         { label: 'TCA',                        unite: 's',   ref: () => '25–38' },
+      fibrinogene: { label: 'Fibrinogène',                unite: 'g/L', ref: () => '2,0–4,0' },
     },
   },
 };
@@ -589,6 +613,331 @@ const ZoneUpload = ({ patientId, onTermine, onAnnuler }) => {
   );
 };
 
+// ── Saisie manuelle ───────────────────────────────────────────────────────────
+const ORDRE_PANELS = ['nfs', 'renal', 'glycemie', 'lipidique', 'ionogramme', 'hepatique', 'thyroide', 'coagulation'];
+
+const FormulaireManuel = ({ patientId, patient, onTermine, onAnnuler }) => {
+  const creer = useCreerAnalyseBio(patientId);
+  const [meta, setMeta] = useState({
+    date_analyse: new Date().toISOString().slice(0, 10),
+    sexe_patient: patient?.sexe || 'M',
+    age_patient:  '',
+    contexte_clinique: '',
+  });
+  const [panelsActifs, setPanelsActifs] = useState([]);
+  const [valeurs, setValeurs] = useState({});
+  const [erreur, setErreur] = useState('');
+
+  const togglePanel = (id) =>
+    setPanelsActifs((prev) => prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id]);
+
+  const setVal = (panelId, key, val) =>
+    setValeurs((prev) => ({ ...prev, [panelId]: { ...(prev[panelId] || {}), [key]: val } }));
+
+  const handleSauvegarder = async () => {
+    if (panelsActifs.length === 0) { setErreur('Sélectionnez au moins un panel.'); return; }
+    setErreur('');
+    try {
+      await creer.mutateAsync({
+        date_analyse:    meta.date_analyse,
+        sexe_patient:    meta.sexe_patient,
+        age_patient:     meta.age_patient ? parseInt(meta.age_patient) : null,
+        panels_demandes: panelsActifs,
+        valeurs_brutes:  valeurs,
+        source:          'manuelle',
+        contexte_clinique: meta.contexte_clinique || null,
+      });
+      onTermine();
+    } catch (e) {
+      setErreur(e?.response?.data?.message || 'Erreur lors de l\'enregistrement.');
+    }
+  };
+
+  return (
+    <div className="space-y-5">
+      {/* Métadonnées */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div>
+          <label className="block text-xs font-medium text-texte-secondaire mb-1">Date</label>
+          <input type="date" value={meta.date_analyse}
+            onChange={(e) => setMeta((p) => ({ ...p, date_analyse: e.target.value }))}
+            className="champ-input text-xs" />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-texte-secondaire mb-1">Sexe</label>
+          <select value={meta.sexe_patient}
+            onChange={(e) => setMeta((p) => ({ ...p, sexe_patient: e.target.value }))}
+            className="champ-input text-xs">
+            <option value="M">Masculin</option>
+            <option value="F">Féminin</option>
+          </select>
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-texte-secondaire mb-1">Âge</label>
+          <input type="number" min={0} max={120} value={meta.age_patient}
+            onChange={(e) => setMeta((p) => ({ ...p, age_patient: e.target.value }))}
+            className="champ-input text-xs" placeholder="ans" />
+        </div>
+      </div>
+
+      {/* Sélection des panels */}
+      <div>
+        <p className="text-xs font-semibold text-texte-secondaire uppercase tracking-wide mb-2">
+          Panels à renseigner
+        </p>
+        <div className="flex flex-wrap gap-2">
+          {ORDRE_PANELS.map((id) => {
+            const actif = panelsActifs.includes(id);
+            const info  = PANEL_INFO[id];
+            return (
+              <button key={id} type="button" onClick={() => togglePanel(id)}
+                className={`px-3 py-1.5 text-xs rounded-bouton border transition-colors font-medium ${
+                  actif ? 'bg-zeze-vert text-white border-zeze-vert' : 'border-bordure text-texte-secondaire hover:border-zeze-vert hover:text-zeze-vert'
+                }`}>
+                {info?.label || id}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Champs par panel */}
+      {panelsActifs.map((panelId) => {
+        const meta_panel = PARAMS_META[panelId];
+        if (!meta_panel) return null;
+        return (
+          <div key={panelId} className="border border-bordure rounded-carte overflow-hidden">
+            <div className="bg-[#0D5C38] text-white text-xs font-semibold px-3 py-2">
+              {meta_panel.label}
+            </div>
+            <div className="p-3 grid grid-cols-2 sm:grid-cols-3 gap-3">
+              {Object.entries(meta_panel.params).map(([key, param]) => {
+                const refStr = typeof param.ref === 'function' ? param.ref(meta.sexe_patient) : param.ref;
+                const uniteStr = typeof param.unite === 'function'
+                  ? param.unite(valeurs[panelId]?.[key])
+                  : param.unite;
+                return (
+                  <div key={key}>
+                    <label className="block text-xs text-texte-secondaire mb-0.5">
+                      {param.label}
+                      {uniteStr && <span className="ml-1 text-gray-400">({uniteStr})</span>}
+                    </label>
+                    <input
+                      type="number"
+                      step="any"
+                      value={valeurs[panelId]?.[key] ?? ''}
+                      onChange={(e) => setVal(panelId, key, e.target.value === '' ? '' : parseFloat(e.target.value))}
+                      placeholder={refStr}
+                      className="champ-input text-xs"
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
+
+      {/* Contexte clinique */}
+      {panelsActifs.length > 0 && (
+        <div>
+          <label className="block text-xs font-medium text-texte-secondaire mb-1">
+            Contexte clinique (optionnel)
+          </label>
+          <textarea rows={2} value={meta.contexte_clinique}
+            onChange={(e) => setMeta((p) => ({ ...p, contexte_clinique: e.target.value }))}
+            className="w-full text-xs border border-bordure rounded p-2 resize-none focus:outline-none focus:ring-1 focus:ring-primaire"
+            placeholder="Symptômes, antécédents, traitement en cours…" />
+        </div>
+      )}
+
+      {erreur && <p className="text-sm text-medical-critique">{erreur}</p>}
+
+      <div className="flex gap-2 flex-wrap">
+        <Button variante="primaire" icone={FlaskConical} chargement={creer.isPending} onClick={handleSauvegarder}
+          disabled={panelsActifs.length === 0}>
+          Enregistrer l'analyse
+        </Button>
+        <Button variante="fantome" icone={X} disabled={creer.isPending} onClick={onAnnuler}>
+          Annuler
+        </Button>
+      </div>
+    </div>
+  );
+};
+
+// ── Graphique évolution temporelle ────────────────────────────────────────────
+const GraphiqueEvolution = ({ analyses }) => {
+  const [paramCle, setParamCle] = useState('');
+
+  // Construire la liste de tous les paramètres présents dans ≥ 2 analyses
+  const paramsDisponibles = useMemo(() => {
+    const compteur = {};
+    analyses.forEach((a) => {
+      const valeurs = parseJSON(a.valeurs_brutes, {});
+      const panels  = parseJSON(a.panels_demandes, []);
+      panels.forEach((panelId) => {
+        const panelMeta = PARAMS_META[panelId];
+        if (!panelMeta) return;
+        Object.keys(panelMeta.params).forEach((key) => {
+          const val = valeurs[panelId]?.[key];
+          if (val !== null && val !== undefined && val !== '') {
+            const cle = `${panelId}.${key}`;
+            compteur[cle] = (compteur[cle] || 0) + 1;
+          }
+        });
+      });
+    });
+    return Object.entries(compteur)
+      .filter(([, n]) => n >= 2)
+      .map(([cle]) => {
+        const [panelId, key] = cle.split('.');
+        const param = PARAMS_META[panelId]?.params?.[key];
+        return { cle, panelId, key, label: param?.label || key };
+      })
+      .sort((a, b) => a.label.localeCompare(b.label));
+  }, [analyses]);
+
+  if (paramsDisponibles.length === 0) {
+    return (
+      <p className="text-xs text-texte-secondaire italic py-4 text-center">
+        Enregistrez au moins 2 analyses avec un paramètre commun pour voir son évolution.
+      </p>
+    );
+  }
+
+  const paramActuel = paramCle || paramsDisponibles[0]?.cle || '';
+  const [panelId, key] = paramActuel.split('.');
+  const panelMeta = PARAMS_META[panelId];
+  const paramMeta = panelMeta?.params?.[key];
+
+  // Extraire les points (date, valeur) triés chronologiquement
+  const points = analyses
+    .map((a) => {
+      const valeurs = parseJSON(a.valeurs_brutes, {});
+      const val = valeurs[panelId]?.[key];
+      if (val === null || val === undefined || val === '') return null;
+      return { date: a.date_analyse, valeur: parseFloat(val), sexe: a.sexe_patient };
+    })
+    .filter(Boolean)
+    .sort((a, b) => new Date(a.date) - new Date(b.date));
+
+  if (points.length < 2) {
+    return (
+      <div className="space-y-3">
+        <select value={paramActuel} onChange={(e) => setParamCle(e.target.value)}
+          className="champ-input text-xs max-w-xs">
+          {paramsDisponibles.map(({ cle, label }) => (
+            <option key={cle} value={cle}>{label}</option>
+          ))}
+        </select>
+        <p className="text-xs text-texte-secondaire italic">
+          Pas assez de valeurs pour ce paramètre.
+        </p>
+      </div>
+    );
+  }
+
+  // Calcul des bornes de référence (pour la ligne de norme)
+  const refStr = paramMeta ? (typeof paramMeta.ref === 'function' ? paramMeta.ref(points[0]?.sexe || 'M') : paramMeta.ref) : '';
+  let refMin = null, refMax = null;
+  if (refStr.includes('–')) {
+    const parts = refStr.split('–').map((s) => parseFloat(s.replace(',', '.')));
+    if (!isNaN(parts[0]) && !isNaN(parts[1])) { refMin = parts[0]; refMax = parts[1]; }
+  } else {
+    const lt = refStr.match(/^<\s*([\d,]+)/);
+    if (lt) { refMin = 0; refMax = parseFloat(lt[1].replace(',', '.')); }
+    const gt = refStr.match(/^>\s*([\d,]+)/);
+    if (gt) { refMin = parseFloat(gt[1].replace(',', '.')); }
+  }
+
+  // Dimensions SVG
+  const W = 400, H = 140, PL = 50, PR = 10, PT = 10, PB = 30;
+  const innerW = W - PL - PR;
+  const innerH = H - PT - PB;
+
+  const vals = points.map((p) => p.valeur);
+  const allVals = refMin !== null && refMax !== null ? [...vals, refMin, refMax] : vals;
+  const vMin = Math.min(...allVals) * 0.85;
+  const vMax = Math.max(...allVals) * 1.15;
+  const vRange = vMax - vMin || 1;
+
+  const toX = (i) => PL + (i / (points.length - 1)) * innerW;
+  const toY = (val) => PT + innerH - ((val - vMin) / vRange) * innerH;
+
+  const pathD = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${toX(i).toFixed(1)} ${toY(p.valeur).toFixed(1)}`).join(' ');
+
+  const fmtDate = (d) => d ? new Date(d).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' }) : '';
+  const estHorsNorme = (val) => {
+    if (refMin !== null && refMax !== null) return val < refMin || val > refMax;
+    if (refMax !== null) return val > refMax;
+    if (refMin !== null) return val < refMin;
+    return false;
+  };
+
+  return (
+    <div className="space-y-3">
+      <select value={paramActuel} onChange={(e) => setParamCle(e.target.value)}
+        className="champ-input text-xs max-w-xs">
+        {paramsDisponibles.map(({ cle, label }) => (
+          <option key={cle} value={cle}>{label}</option>
+        ))}
+      </select>
+
+      <div className="overflow-x-auto">
+        <svg viewBox={`0 0 ${W} ${H}`} className="w-full max-w-lg" style={{ minWidth: 280 }}>
+          {/* Zone normale */}
+          {refMin !== null && refMax !== null && (
+            <rect
+              x={PL} y={toY(refMax)}
+              width={innerW} height={toY(refMin) - toY(refMax)}
+              fill="#dcfce7" opacity={0.6}
+            />
+          )}
+          {/* Lignes de norme */}
+          {refMin !== null && (
+            <line x1={PL} x2={PL + innerW} y1={toY(refMin)} y2={toY(refMin)}
+              stroke="#16a34a" strokeWidth={0.8} strokeDasharray="4,3" />
+          )}
+          {refMax !== null && (
+            <line x1={PL} x2={PL + innerW} y1={toY(refMax)} y2={toY(refMax)}
+              stroke="#16a34a" strokeWidth={0.8} strokeDasharray="4,3" />
+          )}
+          {/* Courbe */}
+          <path d={pathD} fill="none" stroke="#0D5C38" strokeWidth={1.8} strokeLinejoin="round" />
+          {/* Points */}
+          {points.map((p, i) => {
+            const hors = estHorsNorme(p.valeur);
+            return (
+              <g key={i}>
+                <circle cx={toX(i)} cy={toY(p.valeur)} r={4}
+                  fill={hors ? '#dc2626' : '#0D5C38'} stroke="white" strokeWidth={1.5} />
+                <text x={toX(i)} y={toY(p.valeur) - 7} textAnchor="middle"
+                  fontSize={8} fill={hors ? '#dc2626' : '#374151'} fontWeight="600">
+                  {p.valeur}
+                </text>
+                <text x={toX(i)} y={H - 5} textAnchor="middle" fontSize={7.5} fill="#6b7280">
+                  {fmtDate(p.date)}
+                </text>
+              </g>
+            );
+          })}
+          {/* Axe Y labels */}
+          {[vMin, (vMin + vMax) / 2, vMax].map((val, i) => (
+            <text key={i} x={PL - 4} y={toY(val) + 3} textAnchor="end" fontSize={8} fill="#9ca3af">
+              {val.toFixed(1)}
+            </text>
+          ))}
+        </svg>
+      </div>
+      <p className="text-xs text-texte-secondaire">
+        {paramMeta?.label} — {paramMeta?.unite ? `unité : ${typeof paramMeta.unite === 'string' ? paramMeta.unite : ''}` : ''} Norme : {refStr}
+        {points.length} mesure{points.length > 1 ? 's' : ''}
+      </p>
+    </div>
+  );
+};
+
 // ── Carte d'une analyse sauvegardée ───────────────────────────────────────────
 const CarteAnalyseInterne = ({ analyse }) => {
   const { utilisateur } = useAuth();
@@ -907,15 +1256,16 @@ const CarteAnalyse = (props) => (
 // ── Composant principal ───────────────────────────────────────────────────────
 import React from 'react';
 
+// mode: null | 'upload' | 'manuel' | 'evolution'
 const SectionAnalyseBio = ({ patientId, patient }) => {
-  const [modeUpload, setModeUpload] = useState(false);
+  const [mode, setMode] = useState(null);
   const { data: analyses = [], isLoading } = useAnalysesBio(patientId);
 
-  const handleTermine = () => setModeUpload(false);
+  const retourListe = () => setMode(null);
 
   return (
     <div className="carte space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-2">
         <h2 className="text-sm font-semibold text-texte-principal flex items-center gap-2">
           <FlaskConical size={15} className="text-zeze-vert" />
           Analyses biologiques
@@ -923,15 +1273,30 @@ const SectionAnalyseBio = ({ patientId, patient }) => {
             <span className="text-xs font-normal text-texte-secondaire">({analyses.length})</span>
           )}
         </h2>
-        {!modeUpload && (
-          <Button variante="secondaire" icone={Plus} taille="petit" onClick={() => setModeUpload(true)}>
-            Nouvelle analyse
+        {mode === null && (
+          <div className="flex gap-2 flex-wrap">
+            <Button variante="secondaire" icone={Upload} taille="petit" onClick={() => setMode('upload')}>
+              Charger fichier
+            </Button>
+            <Button variante="secondaire" icone={Pencil} taille="petit" onClick={() => setMode('manuel')}>
+              Saisie manuelle
+            </Button>
+            {analyses.length >= 2 && (
+              <Button variante="fantome" icone={TrendingUp} taille="petit" onClick={() => setMode('evolution')}>
+                Évolution
+              </Button>
+            )}
+          </div>
+        )}
+        {mode !== null && (
+          <Button variante="fantome" icone={X} taille="petit" onClick={retourListe}>
+            Retour
           </Button>
         )}
       </div>
 
-      {/* Zone d'upload */}
-      {modeUpload && (
+      {/* Zone d'upload fichier */}
+      {mode === 'upload' && (
         <div className="border border-zeze-vert/30 rounded-carte p-4 bg-green-50/20">
           <p className="text-sm font-medium text-texte-principal mb-4 flex items-center gap-2">
             <Upload size={14} className="text-zeze-vert" />
@@ -939,33 +1304,62 @@ const SectionAnalyseBio = ({ patientId, patient }) => {
           </p>
           <ZoneUpload
             patientId={patientId}
-            onTermine={handleTermine}
-            onAnnuler={() => setModeUpload(false)}
+            onTermine={retourListe}
+            onAnnuler={retourListe}
           />
         </div>
       )}
 
+      {/* Saisie manuelle */}
+      {mode === 'manuel' && (
+        <div className="border border-zeze-vert/30 rounded-carte p-4 bg-green-50/20">
+          <p className="text-sm font-medium text-texte-principal mb-4 flex items-center gap-2">
+            <Pencil size={14} className="text-zeze-vert" />
+            Saisie manuelle des valeurs
+          </p>
+          <FormulaireManuel
+            patientId={patientId}
+            patient={patient}
+            onTermine={retourListe}
+            onAnnuler={retourListe}
+          />
+        </div>
+      )}
+
+      {/* Graphique d'évolution */}
+      {mode === 'evolution' && (
+        <div className="border border-bordure rounded-carte p-4">
+          <p className="text-sm font-medium text-texte-principal mb-4 flex items-center gap-2">
+            <TrendingUp size={14} className="text-zeze-vert" />
+            Évolution temporelle d&apos;un paramètre
+          </p>
+          <GraphiqueEvolution analyses={analyses} />
+        </div>
+      )}
+
       {/* Liste des analyses */}
-      {isLoading && (
+      {mode === null && isLoading && (
         <div className="flex items-center justify-center py-8 gap-2 text-texte-secondaire">
           <Loader2 size={16} className="animate-spin" />
           <span className="text-sm">Chargement…</span>
         </div>
       )}
 
-      {!isLoading && analyses.length === 0 && !modeUpload && (
+      {mode === null && !isLoading && analyses.length === 0 && (
         <div className="text-center py-10 space-y-2">
           <FlaskConical size={28} className="mx-auto text-texte-secondaire/40" />
           <p className="text-sm text-texte-secondaire">Aucune analyse biologique enregistrée.</p>
           <p className="text-xs text-texte-secondaire">
-            Chargez un fichier de résultats (PDF ou image) pour démarrer.
+            Chargez un fichier de résultats ou saisissez les valeurs manuellement.
           </p>
         </div>
       )}
 
-      <div className="space-y-2">
-        {analyses.map((a) => <CarteAnalyse key={a.id} analyse={a} />)}
-      </div>
+      {mode === null && (
+        <div className="space-y-2">
+          {analyses.map((a) => <CarteAnalyse key={a.id} analyse={a} />)}
+        </div>
+      )}
     </div>
   );
 };
