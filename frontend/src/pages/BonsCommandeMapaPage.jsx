@@ -534,7 +534,7 @@ const CarteHistorique = ({ bc }) => {
 // ── Page principale ──────────────────────────────────────────────────────────
 const BonsCommandeMapaPage = () => {
   const { data: bons = [], isLoading } = useBonsCommandeMapa();
-  const { data: produits = [] }        = useProduits();
+  const { data: produits = [] }        = useProduits({ actif: 'tous' });
 
   // null = liste, 'nouveau' = formulaire création, string id = edition/vue brouillon
   const [vue, setVue] = useState(null);
