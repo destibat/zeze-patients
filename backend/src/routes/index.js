@@ -71,6 +71,7 @@ router.use('/exercices', require('./exerciceRoutes'));
 router.get('/stats', authentifier, asyncHandler(obtenirStats));
 router.get('/stats/detaillees', authentifier, asyncHandler(obtenirStatsDetaillees));
 router.use('/prets-emprunts', require('./pretEmpruntRoutes'));
+router.use('/bons-commande-mapa', require('./bonCommandeMapaRoutes'));
 router.use('/admin', require('./adminRoutes'));
 
 // Routes de développement — jamais chargées en production

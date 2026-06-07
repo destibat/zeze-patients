@@ -31,6 +31,7 @@ import ExercicesPage from './pages/ExercicesPage';
 import BilanExercicePage from './pages/BilanExercicePage';
 import ApprovisionnementsPage from './pages/ApprovisionnementsPage';
 import PretsEmpruntsPage from './pages/PretsEmpruntsPage';
+import BonsCommandeMapaPage from './pages/BonsCommandeMapaPage';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -162,6 +163,14 @@ const App = () => (
               element={
                 <ProtectedRoute roles={['administrateur', 'stockiste']}>
                   <PretsEmpruntsPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="bons-commande-mapa"
+              element={
+                <ProtectedRoute roles={['administrateur', 'stockiste']}>
+                  <BonsCommandeMapaPage />
                 </ProtectedRoute>
               }
             />

@@ -31,8 +31,9 @@ const Exercice = require('./Exercice')(sequelize);
 const FactureAchat = require('./FactureAchat')(sequelize);
 const CommandeApprovisionnement = require('./CommandeApprovisionnement')(sequelize);
 const PretEmprunt = require('./PretEmprunt')(sequelize);
+const BonCommandeMapa = require('./BonCommandeMapa')(sequelize);
 
-const models = { Cabinet, User, RefreshToken, AuditLog, Patient, Produit, Consultation, Ordonnance, StockMouvement, RendezVous, Facture, ParametreCabinet, StockDelegue, MouvementDelegue, FichierPatient, AnalyseNFS, AnalyseBiologique, Exercice, FactureAchat, CommandeApprovisionnement, PretEmprunt };
+const models = { Cabinet, User, RefreshToken, AuditLog, Patient, Produit, Consultation, Ordonnance, StockMouvement, RendezVous, Facture, ParametreCabinet, StockDelegue, MouvementDelegue, FichierPatient, AnalyseNFS, AnalyseBiologique, Exercice, FactureAchat, CommandeApprovisionnement, PretEmprunt, BonCommandeMapa };
 
 // Initialisation des associations
 Object.values(models).forEach((model) => {
@@ -52,7 +53,7 @@ const TABLES_MT = new Set([
   'parametres_cabinet', 'stock_delegue', 'mouvements_delegue',
   'fichiers_patient', 'analyses_nfs', 'analyses_biologiques',
   'exercices', 'factures_achat', 'commandes_approvisionnement',
-  'prets_emprunts',
+  'prets_emprunts', 'bons_commande_mapa',
 ]);
 
 const hookFind = (options) => {
