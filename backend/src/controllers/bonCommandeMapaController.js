@@ -1,6 +1,6 @@
 'use strict';
 
-const { BonCommandeMapa, ParametreCabinet, User } = require('../models');
+const { BonCommandeMapa, Produit, StockMouvement, ParametreCabinet, User, sequelize } = require('../models');
 const { genererNumeroBonCommande } = require('../services/numeroBonCommandeService');
 const { genererPdfBonCommande } = require('../services/pdfBonCommandeMapaService');
 
@@ -104,6 +104,55 @@ const confirmer = async (req, res) => {
   res.json(bcMaj);
 };
 
+// ── Valider la livraison → statut 'livre' + mise à jour stock ─────────────
+const validerLivraison = async (req, res) => {
+  const bc = await BonCommandeMapa.findByPk(req.params.id, { include: includeCreateur });
+  if (!bc) return res.status(404).json({ message: 'Bon de commande introuvable.' });
+  if (bc.statut !== 'envoye') {
+    return res.status(409).json({ message: 'Seul un BC envoyé peut être marqué comme livré.' });
+  }
+
+  const lignes = Array.isArray(bc.lignes) ? bc.lignes : [];
+  const today  = new Date().toISOString().split('T')[0];
+
+  const transaction = await sequelize.transaction();
+  try {
+    for (const ligne of lignes) {
+      const produit = await Produit.findByPk(ligne.produit_id, { transaction, lock: true });
+      if (!produit) {
+        await transaction.rollback();
+        return res.status(404).json({ message: `Produit introuvable : ${ligne.nom_produit}` });
+      }
+
+      const stockApres = (produit.quantite_stock || 0) + ligne.quantite;
+      await produit.update({ quantite_stock: stockApres, actif: true }, { transaction });
+
+      await StockMouvement.create({
+        produit_id:  ligne.produit_id,
+        type:        'entree',
+        quantite:    ligne.quantite,
+        motif:       `Livraison MAPA — ${bc.numero}`,
+        user_id:     req.utilisateur.id,
+        stock_apres: stockApres,
+      }, { transaction });
+    }
+
+    await bc.update({
+      statut:                  'livre',
+      date_livraison_effective: today,
+      ...(req.body.notes_livraison !== undefined ? { notes: req.body.notes_livraison } : {}),
+    }, { transaction });
+
+    await transaction.commit();
+
+    const bcMaj = await BonCommandeMapa.findByPk(bc.id, { include: includeCreateur });
+    res.json(bcMaj);
+  } catch (err) {
+    await transaction.rollback();
+    throw err;
+  }
+};
+
 // ── Supprimer un brouillon ────────────────────────────────────────────────
 const supprimer = async (req, res) => {
   const bc = await BonCommandeMapa.findByPk(req.params.id);
@@ -134,4 +183,4 @@ const genererPdf = async (req, res) => {
   res.send(buffer);
 };
 
-module.exports = { lister, obtenirParId, creer, mettreAJour, confirmer, supprimer, genererPdf };
+module.exports = { lister, obtenirParId, creer, mettreAJour, confirmer, validerLivraison, supprimer, genererPdf };

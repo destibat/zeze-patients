@@ -14,7 +14,8 @@ router.get('/',              asyncHandler(ctrl.lister));
 router.post('/',             asyncHandler(ctrl.creer));
 router.get('/:id',           asyncHandler(ctrl.obtenirParId));
 router.put('/:id',           asyncHandler(ctrl.mettreAJour));
-router.post('/:id/confirmer', asyncHandler(ctrl.confirmer));
+router.post('/:id/confirmer',         asyncHandler(ctrl.confirmer));
+router.post('/:id/valider-livraison', asyncHandler(ctrl.validerLivraison));
 router.delete('/:id',        asyncHandler(ctrl.supprimer));
 router.get('/:id/pdf',       asyncHandler(ctrl.genererPdf));
 

@@ -3,13 +3,13 @@ import api from '../services/api';
 import { useProduits } from '../hooks/useProduits';
 import {
   useBonsCommandeMapa, useCreerBonCommande, useMettreAJourBC,
-  useConfirmerBC, useSupprimerBC,
+  useConfirmerBC, useSupprimerBC, useValiderLivraisonBC,
 } from '../hooks/useBonsCommandeMapa';
 import Button from '../components/ui/Button';
 import Alert from '../components/ui/Alert';
 import {
   ClipboardList, Plus, X, Send, Trash2, FileText,
-  CheckCircle, Clock, Package, Edit3,
+  CheckCircle, Clock, Package, Edit3, Truck,
 } from 'lucide-react';
 import useFormatMontant from '../hooks/useFormatMontant';
 
@@ -433,6 +433,8 @@ const CarteHistorique = ({ bc }) => {
   const { formatMontant } = useFormatMontant();
   const [ouverte, setOuverte] = useState(false);
   const [chargementPdf, setChargementPdf] = useState(false);
+  const [erreur, setErreur] = useState('');
+  const validerLivraison = useValiderLivraisonBC();
   const lignes = Array.isArray(bc.lignes) ? bc.lignes : [];
 
   const handlePdf = async () => {
@@ -446,6 +448,16 @@ const CarteHistorique = ({ bc }) => {
       alert('Erreur lors de la génération du PDF');
     } finally {
       setChargementPdf(false);
+    }
+  };
+
+  const handleValiderLivraison = async () => {
+    if (!window.confirm(`Confirmer la livraison du BC ${bc.numero} ?\n\nLe stock de chaque produit sera incrémenté et les produits inactifs réactivés.`)) return;
+    setErreur('');
+    try {
+      await validerLivraison.mutateAsync({ id: bc.id });
+    } catch (e) {
+      setErreur(e?.response?.data?.message || 'Erreur lors de la validation');
     }
   };
 
@@ -522,9 +534,27 @@ const CarteHistorique = ({ bc }) => {
             </table>
           </div>
           {bc.notes && <p className="text-xs text-texte-secondaire italic">Remarques : {bc.notes}</p>}
-          <Button variante="fantome" icone={FileText} chargement={chargementPdf} onClick={handlePdf}>
-            Télécharger le PDF
-          </Button>
+          {bc.date_livraison_effective && (
+            <p className="text-xs text-green-700 font-medium">
+              Livré le {fmtDate(bc.date_livraison_effective)}
+            </p>
+          )}
+          {erreur && <Alert type="erreur" message={erreur} />}
+          <div className="flex flex-wrap gap-2">
+            {bc.statut === 'envoye' && (
+              <Button
+                variante="primaire"
+                icone={Truck}
+                chargement={validerLivraison.isPending}
+                onClick={handleValiderLivraison}
+              >
+                Marquer comme livré
+              </Button>
+            )}
+            <Button variante="fantome" icone={FileText} chargement={chargementPdf} onClick={handlePdf}>
+              Télécharger le PDF
+            </Button>
+          </div>
         </div>
       )}
     </div>
