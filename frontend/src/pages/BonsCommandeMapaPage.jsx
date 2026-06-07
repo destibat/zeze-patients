@@ -14,9 +14,10 @@ import {
 import useFormatMontant from '../hooks/useFormatMontant';
 
 const STATUT_CFG = {
-  brouillon: { label: 'Brouillon', couleur: 'bg-gray-100 text-gray-600',   icone: Clock },
-  envoye:    { label: 'Envoyé',    couleur: 'bg-blue-100 text-blue-800',   icone: Send },
-  livre:     { label: 'Livré',     couleur: 'bg-green-100 text-green-800', icone: CheckCircle },
+  brouillon:    { label: 'Brouillon',        couleur: 'bg-gray-100 text-gray-600',    icone: Clock },
+  envoye:       { label: 'Envoyé',           couleur: 'bg-blue-100 text-blue-800',    icone: Send },
+  livre_partiel:{ label: 'Livré partiel',    couleur: 'bg-amber-100 text-amber-800',  icone: Truck },
+  livre:        { label: 'Livré',            couleur: 'bg-green-100 text-green-800',  icone: CheckCircle },
 };
 
 const BadgeStatut = ({ statut }) => {
@@ -431,11 +432,43 @@ const VueBrouillon = ({ bc, produits, onModifier, onClose }) => {
 // ── Carte historique (envoyé / livré) ────────────────────────────────────────
 const CarteHistorique = ({ bc }) => {
   const { formatMontant } = useFormatMontant();
-  const [ouverte, setOuverte] = useState(false);
+  const [ouverte, setOuverte]             = useState(false);
   const [chargementPdf, setChargementPdf] = useState(false);
-  const [erreur, setErreur] = useState('');
+  const [erreur, setErreur]               = useState('');
+  const [modeReception, setModeReception] = useState(false);
   const validerLivraison = useValiderLivraisonBC();
   const lignes = Array.isArray(bc.lignes) ? bc.lignes : [];
+
+  // Quantités livrées : initialisées avec les quantités commandées (livraison totale par défaut)
+  const initLignesLivrees = () =>
+    lignes.map((l) => ({ ...l, quantite_livree: l.quantite }));
+  const [lignesLivrees, setLignesLivrees] = useState(initLignesLivrees);
+
+  const ouvrirReception = () => {
+    setLignesLivrees(initLignesLivrees());
+    setErreur('');
+    setOuverte(true);
+    setModeReception(true);
+  };
+
+  const modifierQteLivree = (produit_id, val) => {
+    const lc  = lignes.find((l) => l.produit_id === produit_id);
+    const max  = lc ? lc.quantite : 9999;
+    const qty  = Math.min(max, Math.max(0, parseInt(val) || 0));
+    setLignesLivrees((prev) =>
+      prev.map((l) => l.produit_id === produit_id ? { ...l, quantite_livree: qty } : l)
+    );
+  };
+
+  const handleConfirmerReception = async () => {
+    setErreur('');
+    try {
+      await validerLivraison.mutateAsync({ id: bc.id, lignes_livrees: lignesLivrees });
+      setModeReception(false);
+    } catch (e) {
+      setErreur(e?.response?.data?.message || 'Erreur lors de la validation');
+    }
+  };
 
   const handlePdf = async () => {
     setChargementPdf(true);
@@ -451,28 +484,22 @@ const CarteHistorique = ({ bc }) => {
     }
   };
 
-  const handleValiderLivraison = async () => {
-    if (!window.confirm(`Confirmer la livraison du BC ${bc.numero} ?\n\nLe stock de chaque produit sera incrémenté et les produits inactifs réactivés.`)) return;
-    setErreur('');
-    try {
-      await validerLivraison.mutateAsync({ id: bc.id });
-    } catch (e) {
-      setErreur(e?.response?.data?.message || 'Erreur lors de la validation');
-    }
-  };
+  const couleurBord = bc.statut === 'livre' ? 'border-l-green-400'
+    : bc.statut === 'livre_partiel'          ? 'border-l-amber-400'
+    :                                          'border-l-blue-400';
 
   return (
-    <div className={`carte border-l-4 ${bc.statut === 'livre' ? 'border-l-green-400' : 'border-l-blue-400'}`}>
+    <div className={`carte border-l-4 ${couleurBord}`}>
+      {/* ── En-tête cliquable ── */}
       <div
         className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 cursor-pointer"
-        onClick={() => setOuverte(!ouverte)}
+        onClick={() => { setOuverte(!ouverte); if (ouverte) setModeReception(false); }}
       >
         <div>
           <p className="text-sm font-semibold font-mono text-texte-principal">{bc.numero}</p>
           <p className="text-xs text-texte-secondaire mt-0.5">
             {fmtDate(bc.date_commande)}
             {bc.createur && <span className="ml-2">· {bc.createur.prenom} {bc.createur.nom}</span>}
-            {bc.nom_stockiste_mapa && <span className="ml-2">· Stockiste : {bc.nom_stockiste_mapa}</span>}
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -483,7 +510,7 @@ const CarteHistorique = ({ bc }) => {
 
       {ouverte && (
         <div className="mt-3 space-y-3">
-          {/* Infos */}
+          {/* ── Infos commandeur ── */}
           <div className="bg-fond-secondaire rounded-bouton p-3 space-y-1 text-xs">
             {[bc.nom_commandeur, bc.prenoms_commandeur].filter(Boolean).join(' ') && (
               <p><span className="text-texte-secondaire">Commandeur : </span>
@@ -505,56 +532,116 @@ const CarteHistorique = ({ bc }) => {
                 <span className="font-medium">{bc.mention_livraison || fmtDate(bc.date_livraison_prevue)}</span>
               </p>
             )}
+            {bc.date_livraison_effective && (
+              <p><span className="text-texte-secondaire">Date de réception : </span>
+                <span className="font-medium text-green-700">{fmtDate(bc.date_livraison_effective)}</span>
+              </p>
+            )}
           </div>
-          {/* Produits */}
+
+          {/* ── Tableau produits (commandé vs livré) ── */}
           <div className="bg-fond-secondaire rounded-bouton overflow-hidden">
             <table className="w-full text-xs">
               <thead>
                 <tr className="text-texte-secondaire border-b border-bordure">
                   <th className="text-left px-3 py-2">Produit</th>
-                  <th className="text-center px-2 py-2 w-16">Qté</th>
-                  <th className="text-right px-2 py-2 hidden sm:table-cell">Prix unit.</th>
-                  <th className="text-right px-3 py-2">Total</th>
+                  <th className="text-center px-2 py-2 w-16">Commandé</th>
+                  {(bc.lignes_livrees || modeReception) && (
+                    <th className="text-center px-2 py-2 w-20">
+                      {modeReception ? 'Livré' : 'Reçu'}
+                    </th>
+                  )}
+                  <th className="text-right px-3 py-2 hidden sm:table-cell">Prix unit.</th>
+                  <th className="text-right px-3 py-2">Total cmd.</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-bordure">
-                {lignes.map((l, i) => (
-                  <tr key={i}>
-                    <td className="px-3 py-1.5 font-medium text-texte-principal">{l.nom_produit}</td>
-                    <td className="px-2 py-1.5 text-center">{l.quantite}</td>
-                    <td className="px-2 py-1.5 text-right font-mono text-texte-secondaire hidden sm:table-cell">
-                      {formatMontant(l.prix_unitaire)}
-                    </td>
-                    <td className="px-3 py-1.5 text-right font-mono font-semibold">
-                      {formatMontant((l.prix_unitaire || 0) * (l.quantite || 0))}
-                    </td>
-                  </tr>
-                ))}
+                {lignes.map((l, i) => {
+                  const ll = bc.lignes_livrees?.find((x) => x.produit_id === l.produit_id);
+                  const livreLocal = lignesLivrees.find((x) => x.produit_id === l.produit_id);
+                  const partiel = ll && ll.quantite_livree < l.quantite;
+                  return (
+                    <tr key={i} className={partiel ? 'bg-amber-50' : ''}>
+                      <td className="px-3 py-1.5 font-medium text-texte-principal">
+                        {l.nom_produit}
+                        {partiel && <span className="ml-1 text-amber-600 text-xs">(partiel)</span>}
+                      </td>
+                      <td className="px-2 py-1.5 text-center">{l.quantite}</td>
+                      {(bc.lignes_livrees || modeReception) && (
+                        <td className="px-2 py-1.5 text-center">
+                          {modeReception ? (
+                            <input
+                              type="number"
+                              min={0}
+                              max={l.quantite}
+                              value={livreLocal?.quantite_livree ?? l.quantite}
+                              onChange={(e) => modifierQteLivree(l.produit_id, e.target.value)}
+                              className="w-14 text-center text-xs border border-bordure rounded px-1 py-0.5"
+                              onClick={(e) => e.stopPropagation()}
+                            />
+                          ) : (
+                            <span className={ll?.quantite_livree < l.quantite ? 'text-amber-700 font-semibold' : 'text-green-700 font-semibold'}>
+                              {ll?.quantite_livree ?? '—'}
+                            </span>
+                          )}
+                        </td>
+                      )}
+                      <td className="px-2 py-1.5 text-right font-mono text-texte-secondaire hidden sm:table-cell">
+                        {formatMontant(l.prix_unitaire)}
+                      </td>
+                      <td className="px-3 py-1.5 text-right font-mono font-semibold">
+                        {formatMontant((l.prix_unitaire || 0) * (l.quantite || 0))}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
+
           {bc.notes && <p className="text-xs text-texte-secondaire italic">Remarques : {bc.notes}</p>}
-          {bc.date_livraison_effective && (
-            <p className="text-xs text-green-700 font-medium">
-              Livré le {fmtDate(bc.date_livraison_effective)}
-            </p>
-          )}
           {erreur && <Alert type="erreur" message={erreur} />}
-          <div className="flex flex-wrap gap-2">
-            {bc.statut === 'envoye' && (
-              <Button
-                variante="primaire"
-                icone={Truck}
-                chargement={validerLivraison.isPending}
-                onClick={handleValiderLivraison}
-              >
-                Marquer comme livré
+
+          {/* ── Formulaire de réception (mode saisie) ── */}
+          {modeReception && (
+            <div className="border border-amber-200 bg-amber-50 rounded-carte p-3 space-y-2">
+              <p className="text-xs font-semibold text-amber-800">
+                Ajustez les quantités réellement reçues (0 si non livré).
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  variante="primaire"
+                  icone={Truck}
+                  chargement={validerLivraison.isPending}
+                  onClick={handleConfirmerReception}
+                >
+                  Confirmer la réception
+                </Button>
+                <Button
+                  variante="fantome"
+                  icone={X}
+                  disabled={validerLivraison.isPending}
+                  onClick={() => setModeReception(false)}
+                >
+                  Annuler
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* ── Actions normales ── */}
+          {!modeReception && (
+            <div className="flex flex-wrap gap-2">
+              {['envoye', 'livre_partiel'].includes(bc.statut) && (
+                <Button variante="primaire" icone={Truck} onClick={ouvrirReception}>
+                  {bc.statut === 'livre_partiel' ? 'Compléter la livraison' : 'Saisir la réception'}
+                </Button>
+              )}
+              <Button variante="fantome" icone={FileText} chargement={chargementPdf} onClick={handlePdf}>
+                Télécharger le PDF
               </Button>
-            )}
-            <Button variante="fantome" icone={FileText} chargement={chargementPdf} onClick={handlePdf}>
-              Télécharger le PDF
-            </Button>
-          </div>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -570,7 +657,7 @@ const BonsCommandeMapaPage = () => {
   const [vue, setVue] = useState(null);
 
   const brouillons = bons.filter((b) => b.statut === 'brouillon');
-  const historique  = bons.filter((b) => b.statut !== 'brouillon');
+  const historique  = bons.filter((b) => !['brouillon'].includes(b.statut));
 
   const bcEdite = typeof vue === 'string' && vue !== 'nouveau'
     ? brouillons.find((b) => b.id === vue)

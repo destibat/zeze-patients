@@ -22,11 +22,22 @@ module.exports = (sequelize) => {
     },
     montant_total: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
     statut: {
-      type: DataTypes.ENUM('brouillon', 'envoye', 'livre'),
+      type: DataTypes.ENUM('brouillon', 'envoye', 'livre_partiel', 'livre'),
       allowNull: false,
       defaultValue: 'brouillon',
     },
     notes:                   { type: DataTypes.STRING(500), allowNull: true },
+    lignes_livrees: {
+      type: DataTypes.JSON,
+      allowNull: true,
+      get() {
+        const raw = this.getDataValue('lignes_livrees');
+        if (typeof raw === 'string') {
+          try { return JSON.parse(raw); } catch (_) { return null; }
+        }
+        return raw;
+      },
+    },
     mention_livraison:       { type: DataTypes.STRING(100), allowNull: true },
     nom_commandeur:          { type: DataTypes.STRING(100), allowNull: true },
     prenoms_commandeur:      { type: DataTypes.STRING(150), allowNull: true },

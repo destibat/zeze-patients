@@ -104,33 +104,58 @@ const confirmer = async (req, res) => {
   res.json(bcMaj);
 };
 
-// ── Valider la livraison → statut 'livre' + mise à jour stock ─────────────
+// ── Valider la livraison (totale ou partielle) ────────────────────────────
 const validerLivraison = async (req, res) => {
   const bc = await BonCommandeMapa.findByPk(req.params.id, { include: includeCreateur });
   if (!bc) return res.status(404).json({ message: 'Bon de commande introuvable.' });
-  if (bc.statut !== 'envoye') {
-    return res.status(409).json({ message: 'Seul un BC envoyé peut être marqué comme livré.' });
+  if (!['envoye', 'livre_partiel'].includes(bc.statut)) {
+    return res.status(409).json({ message: 'Seul un BC envoyé ou partiellement livré peut être réceptionné.' });
   }
 
-  const lignes = Array.isArray(bc.lignes) ? bc.lignes : [];
-  const today  = new Date().toISOString().split('T')[0];
+  const lignesCommandees = Array.isArray(bc.lignes) ? bc.lignes : [];
+  // lignes_livrees envoyées par le client : [{ produit_id, quantite_livree, nom_produit }]
+  const lignesLivrees = Array.isArray(req.body.lignes_livrees) ? req.body.lignes_livrees : [];
+  if (lignesLivrees.length === 0) {
+    return res.status(400).json({ message: 'Aucune quantité livrée renseignée.' });
+  }
+
+  const today = new Date().toISOString().split('T')[0];
+
+  // Vérifier cohérence : quantité livrée ≤ quantité commandée
+  for (const ll of lignesLivrees) {
+    const lc = lignesCommandees.find((l) => l.produit_id === ll.produit_id);
+    if (!lc) return res.status(400).json({ message: `Produit inconnu dans la commande : ${ll.nom_produit}` });
+    if (ll.quantite_livree < 0 || ll.quantite_livree > lc.quantite) {
+      return res.status(400).json({
+        message: `Quantité livrée invalide pour "${lc.nom_produit}" (max : ${lc.quantite})`,
+      });
+    }
+  }
+
+  // Statut : livre si tout livré, livre_partiel sinon
+  const toutLivre = lignesCommandees.every((lc) => {
+    const ll = lignesLivrees.find((l) => l.produit_id === lc.produit_id);
+    return ll && ll.quantite_livree >= lc.quantite;
+  });
 
   const transaction = await sequelize.transaction();
   try {
-    for (const ligne of lignes) {
-      const produit = await Produit.findByPk(ligne.produit_id, { transaction, lock: true });
+    for (const ll of lignesLivrees) {
+      if (ll.quantite_livree === 0) continue; // rien reçu pour ce produit
+
+      const produit = await Produit.findByPk(ll.produit_id, { transaction, lock: true });
       if (!produit) {
         await transaction.rollback();
-        return res.status(404).json({ message: `Produit introuvable : ${ligne.nom_produit}` });
+        return res.status(404).json({ message: `Produit introuvable : ${ll.nom_produit}` });
       }
 
-      const stockApres = (produit.quantite_stock || 0) + ligne.quantite;
+      const stockApres = (produit.quantite_stock || 0) + ll.quantite_livree;
       await produit.update({ quantite_stock: stockApres, actif: true }, { transaction });
 
       await StockMouvement.create({
-        produit_id:  ligne.produit_id,
+        produit_id:  ll.produit_id,
         type:        'entree',
-        quantite:    ligne.quantite,
+        quantite:    ll.quantite_livree,
         motif:       `Livraison MAPA — ${bc.numero}`,
         user_id:     req.utilisateur.id,
         stock_apres: stockApres,
@@ -138,8 +163,9 @@ const validerLivraison = async (req, res) => {
     }
 
     await bc.update({
-      statut:                  'livre',
-      date_livraison_effective: today,
+      statut:                   toutLivre ? 'livre' : 'livre_partiel',
+      date_livraison_effective:  today,
+      lignes_livrees:            lignesLivrees,
       ...(req.body.notes_livraison !== undefined ? { notes: req.body.notes_livraison } : {}),
     }, { transaction });
 
