@@ -11,7 +11,9 @@ import {
   Users, Stethoscope, Calendar, TrendingUp, Bell,
   Clock, CheckCircle, AlertCircle, Phone,
   ShoppingCart, ShoppingBag, Package, BookOpen, AlertTriangle, ArrowRightLeft, FileBarChart,
+  Truck,
 } from 'lucide-react';
+import { useBonsCommandeMapa } from '../hooks/useBonsCommandeMapa';
 
 const toDateInput = (d) => d.toISOString().split('T')[0];
 
@@ -367,6 +369,111 @@ const DashboardDelegue = ({ utilisateur }) => {
   );
 };
 
+// ── Widget BC MAPA en attente (admin + stockiste) ─────────────────────────────
+const WidgetBcMapa = () => {
+  const navigate  = useNavigate();
+  const { formatMontant } = useFormatMontant();
+  const { data: bcs = [], isLoading } = useBonsCommandeMapa();
+
+  const enAttente = bcs.filter((bc) => bc.statut === 'envoye' || bc.statut === 'livre_partiel');
+
+  if (isLoading) return null;
+  if (enAttente.length === 0) return null;
+
+  const maintenant = new Date();
+  const joursDepuis = (dateStr) => {
+    const diff = maintenant - new Date(dateStr);
+    return Math.floor(diff / (1000 * 60 * 60 * 24));
+  };
+
+  const STATUT = {
+    envoye:        { label: 'Envoyé',           couleur: 'bg-blue-100 text-blue-700 border-blue-200' },
+    livre_partiel: { label: 'Livraison partielle', couleur: 'bg-amber-100 text-amber-700 border-amber-200' },
+  };
+
+  const montantTotal = enAttente.reduce((s, bc) => {
+    const lignes = typeof bc.lignes === 'string' ? JSON.parse(bc.lignes || '[]') : (bc.lignes || []);
+    return s + lignes.reduce((ls, l) => ls + (l.quantite || 0) * (l.prix_unitaire || 0), 0);
+  }, 0);
+
+  const nbUrgent = enAttente.filter((bc) => joursDepuis(bc.updatedAt || bc.createdAt) >= 7).length;
+
+  return (
+    <div className={`carte space-y-4 ${nbUrgent > 0 ? 'border-amber-300 bg-amber-50/20' : ''}`}>
+      <div className="flex items-center justify-between">
+        <h2 className="text-sm font-semibold text-texte-principal flex items-center gap-2">
+          <Truck size={15} className={nbUrgent > 0 ? 'text-amber-600' : 'text-zeze-vert'} />
+          Commandes MAPA en attente
+          <span className={`text-xs font-bold px-2 py-0.5 rounded-full border ${
+            nbUrgent > 0
+              ? 'bg-amber-100 text-amber-700 border-amber-200'
+              : 'bg-blue-100 text-blue-700 border-blue-200'
+          }`}>
+            {enAttente.length}
+          </span>
+        </h2>
+        <button
+          onClick={() => navigate('/bons-commande-mapa')}
+          className="text-xs text-zeze-vert hover:underline font-medium">
+          Voir tout →
+        </button>
+      </div>
+
+      {nbUrgent > 0 && (
+        <div className="flex items-center gap-2 px-3 py-2 bg-amber-100 border border-amber-300 rounded-bouton text-xs text-amber-800">
+          <AlertTriangle size={13} className="shrink-0" />
+          {nbUrgent} commande{nbUrgent > 1 ? 's' : ''} sans livraison depuis plus de 7 jours
+        </div>
+      )}
+
+      <div className="divide-y divide-bordure">
+        {enAttente.slice(0, 5).map((bc) => {
+          const jours = joursDepuis(bc.updatedAt || bc.createdAt);
+          const cfg   = STATUT[bc.statut];
+          const lignes = typeof bc.lignes === 'string' ? JSON.parse(bc.lignes || '[]') : (bc.lignes || []);
+          const montantBc = lignes.reduce((s, l) => s + (l.quantite || 0) * (l.prix_unitaire || 0), 0);
+          return (
+            <div key={bc.id}
+              className="flex items-center justify-between py-2.5 cursor-pointer hover:bg-fond-secondaire px-1 rounded"
+              onClick={() => navigate('/bons-commande-mapa')}>
+              <div className="flex items-center gap-3 min-w-0">
+                <div>
+                  <p className="text-sm font-medium text-texte-principal">{bc.numero_bc}</p>
+                  <p className="text-xs text-texte-secondaire">
+                    {bc.nom_stockiste_mapa || 'MAPA'} · il y a {jours} jour{jours > 1 ? 's' : ''}
+                    {jours >= 7 && <span className="ml-1 text-amber-600 font-medium">⚠</span>}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 shrink-0">
+                {montantBc > 0 && (
+                  <span className="text-sm font-medium text-texte-principal">{formatMontant(montantBc)}</span>
+                )}
+                <span className={`text-xs px-2 py-0.5 rounded-full border ${cfg.couleur}`}>
+                  {cfg.label}
+                </span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {enAttente.length > 5 && (
+        <p className="text-xs text-texte-secondaire text-center">
+          + {enAttente.length - 5} autre{enAttente.length - 5 > 1 ? 's' : ''} commande{enAttente.length - 5 > 1 ? 's' : ''}
+        </p>
+      )}
+
+      {montantTotal > 0 && (
+        <div className="pt-1 border-t border-bordure flex justify-between text-xs text-texte-secondaire">
+          <span>Montant total commandé</span>
+          <span className="font-semibold text-texte-principal">{formatMontant(montantTotal)}</span>
+        </div>
+      )}
+    </div>
+  );
+};
+
 // ── Widget créances patients (admin + stockiste) ──────────────────────────────
 const WidgetCreances = () => {
   const navigate = useNavigate();
@@ -640,6 +747,9 @@ const DashboardStandard = ({ utilisateur }) => {
 
       {/* Widget exercice comptable */}
       {estStockisteOuAdmin && <WidgetExercice />}
+
+      {/* Widget BC MAPA en attente de livraison */}
+      {estStockisteOuAdmin && <WidgetBcMapa />}
 
       {/* Widget créances patients non soldées */}
       {estStockisteOuAdmin && <WidgetCreances />}
