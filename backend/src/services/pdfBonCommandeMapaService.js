@@ -25,15 +25,19 @@ const fmtDate = (d) => {
   if (!d) return '—';
   return new Date(d).toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' });
 };
-const fmtM = (n) => new Intl.NumberFormat('fr-FR').format(n || 0) + ' FCFA';
+// Formatage avec espace ASCII simple (évite U+202F que Helvetica PDFKit ne connaît pas)
+const fmtM = (n) => {
+  const s = Math.round(n || 0).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+  return s + ' FCFA';
+};
 const dots = (n) => '.'.repeat(n);
 
 // ── Colonnes tableau ─────────────────────────────────────────────────────────
-// Somme exacte : 190 + 38 + 115 + 152 = 495
-const COL_NOM   = { x: ML,           w: 190 };  // 50  → 240
-const COL_QTE   = { x: ML + 190,     w: 38  };  // 240 → 278
-const COL_PU    = { x: ML + 228,     w: 115 };  // 278 → 393
-const COL_TOT   = { x: ML + 343,     w: 152 };  // 393 → 545
+// Somme exacte : 165 + 33 + 100 + 197 = 495
+const COL_NOM   = { x: ML,           w: 165 };  // 50  → 215
+const COL_QTE   = { x: ML + 165,     w: 33  };  // 215 → 248
+const COL_PU    = { x: ML + 198,     w: 100 };  // 248 → 348
+const COL_TOT   = { x: ML + 298,     w: 197 };  // 348 → 545
 
 // ── Helpers texte tableau (appels séparés, jamais chaînés) ────────────────────
 const tNom = (doc, txt, y, bold) => {
@@ -46,11 +50,13 @@ const tQte = (doc, txt, y) => {
 };
 const tPu = (doc, txt, y) => {
   doc.font('Helvetica').fontSize(8.5).fillColor(NOIR);
+  // Zone : COL_PU.x → COL_PU.x + COL_PU.w - 4 (4px de marge droite)
   doc.text(txt, COL_PU.x, y, { width: COL_PU.w - 4, align: 'right', lineBreak: false });
 };
 const tTot = (doc, txt, y, bold, color) => {
   doc.font(bold ? 'Helvetica-Bold' : 'Helvetica').fontSize(8.5).fillColor(color || NOIR);
-  doc.text(txt, COL_TOT.x, y, { width: COL_TOT.w - 6, align: 'right', lineBreak: false });
+  // Zone : COL_TOT.x → COL_TOT.x + COL_TOT.w - 10 (10px de marge droite = bien à l'intérieur)
+  doc.text(txt, COL_TOT.x, y, { width: COL_TOT.w - 10, align: 'right', lineBreak: false });
 };
 
 const genererPdfBonCommande = (bc, infosCabinet) =>
@@ -131,7 +137,7 @@ const genererPdfBonCommande = (bc, infosCabinet) =>
     doc.text('DÉSIGNATION', COL_NOM.x + 4, y + 5, { width: COL_NOM.w - 8,  lineBreak: false });
     doc.text('QTÉ',         COL_QTE.x,     y + 5, { width: COL_QTE.w,      align: 'center', lineBreak: false });
     doc.text('PRIX UNIT.',  COL_PU.x,      y + 5, { width: COL_PU.w - 4,   align: 'right',  lineBreak: false });
-    doc.text('MONTANT',     COL_TOT.x,     y + 5, { width: COL_TOT.w - 6,  align: 'right',  lineBreak: false });
+    doc.text('MONTANT',     COL_TOT.x,     y + 5, { width: COL_TOT.w - 10, align: 'right',  lineBreak: false });
     y += RH;
 
     // ── Séparateurs verticaux (trait BLEU entre colonnes) ────────────────────
