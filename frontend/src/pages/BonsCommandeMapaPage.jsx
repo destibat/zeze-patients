@@ -3,13 +3,13 @@ import api from '../services/api';
 import { useProduits } from '../hooks/useProduits';
 import {
   useBonsCommandeMapa, useCreerBonCommande, useMettreAJourBC,
-  useConfirmerBC, useSupprimerBC, useValiderLivraisonBC,
+  useConfirmerBC, useSupprimerBC, useValiderLivraisonBC, useAnnulerBC,
 } from '../hooks/useBonsCommandeMapa';
 import Button from '../components/ui/Button';
 import Alert from '../components/ui/Alert';
 import {
   ClipboardList, Plus, X, Send, Trash2, FileText,
-  CheckCircle, Clock, Package, Edit3, Truck,
+  CheckCircle, Clock, Package, Edit3, Truck, XCircle, Ban, Filter,
 } from 'lucide-react';
 import useFormatMontant from '../hooks/useFormatMontant';
 
@@ -18,6 +18,7 @@ const STATUT_CFG = {
   envoye:       { label: 'Envoyé',           couleur: 'bg-blue-100 text-blue-800',    icone: Send },
   livre_partiel:{ label: 'Livré partiel',    couleur: 'bg-amber-100 text-amber-800',  icone: Truck },
   livre:        { label: 'Livré',            couleur: 'bg-green-100 text-green-800',  icone: CheckCircle },
+  annule:       { label: 'Annulé',           couleur: 'bg-red-100 text-red-700',      icone: Ban },
 };
 
 const BadgeStatut = ({ statut }) => {
@@ -45,6 +46,7 @@ const FormulaireBc = ({ bcExistant, produits, onSauvegarder, onAnnuler }) => {
     prenoms_commandeur:   bcExistant?.prenoms_commandeur   || '',
     telephone_commandeur: bcExistant?.telephone_commandeur || '',
     lieu_livraison:       bcExistant?.lieu_livraison       || '',
+    nom_stockiste_mapa:   bcExistant?.nom_stockiste_mapa   || '',
     date_livraison_prevue: bcExistant?.date_livraison_prevue || '',
     mention_livraison:    bcExistant?.mention_livraison    || '',
     notes:                bcExistant?.notes                || '',
@@ -141,6 +143,7 @@ const FormulaireBc = ({ bcExistant, produits, onSauvegarder, onAnnuler }) => {
           {champTexte('Prénoms', 'prenoms_commandeur', 'text', 'Prénoms')}
           {champTexte('Téléphone', 'telephone_commandeur', 'tel', '+225 00 00 00 00 00')}
           {champTexte('Lieu de livraison', 'lieu_livraison', 'text', 'ex: Abidjan Cocody')}
+          {champTexte('Stockiste MAPA', 'nom_stockiste_mapa', 'text', 'Nom du stockiste MAPA')}
           <div className="sm:col-span-2">
             <label className="block text-xs font-medium text-texte-principal mb-1">
               Date de livraison souhaitée
@@ -429,17 +432,17 @@ const VueBrouillon = ({ bc, produits, onModifier, onClose }) => {
   );
 };
 
-// ── Carte historique (envoyé / livré) ────────────────────────────────────────
+// ── Carte historique (envoyé / livré / annulé) ───────────────────────────────
 const CarteHistorique = ({ bc }) => {
   const { formatMontant } = useFormatMontant();
   const [ouverte, setOuverte]             = useState(false);
   const [chargementPdf, setChargementPdf] = useState(false);
+  const [chargementPdfRec, setChargementPdfRec] = useState(false);
   const [erreur, setErreur]               = useState('');
   const [modeReception, setModeReception] = useState(false);
-  // { produit_id: quantite_livree } — seulement les valeurs modifiées
-  // Les non-modifiées utilisent la quantité commandée par défaut
   const [qtesLivrees, setQtesLivrees]     = useState({});
   const validerLivraison = useValiderLivraisonBC();
+  const annulerBC        = useAnnulerBC();
   const lignes = Array.isArray(bc.lignes) ? bc.lignes : [];
 
   const getQteLivree = (produit_id) =>
@@ -447,7 +450,7 @@ const CarteHistorique = ({ bc }) => {
       : (lignes.find((l) => l.produit_id === produit_id)?.quantite ?? 0);
 
   const ouvrirReception = () => {
-    setQtesLivrees({});   // reset → toutes les quantités = commandées (livraison totale par défaut)
+    setQtesLivrees({});
     setErreur('');
     setOuverte(true);
     setModeReception(true);
@@ -460,7 +463,6 @@ const CarteHistorique = ({ bc }) => {
 
   const handleConfirmerReception = async () => {
     setErreur('');
-    // Construire le payload au moment du clic depuis lignes (toujours à jour)
     const payload = lignes.map((l) => ({
       produit_id:      l.produit_id,
       nom_produit:     l.nom_produit,
@@ -471,6 +473,17 @@ const CarteHistorique = ({ bc }) => {
       setModeReception(false);
     } catch (e) {
       setErreur(e?.response?.data?.message || 'Erreur lors de la validation');
+    }
+  };
+
+  const handleAnnuler = async () => {
+    if (!window.confirm(`Annuler le BC ${bc.numero} ? Cette action est irréversible.`)) return;
+    setErreur('');
+    try {
+      await annulerBC.mutateAsync(bc.id);
+      setOuverte(false);
+    } catch (e) {
+      setErreur(e?.response?.data?.message || 'Erreur lors de l\'annulation');
     }
   };
 
@@ -488,9 +501,35 @@ const CarteHistorique = ({ bc }) => {
     }
   };
 
-  const couleurBord = bc.statut === 'livre' ? 'border-l-green-400'
-    : bc.statut === 'livre_partiel'          ? 'border-l-amber-400'
-    :                                          'border-l-blue-400';
+  const handlePdfReception = async () => {
+    setChargementPdfRec(true);
+    try {
+      const response = await api.get(`/bons-commande-mapa/${bc.id}/pdf-reception`, { responseType: 'blob' });
+      const url = URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }));
+      window.open(url, '_blank');
+      setTimeout(() => URL.revokeObjectURL(url), 30000);
+    } catch {
+      alert('Erreur lors de la génération du bon de réception');
+    } finally {
+      setChargementPdfRec(false);
+    }
+  };
+
+  // Quantités restantes pour livre_partiel
+  const restants = bc.statut === 'livre_partiel'
+    ? lignes
+        .map((l) => {
+          const ll = bc.lignes_livrees?.find((x) => x.produit_id === l.produit_id);
+          const reste = l.quantite - (ll?.quantite_livree ?? l.quantite);
+          return reste > 0 ? { ...l, reste } : null;
+        })
+        .filter(Boolean)
+    : [];
+
+  const couleurBord = bc.statut === 'livre'         ? 'border-l-green-400'
+    : bc.statut === 'livre_partiel'                 ? 'border-l-amber-400'
+    : bc.statut === 'annule'                        ? 'border-l-red-300'
+    :                                                 'border-l-blue-400';
 
   return (
     <div className={`carte border-l-4 ${couleurBord}`}>
@@ -531,6 +570,11 @@ const CarteHistorique = ({ bc }) => {
                 <span className="font-medium">{bc.lieu_livraison}</span>
               </p>
             )}
+            {bc.nom_stockiste_mapa && (
+              <p><span className="text-texte-secondaire">Stockiste MAPA : </span>
+                <span className="font-medium">{bc.nom_stockiste_mapa}</span>
+              </p>
+            )}
             {(bc.mention_livraison || bc.date_livraison_prevue) && (
               <p><span className="text-texte-secondaire">Date souhaitée : </span>
                 <span className="font-medium">{bc.mention_livraison || fmtDate(bc.date_livraison_prevue)}</span>
@@ -542,6 +586,23 @@ const CarteHistorique = ({ bc }) => {
               </p>
             )}
           </div>
+
+          {/* ── Quantités restantes (livre_partiel) ── */}
+          {restants.length > 0 && (
+            <div className="border border-amber-200 bg-amber-50 rounded-bouton p-3">
+              <p className="text-xs font-semibold text-amber-800 mb-1.5 flex items-center gap-1">
+                <Truck size={11} /> Quantités restantes à recevoir
+              </p>
+              <ul className="space-y-0.5">
+                {restants.map((l, i) => (
+                  <li key={i} className="text-xs flex justify-between text-amber-700">
+                    <span>{l.nom_produit}</span>
+                    <span className="font-bold">× {l.reste}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
 
           {/* ── Tableau produits (commandé vs livré) ── */}
           <div className="bg-fond-secondaire rounded-bouton overflow-hidden">
@@ -640,9 +701,25 @@ const CarteHistorique = ({ bc }) => {
                   {bc.statut === 'livre_partiel' ? 'Compléter la livraison' : 'Saisir la réception'}
                 </Button>
               )}
+              {['livre', 'livre_partiel'].includes(bc.statut) && (
+                <Button variante="secondaire" icone={FileText} chargement={chargementPdfRec} onClick={handlePdfReception}>
+                  Bon de réception
+                </Button>
+              )}
               <Button variante="fantome" icone={FileText} chargement={chargementPdf} onClick={handlePdf}>
-                Télécharger le PDF
+                BC original
               </Button>
+              {['envoye', 'livre_partiel'].includes(bc.statut) && (
+                <Button
+                  variante="fantome"
+                  icone={XCircle}
+                  chargement={annulerBC.isPending}
+                  onClick={handleAnnuler}
+                  className="text-red-600 hover:text-red-700"
+                >
+                  Annuler la commande
+                </Button>
+              )}
             </div>
           )}
         </div>
@@ -659,8 +736,13 @@ const BonsCommandeMapaPage = () => {
   // null = liste, 'nouveau' = formulaire création, string id = edition/vue brouillon
   const [vue, setVue] = useState(null);
 
+  const [filtreStatut, setFiltreStatut] = useState('tous');
+
   const brouillons = bons.filter((b) => b.statut === 'brouillon');
-  const historique  = bons.filter((b) => !['brouillon'].includes(b.statut));
+  const historiqueTotal = bons.filter((b) => b.statut !== 'brouillon');
+  const historique = filtreStatut === 'tous'
+    ? historiqueTotal
+    : historiqueTotal.filter((b) => b.statut === filtreStatut);
 
   const bcEdite = typeof vue === 'string' && vue !== 'nouveau'
     ? brouillons.find((b) => b.id === vue)
@@ -759,16 +841,47 @@ const BonsCommandeMapaPage = () => {
         </div>
       )}
 
-      {/* ── Historique (envoyé / livré) ── */}
-      {historique.length > 0 && (
+      {/* ── Historique (envoyé / livré / annulé) ── */}
+      {historiqueTotal.length > 0 && (
         <div className="space-y-3">
-          <h2 className="text-sm font-semibold text-texte-principal flex items-center gap-2">
-            <CheckCircle size={14} className="text-texte-secondaire" /> Historique
-            <span className="bg-gray-100 text-gray-700 text-xs px-1.5 py-0.5 rounded-full font-bold">
-              {historique.length}
-            </span>
-          </h2>
-          {historique.map((bc) => <CarteHistorique key={bc.id} bc={bc} />)}
+          <div className="flex flex-wrap items-center gap-3">
+            <h2 className="text-sm font-semibold text-texte-principal flex items-center gap-2">
+              <CheckCircle size={14} className="text-texte-secondaire" /> Historique
+              <span className="bg-gray-100 text-gray-700 text-xs px-1.5 py-0.5 rounded-full font-bold">
+                {historique.length}
+              </span>
+            </h2>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <Filter size={11} className="text-texte-secondaire" />
+              {[
+                { key: 'tous',          label: 'Tous' },
+                { key: 'envoye',        label: 'Envoyé' },
+                { key: 'livre_partiel', label: 'Livré partiel' },
+                { key: 'livre',         label: 'Livré' },
+                { key: 'annule',        label: 'Annulé' },
+              ].map(({ key, label }) => {
+                const count = key === 'tous' ? historiqueTotal.length : historiqueTotal.filter((b) => b.statut === key).length;
+                if (count === 0 && key !== 'tous') return null;
+                return (
+                  <button
+                    key={key}
+                    onClick={() => setFiltreStatut(key)}
+                    className={`px-2.5 py-0.5 text-xs rounded-full border transition-colors ${
+                      filtreStatut === key
+                        ? 'bg-zeze-vert text-white border-zeze-vert'
+                        : 'border-bordure text-texte-secondaire hover:border-zeze-vert hover:text-zeze-vert'
+                    }`}
+                  >
+                    {label} {count > 0 && <span className="opacity-70">({count})</span>}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+          {historique.length > 0
+            ? historique.map((bc) => <CarteHistorique key={bc.id} bc={bc} />)
+            : <p className="text-xs text-texte-secondaire italic py-2">Aucun BC avec ce statut.</p>
+          }
         </div>
       )}
 

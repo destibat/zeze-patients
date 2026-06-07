@@ -22,7 +22,7 @@ module.exports = (sequelize) => {
     },
     montant_total: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
     statut: {
-      type: DataTypes.ENUM('brouillon', 'envoye', 'livre_partiel', 'livre'),
+      type: DataTypes.ENUM('brouillon', 'envoye', 'livre_partiel', 'livre', 'annule'),
       allowNull: false,
       defaultValue: 'brouillon',
     },

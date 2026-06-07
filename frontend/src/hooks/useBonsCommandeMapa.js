@@ -46,6 +46,14 @@ export const useValiderLivraisonBC = () => {
   });
 };
 
+export const useAnnulerBC = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id) => api.post(`/bons-commande-mapa/${id}/annuler`).then((r) => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: [CLE] }),
+  });
+};
+
 export const useSupprimerBC = () => {
   const qc = useQueryClient();
   return useMutation({

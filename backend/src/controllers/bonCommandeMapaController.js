@@ -2,7 +2,8 @@
 
 const { BonCommandeMapa, Produit, StockMouvement, ParametreCabinet, User, sequelize } = require('../models');
 const { genererNumeroBonCommande } = require('../services/numeroBonCommandeService');
-const { genererPdfBonCommande } = require('../services/pdfBonCommandeMapaService');
+const { genererPdfBonCommande }  = require('../services/pdfBonCommandeMapaService');
+const { genererPdfReceptionBC }  = require('../services/pdfBonReceptionMapaService');
 
 const includeCreateur = [
   { model: User, as: 'createur', attributes: ['id', 'nom', 'prenom', 'email'] },
@@ -179,6 +180,18 @@ const validerLivraison = async (req, res) => {
   }
 };
 
+// ── Annuler un BC envoyé ou partiellement livré ───────────────────────────
+const annuler = async (req, res) => {
+  const bc = await BonCommandeMapa.findByPk(req.params.id);
+  if (!bc) return res.status(404).json({ message: 'Bon de commande introuvable.' });
+  if (!['envoye', 'livre_partiel'].includes(bc.statut)) {
+    return res.status(409).json({ message: 'Seul un BC envoyé ou partiellement livré peut être annulé.' });
+  }
+  await bc.update({ statut: 'annule' });
+  const bcMaj = await BonCommandeMapa.findByPk(bc.id, { include: includeCreateur });
+  res.json(bcMaj);
+};
+
 // ── Supprimer un brouillon ────────────────────────────────────────────────
 const supprimer = async (req, res) => {
   const bc = await BonCommandeMapa.findByPk(req.params.id);
@@ -188,6 +201,28 @@ const supprimer = async (req, res) => {
   }
   await bc.destroy();
   res.status(204).end();
+};
+
+// ── Générer le PDF Bon de Réception ──────────────────────────────────────
+const genererPdfReception = async (req, res) => {
+  const bc = await BonCommandeMapa.findByPk(req.params.id, { include: includeCreateur });
+  if (!bc) return res.status(404).json({ message: 'Bon de commande introuvable.' });
+  if (!['livre', 'livre_partiel'].includes(bc.statut)) {
+    return res.status(409).json({ message: 'Le bon de réception n\'est disponible que pour les BCs livrés.' });
+  }
+
+  const parametres = await ParametreCabinet.findAll();
+  const infosCabinet = {};
+  parametres.forEach((p) => { infosCabinet[p.cle] = p.valeur; });
+
+  const buffer = await genererPdfReceptionBC(bc.toJSON(), infosCabinet);
+
+  res.set({
+    'Content-Type': 'application/pdf',
+    'Content-Disposition': `inline; filename="BR-MAPA-${bc.numero}.pdf"`,
+    'Content-Length': buffer.length,
+  });
+  res.send(buffer);
 };
 
 // ── Générer le PDF d'un BC ────────────────────────────────────────────────
@@ -209,4 +244,4 @@ const genererPdf = async (req, res) => {
   res.send(buffer);
 };
 
-module.exports = { lister, obtenirParId, creer, mettreAJour, confirmer, validerLivraison, supprimer, genererPdf };
+module.exports = { lister, obtenirParId, creer, mettreAJour, confirmer, validerLivraison, annuler, supprimer, genererPdf, genererPdfReception };
