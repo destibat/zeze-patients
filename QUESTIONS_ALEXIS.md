@@ -56,6 +56,28 @@ Pas de statut "refusé" car MAPA ne refuse pas des BC — ils livrent ou non.
 
 ---
 
+## DÉPLOIEMENT SERVEUR — Commandes à exécuter
+
+Le code est sur GitHub (commit `b76e7f0`). Connexion SSH non disponible depuis la machine locale.
+
+### Sur le serveur, déployer le **dev_backend** (unified) :
+```bash
+cd /var/www/zezepagnon_dev
+git pull origin main
+sudo docker compose -f docker-compose.unified.yml up -d --build --no-deps unified_backend
+sudo docker exec unified_backend npx sequelize-cli db:migrate --migrations-path /database/migrations
+```
+
+### Sur le serveur, déployer le **prod_backend** :
+```bash
+cd /var/www/zezepagnon
+git pull origin main
+sudo docker compose -f docker-compose.unified.prod.yml up -d --build --no-deps prod_backend
+sudo docker exec prod_backend npx sequelize-cli db:migrate --migrations-path /database/migrations
+```
+
+---
+
 ## Q6 — Lien avec le stock (Étape 2)
 **Décision prise :** La colonne `date_livraison_prevue` et `date_livraison_effective` sont déjà dans la DB pour l'Étape 2. Aucun code de mise à jour du stock n'a été implémenté — conformément aux instructions.
 
