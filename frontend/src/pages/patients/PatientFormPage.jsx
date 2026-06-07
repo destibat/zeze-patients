@@ -5,7 +5,136 @@ import { usePatient, useCreerPatient, useModifierPatient } from '../../hooks/use
 import AllergyTagInput from '../../components/patients/AllergyTagInput';
 import Button from '../../components/ui/Button';
 import Alert from '../../components/ui/Alert';
-import { ArrowLeft, Save, ChevronDown } from 'lucide-react';
+import { ArrowLeft, Save, ChevronDown, Plus, Trash2, X } from 'lucide-react';
+
+const FREQUENCES_SUIVI = [
+  { val: 'mensuel',      label: 'Mensuel (1x/mois)'         },
+  { val: 'trimestriel',  label: 'Trimestriel (1x/3 mois)'   },
+  { val: 'semestriel',   label: 'Semestriel (1x/6 mois)'    },
+  { val: 'annuel',       label: 'Annuel (1x/an)'             },
+  { val: 'libre',        label: 'Sur besoin / Ponctuel'      },
+];
+
+// ── Éditeur maladies chroniques ───────────────────────────────────────────────
+const EditeurMaladies = ({ value = [], onChange }) => {
+  const [form, setForm] = useState({ nom: '', depuis: '', notes: '' });
+  const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+
+  const ajouter = () => {
+    if (!form.nom.trim()) return;
+    onChange([...value, { nom: form.nom.trim(), depuis: form.depuis.trim(), notes: form.notes.trim() }]);
+    setForm({ nom: '', depuis: '', notes: '' });
+  };
+
+  return (
+    <div className="space-y-3">
+      {value.length > 0 && (
+        <div className="space-y-2">
+          {value.map((m, i) => (
+            <div key={i} className="flex items-start gap-2 p-2.5 bg-fond-secondaire rounded-bouton border border-bordure">
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-texte-principal">{m.nom}</p>
+                {m.depuis && <p className="text-xs text-texte-secondaire">Depuis : {m.depuis}</p>}
+                {m.notes  && <p className="text-xs text-texte-secondaire italic">{m.notes}</p>}
+              </div>
+              <button type="button" onClick={() => onChange(value.filter((_, idx) => idx !== i))}
+                className="p-1 text-texte-secondaire hover:text-medical-critique rounded shrink-0">
+                <X size={14} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+      <div className="grid grid-cols-3 gap-2">
+        <div className="col-span-2">
+          <input className="champ-input text-sm" placeholder="Nom de la maladie *"
+            value={form.nom} onChange={(e) => set('nom', e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), ajouter())} />
+        </div>
+        <input className="champ-input text-sm" placeholder="Depuis (ex: 2020)"
+          value={form.depuis} onChange={(e) => set('depuis', e.target.value)} />
+      </div>
+      <div className="flex gap-2">
+        <input className="champ-input text-sm flex-1" placeholder="Notes (optionnel)"
+          value={form.notes} onChange={(e) => set('notes', e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), ajouter())} />
+        <button type="button" onClick={ajouter}
+          className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium bg-zeze-vert text-white rounded-bouton hover:bg-zeze-vert/90">
+          <Plus size={13} /> Ajouter
+        </button>
+      </div>
+    </div>
+  );
+};
+
+// ── Éditeur traitements en cours ──────────────────────────────────────────────
+const FREQUENCES_TRAIT = ['1x/jour', '2x/jour', '3x/jour', '1x/semaine', 'Matin', 'Soir', 'Si besoin', 'Autre'];
+
+const EditeurTraitements = ({ value = [], onChange }) => {
+  const [form, setForm] = useState({ medicament: '', dosage: '', frequence: '', depuis: '' });
+  const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+
+  const ajouter = () => {
+    if (!form.medicament.trim()) return;
+    onChange([...value, {
+      medicament: form.medicament.trim(),
+      dosage:     form.dosage.trim(),
+      frequence:  form.frequence.trim(),
+      depuis:     form.depuis.trim(),
+    }]);
+    setForm({ medicament: '', dosage: '', frequence: '', depuis: '' });
+  };
+
+  return (
+    <div className="space-y-3">
+      {value.length > 0 && (
+        <div className="divide-y divide-bordure border border-bordure rounded-bouton overflow-hidden">
+          {value.map((t, i) => (
+            <div key={i} className="flex items-center gap-3 px-3 py-2 bg-fond-principal hover:bg-fond-secondaire">
+              <div className="flex-1 min-w-0">
+                <span className="text-sm font-medium text-texte-principal">{t.medicament}</span>
+                {t.dosage    && <span className="text-xs text-texte-secondaire ml-2">{t.dosage}</span>}
+                {t.frequence && <span className="text-xs text-zeze-vert ml-2">{t.frequence}</span>}
+                {t.depuis    && <span className="text-xs text-texte-secondaire ml-2">depuis {t.depuis}</span>}
+              </div>
+              <button type="button" onClick={() => onChange(value.filter((_, idx) => idx !== i))}
+                className="p-1 text-texte-secondaire hover:text-medical-critique rounded shrink-0">
+                <X size={14} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+        <div className="col-span-2 sm:col-span-2">
+          <input className="champ-input text-sm" placeholder="Médicament *"
+            value={form.medicament} onChange={(e) => set('medicament', e.target.value)} />
+        </div>
+        <input className="champ-input text-sm" placeholder="Dosage (ex: 500mg)"
+          value={form.dosage} onChange={(e) => set('dosage', e.target.value)} />
+        <input className="champ-input text-sm" placeholder="Depuis (ex: 2023)"
+          value={form.depuis} onChange={(e) => set('depuis', e.target.value)} />
+      </div>
+      <div className="flex gap-2 flex-wrap">
+        {FREQUENCES_TRAIT.map((f) => (
+          <button key={f} type="button"
+            onClick={() => set('frequence', f)}
+            className={`text-xs px-2 py-1 rounded-full border transition-colors ${
+              form.frequence === f
+                ? 'bg-zeze-vert text-white border-zeze-vert'
+                : 'border-bordure text-texte-secondaire hover:border-zeze-vert hover:text-zeze-vert'
+            }`}>
+            {f}
+          </button>
+        ))}
+      </div>
+      <button type="button" onClick={ajouter}
+        className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium bg-zeze-vert text-white rounded-bouton hover:bg-zeze-vert/90">
+        <Plus size={13} /> Ajouter ce traitement
+      </button>
+    </div>
+  );
+};
 
 const Section = ({ titre, children, defautOuverte = true }) => {
   const [ouverte, setOuverte] = useState(defautOuverte);
@@ -123,6 +252,9 @@ const PatientFormPage = () => {
         allergies: patientExistant.allergies || [],
         antecedents_personnels: patientExistant.antecedents_personnels || '',
         antecedents_familiaux: patientExistant.antecedents_familiaux || '',
+        maladies_chroniques:   patientExistant.maladies_chroniques || [],
+        traitements_en_cours:  patientExistant.traitements_en_cours || [],
+        frequence_suivi:       patientExistant.frequence_suivi || '',
         contact_urgence_nom: patientExistant.contact_urgence_nom || '',
         contact_urgence_telephone: patientExistant.contact_urgence_telephone || '',
         contact_urgence_lien: patientExistant.contact_urgence_lien || '',
@@ -225,6 +357,33 @@ const PatientFormPage = () => {
           </Champ>
           <Champ label="Antécédents familiaux" colonne2>
             <textarea rows={3} className="champ-input resize-none" {...register('antecedents_familiaux')} />
+          </Champ>
+        </Section>
+
+        {/* Section 3b — Suivi médical */}
+        <Section titre="Suivi médical" defautOuverte={false}>
+          {/* Fréquence de suivi */}
+          <Champ label="Fréquence de suivi" colonne2>
+            <select className="champ-input" {...register('frequence_suivi')}>
+              <option value="">— Non définie —</option>
+              {FREQUENCES_SUIVI.map(({ val, label }) => (
+                <option key={val} value={val}>{label}</option>
+              ))}
+            </select>
+          </Champ>
+
+          {/* Maladies chroniques */}
+          <Champ label="Maladies chroniques" colonne2>
+            <Controller name="maladies_chroniques" control={control} render={({ field }) => (
+              <EditeurMaladies value={field.value} onChange={field.onChange} />
+            )} />
+          </Champ>
+
+          {/* Traitements en cours */}
+          <Champ label="Traitements en cours" colonne2>
+            <Controller name="traitements_en_cours" control={control} render={({ field }) => (
+              <EditeurTraitements value={field.value} onChange={field.onChange} />
+            )} />
           </Champ>
         </Section>
 

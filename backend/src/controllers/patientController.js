@@ -119,6 +119,7 @@ const modifierPatient = async (req, res) => {
     'nom', 'prenom', 'sexe', 'date_naissance', 'telephone',
     'adresse', 'commune', 'ville', 'pays', 'profession',
     'groupe_sanguin', 'allergies', 'antecedents_personnels', 'antecedents_familiaux',
+    'maladies_chroniques', 'traitements_en_cours', 'frequence_suivi',
     'contact_urgence_nom', 'contact_urgence_telephone', 'contact_urgence_lien',
     'numero_assurance',
   ];

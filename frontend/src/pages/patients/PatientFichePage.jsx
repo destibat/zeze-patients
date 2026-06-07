@@ -6,7 +6,15 @@ import { useAuth } from '../../contexts/AuthContext';
 import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
 import Alert from '../../components/ui/Alert';
-import { ArrowLeft, Pencil, User, HeartPulse, Phone, Stethoscope, Plus, Trash2, FileText, FolderOpen, FlaskConical } from 'lucide-react';
+import { ArrowLeft, Pencil, User, HeartPulse, Phone, Stethoscope, Plus, Trash2, FileText, FolderOpen, FlaskConical, Pill, Activity, Clock } from 'lucide-react';
+
+const FREQUENCES_SUIVI_LABEL = {
+  mensuel:     'Mensuel',
+  trimestriel: 'Trimestriel',
+  semestriel:  'Semestriel',
+  annuel:      'Annuel',
+  libre:       'Sur besoin',
+};
 import SectionFichiers from './components/SectionFichiers';
 import SectionAnalyseBio from './components/SectionAnalyseBio';
 
@@ -132,25 +140,98 @@ const PatientFichePage = () => {
 
       {/* Contenu onglet Médical */}
       {ongletActif === 'medical' && peutVoirMedical && (
-        <div className="carte space-y-6">
-          <div>
-            <p className="text-xs text-texte-secondaire uppercase tracking-wide mb-2">Allergies</p>
-            {patient.allergies?.length > 0 ? (
-              <div className="flex flex-wrap gap-2">
-                {patient.allergies.map((a) => (
-                  <span key={a} className="px-2 py-1 bg-orange-100 text-orange-800 text-xs rounded-full">{a}</span>
-                ))}
-              </div>
-            ) : <p className="text-sm italic text-texte-secondaire">Aucune allergie connue</p>}
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-            <div>
-              <p className="text-xs text-texte-secondaire uppercase tracking-wide mb-1">Antécédents personnels</p>
-              <p className="text-sm text-texte-principal whitespace-pre-wrap">{patient.antecedents_personnels || <span className="italic text-texte-secondaire">Non renseigné</span>}</p>
+        <div className="space-y-4">
+
+          {/* Suivi médical actif */}
+          {(patient.maladies_chroniques?.length > 0 || patient.traitements_en_cours?.length > 0 || patient.frequence_suivi) && (
+            <div className="carte space-y-5">
+              <h3 className="text-sm font-semibold text-texte-principal flex items-center gap-2">
+                <Activity size={14} className="text-zeze-vert" /> Suivi médical actif
+              </h3>
+
+              {/* Fréquence de suivi */}
+              {patient.frequence_suivi && (
+                <div className="flex items-center gap-2">
+                  <Clock size={13} className="text-texte-secondaire" />
+                  <span className="text-xs text-texte-secondaire">Fréquence de suivi :</span>
+                  <span className="px-2 py-0.5 bg-zeze-vert/10 text-zeze-vert text-xs font-medium rounded-full border border-zeze-vert/20">
+                    {FREQUENCES_SUIVI_LABEL[patient.frequence_suivi] || patient.frequence_suivi}
+                  </span>
+                </div>
+              )}
+
+              {/* Maladies chroniques */}
+              {patient.maladies_chroniques?.length > 0 && (
+                <div>
+                  <p className="text-xs font-semibold text-texte-secondaire uppercase tracking-wide mb-2 flex items-center gap-1">
+                    <HeartPulse size={12} /> Maladies chroniques
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {patient.maladies_chroniques.map((m, i) => (
+                      <div key={i} className="flex items-start gap-3 p-3 bg-red-50 border border-red-100 rounded-bouton">
+                        <div className="w-2 h-2 rounded-full bg-red-400 mt-1.5 shrink-0" />
+                        <div>
+                          <p className="text-sm font-medium text-texte-principal">{m.nom}</p>
+                          {m.depuis && <p className="text-xs text-texte-secondaire">Depuis {m.depuis}</p>}
+                          {m.notes  && <p className="text-xs italic text-texte-secondaire mt-0.5">{m.notes}</p>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Traitements en cours */}
+              {patient.traitements_en_cours?.length > 0 && (
+                <div>
+                  <p className="text-xs font-semibold text-texte-secondaire uppercase tracking-wide mb-2 flex items-center gap-1">
+                    <Pill size={12} /> Traitements en cours
+                  </p>
+                  <div className="divide-y divide-bordure border border-bordure rounded-bouton overflow-hidden">
+                    {patient.traitements_en_cours.map((t, i) => (
+                      <div key={i} className="flex items-center gap-3 px-3 py-2.5 bg-fond-principal hover:bg-fond-secondaire">
+                        <Pill size={14} className="text-blue-500 shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <span className="text-sm font-medium text-texte-principal">{t.medicament}</span>
+                          {t.dosage && <span className="text-xs text-texte-secondaire ml-2">{t.dosage}</span>}
+                        </div>
+                        <div className="flex items-center gap-3 text-xs text-texte-secondaire shrink-0">
+                          {t.frequence && (
+                            <span className="px-2 py-0.5 bg-blue-50 text-blue-700 rounded-full border border-blue-100">
+                              {t.frequence}
+                            </span>
+                          )}
+                          {t.depuis && <span>depuis {t.depuis}</span>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
+          )}
+
+          {/* Allergies + antécédents */}
+          <div className="carte space-y-6">
             <div>
-              <p className="text-xs text-texte-secondaire uppercase tracking-wide mb-1">Antécédents familiaux</p>
-              <p className="text-sm text-texte-principal whitespace-pre-wrap">{patient.antecedents_familiaux || <span className="italic text-texte-secondaire">Non renseigné</span>}</p>
+              <p className="text-xs text-texte-secondaire uppercase tracking-wide mb-2">Allergies</p>
+              {patient.allergies?.length > 0 ? (
+                <div className="flex flex-wrap gap-2">
+                  {patient.allergies.map((a) => (
+                    <span key={a} className="px-2 py-1 bg-orange-100 text-orange-800 text-xs rounded-full">{a}</span>
+                  ))}
+                </div>
+              ) : <p className="text-sm italic text-texte-secondaire">Aucune allergie connue</p>}
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+              <div>
+                <p className="text-xs text-texte-secondaire uppercase tracking-wide mb-1">Antécédents personnels</p>
+                <p className="text-sm text-texte-principal whitespace-pre-wrap">{patient.antecedents_personnels || <span className="italic text-texte-secondaire">Non renseigné</span>}</p>
+              </div>
+              <div>
+                <p className="text-xs text-texte-secondaire uppercase tracking-wide mb-1">Antécédents familiaux</p>
+                <p className="text-sm text-texte-principal whitespace-pre-wrap">{patient.antecedents_familiaux || <span className="italic text-texte-secondaire">Non renseigné</span>}</p>
+              </div>
             </div>
           </div>
         </div>

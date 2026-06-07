@@ -59,6 +59,34 @@ module.exports = (sequelize) => {
     },
     antecedents_personnels: { type: DataTypes.TEXT, allowNull: true },
     antecedents_familiaux:  { type: DataTypes.TEXT, allowNull: true },
+    maladies_chroniques: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+      get() {
+        const val = this.getDataValue('maladies_chroniques');
+        if (!val) return [];
+        try { return typeof val === 'string' ? JSON.parse(val) : val; } catch { return []; }
+      },
+      set(val) {
+        this.setDataValue('maladies_chroniques', Array.isArray(val) ? JSON.stringify(val) : val);
+      },
+    },
+    traitements_en_cours: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+      get() {
+        const val = this.getDataValue('traitements_en_cours');
+        if (!val) return [];
+        try { return typeof val === 'string' ? JSON.parse(val) : val; } catch { return []; }
+      },
+      set(val) {
+        this.setDataValue('traitements_en_cours', Array.isArray(val) ? JSON.stringify(val) : val);
+      },
+    },
+    frequence_suivi: {
+      type: DataTypes.ENUM('mensuel', 'trimestriel', 'semestriel', 'annuel', 'libre'),
+      allowNull: true,
+    },
     contact_urgence_nom:       { type: DataTypes.STRING(150), allowNull: true },
     contact_urgence_telephone: { type: DataTypes.STRING(20),  allowNull: true },
     contact_urgence_lien:      { type: DataTypes.STRING(100), allowNull: true },
