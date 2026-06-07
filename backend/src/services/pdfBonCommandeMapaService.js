@@ -33,16 +33,17 @@ const fmtM = (n) => {
 const dots = (n) => '.'.repeat(n);
 
 // ── Colonnes tableau ─────────────────────────────────────────────────────────
-// Somme exacte : 165 + 33 + 100 + 197 = 495
-const COL_NOM   = { x: ML,           w: 165 };  // 50  → 215
-const COL_QTE   = { x: ML + 165,     w: 33  };  // 215 → 248
-const COL_PU    = { x: ML + 198,     w: 100 };  // 248 → 348
-const COL_TOT   = { x: ML + 298,     w: 197 };  // 348 → 545
+// Somme exacte : 200 + 33 + 100 + 162 = 495
+const COL_NOM   = { x: ML,           w: 200 };  // 50  → 250
+const COL_QTE   = { x: ML + 200,     w: 33  };  // 250 → 283
+const COL_PU    = { x: ML + 233,     w: 100 };  // 283 → 383
+const COL_TOT   = { x: ML + 333,     w: 162 };  // 383 → 545
 
 // ── Helpers texte tableau (appels séparés, jamais chaînés) ────────────────────
 const tNom = (doc, txt, y, bold) => {
   doc.font(bold ? 'Helvetica-Bold' : 'Helvetica').fontSize(8.5).fillColor(NOIR);
-  doc.text(txt || '—', COL_NOM.x + 4, y, { width: COL_NOM.w - 8, lineBreak: false });
+  // lineBreak autorisé : le nom peut tenir sur 2 lignes si nécessaire
+  doc.text(txt || '—', COL_NOM.x + 4, y, { width: COL_NOM.w - 8 });
 };
 const tQte = (doc, txt, y) => {
   doc.font('Helvetica').fontSize(8.5).fillColor(NOIR);
@@ -157,21 +158,29 @@ const genererPdfBonCommande = (bc, infosCabinet) =>
       y += RH;
     } else {
       lignes.forEach((l, idx) => {
-        const fond = idx % 2 === 0 ? BLEU_CLAIR : 'white';
-        doc.rect(ML, y, CW, RH).fill(fond);
-        doc.rect(ML, y, CW, RH).strokeColor(GRIS_BORD).lineWidth(0.2).stroke();
-
         const pu      = l.prix_unitaire || 0;
         const qte     = l.quantite || 0;
         const montant = pu * qte;
 
-        tNom(doc, l.nom_produit, y + 5, true);
-        tQte(doc, qte,           y + 5);
-        tPu (doc, fmtM(pu),      y + 5);
-        tTot(doc, fmtM(montant), y + 5);
+        // Hauteur dynamique : si le nom dépasse la largeur, on agrandit la ligne
+        const nomH  = doc.font('Helvetica-Bold').fontSize(8.5)
+                         .heightOfString(l.nom_produit || '—', { width: COL_NOM.w - 8 });
+        const rowH  = Math.max(RH, Math.ceil(nomH) + 10);
 
-        drawColBorders(y, RH);
-        y += RH;
+        const fond = idx % 2 === 0 ? BLEU_CLAIR : 'white';
+        doc.rect(ML, y, CW, rowH).fill(fond);
+        doc.rect(ML, y, CW, rowH).strokeColor(GRIS_BORD).lineWidth(0.2).stroke();
+
+        // Nom : aligné en haut (y+5), peut s'étendre sur 2 lignes
+        tNom(doc, l.nom_produit, y + 5, true);
+        // QTE / PU / MONTANT : centrés verticalement dans la ligne
+        const midY = y + Math.floor((rowH - 9) / 2);
+        tQte(doc, qte,           midY);
+        tPu (doc, fmtM(pu),      midY);
+        tTot(doc, fmtM(montant), midY);
+
+        drawColBorders(y, rowH);
+        y += rowH;
       });
     }
 
