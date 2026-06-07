@@ -436,34 +436,38 @@ const CarteHistorique = ({ bc }) => {
   const [chargementPdf, setChargementPdf] = useState(false);
   const [erreur, setErreur]               = useState('');
   const [modeReception, setModeReception] = useState(false);
+  // { produit_id: quantite_livree } — seulement les valeurs modifiées
+  // Les non-modifiées utilisent la quantité commandée par défaut
+  const [qtesLivrees, setQtesLivrees]     = useState({});
   const validerLivraison = useValiderLivraisonBC();
   const lignes = Array.isArray(bc.lignes) ? bc.lignes : [];
 
-  // Quantités livrées : initialisées avec les quantités commandées (livraison totale par défaut)
-  const initLignesLivrees = () =>
-    lignes.map((l) => ({ ...l, quantite_livree: l.quantite }));
-  const [lignesLivrees, setLignesLivrees] = useState(initLignesLivrees);
+  const getQteLivree = (produit_id) =>
+    qtesLivrees[produit_id] !== undefined ? qtesLivrees[produit_id]
+      : (lignes.find((l) => l.produit_id === produit_id)?.quantite ?? 0);
 
   const ouvrirReception = () => {
-    setLignesLivrees(initLignesLivrees());
+    setQtesLivrees({});   // reset → toutes les quantités = commandées (livraison totale par défaut)
     setErreur('');
     setOuverte(true);
     setModeReception(true);
   };
 
-  const modifierQteLivree = (produit_id, val) => {
-    const lc  = lignes.find((l) => l.produit_id === produit_id);
-    const max  = lc ? lc.quantite : 9999;
-    const qty  = Math.min(max, Math.max(0, parseInt(val) || 0));
-    setLignesLivrees((prev) =>
-      prev.map((l) => l.produit_id === produit_id ? { ...l, quantite_livree: qty } : l)
-    );
+  const modifierQteLivree = (produit_id, val, max) => {
+    const qty = Math.min(max, Math.max(0, parseInt(val) || 0));
+    setQtesLivrees((prev) => ({ ...prev, [produit_id]: qty }));
   };
 
   const handleConfirmerReception = async () => {
     setErreur('');
+    // Construire le payload au moment du clic depuis lignes (toujours à jour)
+    const payload = lignes.map((l) => ({
+      produit_id:      l.produit_id,
+      nom_produit:     l.nom_produit,
+      quantite_livree: getQteLivree(l.produit_id),
+    }));
     try {
-      await validerLivraison.mutateAsync({ id: bc.id, lignes_livrees: lignesLivrees });
+      await validerLivraison.mutateAsync({ id: bc.id, lignes_livrees: payload });
       setModeReception(false);
     } catch (e) {
       setErreur(e?.response?.data?.message || 'Erreur lors de la validation');
@@ -558,7 +562,6 @@ const CarteHistorique = ({ bc }) => {
               <tbody className="divide-y divide-bordure">
                 {lignes.map((l, i) => {
                   const ll = bc.lignes_livrees?.find((x) => x.produit_id === l.produit_id);
-                  const livreLocal = lignesLivrees.find((x) => x.produit_id === l.produit_id);
                   const partiel = ll && ll.quantite_livree < l.quantite;
                   return (
                     <tr key={i} className={partiel ? 'bg-amber-50' : ''}>
@@ -574,8 +577,8 @@ const CarteHistorique = ({ bc }) => {
                               type="number"
                               min={0}
                               max={l.quantite}
-                              value={livreLocal?.quantite_livree ?? l.quantite}
-                              onChange={(e) => modifierQteLivree(l.produit_id, e.target.value)}
+                              value={getQteLivree(l.produit_id)}
+                              onChange={(e) => modifierQteLivree(l.produit_id, e.target.value, l.quantite)}
                               className="w-14 text-center text-xs border border-bordure rounded px-1 py-0.5"
                               onClick={(e) => e.stopPropagation()}
                             />
