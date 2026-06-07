@@ -52,7 +52,7 @@ const obtenir = async (req, res) => {
 };
 
 const creer = async (req, res) => {
-  const { patient_id, medecin_id, date_heure, duree_minutes, motif, notes } = req.body;
+  const { patient_id, medecin_id, date_heure, duree_minutes, motif, type_rdv, notes } = req.body;
 
   const patient = await Patient.findByPk(patient_id);
   if (!patient) return res.status(404).json({ message: 'Patient introuvable' });
@@ -72,6 +72,7 @@ const creer = async (req, res) => {
     date_heure,
     duree_minutes: duree_minutes || 30,
     motif,
+    type_rdv: type_rdv || 'consultation',
     notes,
     statut: 'planifie',
   });
@@ -84,7 +85,7 @@ const modifier = async (req, res) => {
   const rdv = await RendezVous.findByPk(req.params.id);
   if (!rdv) return res.status(404).json({ message: 'Rendez-vous introuvable' });
 
-  const { date_heure, duree_minutes, motif, statut, notes, medecin_id } = req.body;
+  const { date_heure, duree_minutes, motif, type_rdv, statut, notes, medecin_id } = req.body;
 
   if (date_heure || duree_minutes) {
     const nouvelleDateHeure = date_heure || rdv.date_heure;
@@ -98,7 +99,7 @@ const modifier = async (req, res) => {
     }
   }
 
-  await rdv.update({ date_heure, duree_minutes, motif, statut, notes, medecin_id });
+  await rdv.update({ date_heure, duree_minutes, motif, type_rdv, statut, notes, medecin_id });
 
   const rdvComplet = await RendezVous.findByPk(rdv.id, { include: INCLUDE_BASE });
   res.json(rdvComplet);

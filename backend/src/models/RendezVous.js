@@ -21,6 +21,11 @@ module.exports = (sequelize) => {
       date_heure: { type: DataTypes.DATE, allowNull: false },
       duree_minutes: { type: DataTypes.SMALLINT.UNSIGNED, allowNull: false, defaultValue: 30 },
       motif: { type: DataTypes.STRING(300), allowNull: false },
+      type_rdv: {
+        type: DataTypes.ENUM('consultation', 'suivi', 'urgence', 'analyse', 'autre'),
+        allowNull: false,
+        defaultValue: 'consultation',
+      },
       statut: {
         type: DataTypes.ENUM('planifie', 'confirme', 'annule', 'honore', 'absent'),
         allowNull: false,
