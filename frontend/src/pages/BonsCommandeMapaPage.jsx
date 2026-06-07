@@ -45,7 +45,6 @@ const FormulaireBc = ({ bcExistant, produits, onSauvegarder, onAnnuler }) => {
     telephone_commandeur: bcExistant?.telephone_commandeur || '',
     lieu_livraison:       bcExistant?.lieu_livraison       || '',
     date_livraison_prevue: bcExistant?.date_livraison_prevue || '',
-    nom_stockiste_mapa:   bcExistant?.nom_stockiste_mapa   || '',
     notes:                bcExistant?.notes                || '',
   });
   const [erreur, setErreur] = useState('');
@@ -138,7 +137,6 @@ const FormulaireBc = ({ bcExistant, produits, onSauvegarder, onAnnuler }) => {
               className="champ-input text-sm"
             />
           </div>
-          {champTexte('Nom du Stockiste MAPA', 'nom_stockiste_mapa', 'text', 'Nom du stockiste', true)}
         </div>
       </div>
 
@@ -261,7 +259,6 @@ const VueBrouillon = ({ bc, produits, onModifier, onClose }) => {
 
   const handleConfirmer = async () => {
     if (lignes.length === 0) { setErreur('Ajoutez au moins un produit avant d\'envoyer.'); return; }
-    if (!bc.nom_stockiste_mapa?.trim()) { setErreur('Le nom du Stockiste est obligatoire. Cliquez sur Modifier.'); return; }
     if (!window.confirm(`Envoyer le BC ${bc.numero} à MAPA ? Cette action est irréversible.`)) return;
     setErreur('');
     try {
@@ -321,10 +318,6 @@ const VueBrouillon = ({ bc, produits, onModifier, onClose }) => {
         {ligne('Téléphone', bc.telephone_commandeur)}
         {ligne('Lieu de livraison', bc.lieu_livraison)}
         {ligne('Date souhaitée', bc.date_livraison_prevue ? fmtDate(bc.date_livraison_prevue) : null)}
-        {ligne('Stockiste MAPA', bc.nom_stockiste_mapa)}
-        {!bc.nom_stockiste_mapa && (
-          <p className="text-xs text-amber-600 font-medium">⚠ Nom du Stockiste manquant — requis pour l'envoi</p>
-        )}
       </div>
 
       {/* Tableau produits */}

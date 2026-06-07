@@ -93,10 +93,6 @@ const confirmer = async (req, res) => {
   if (lignes.length === 0) {
     return res.status(400).json({ message: 'Ajoutez au moins un produit avant d\'envoyer.' });
   }
-  if (!bc.nom_stockiste_mapa?.trim()) {
-    return res.status(400).json({ message: 'Le nom du stockiste MAPA est obligatoire.' });
-  }
-
   await bc.update({
     statut: 'envoye',
     date_commande: new Date().toISOString().split('T')[0],
