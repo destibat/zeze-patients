@@ -1,6 +1,6 @@
-# Manuel utilisateur — ZEZEPAGNON Dossiers Patients
+# Manuel utilisateur — GECAM
 
-**Version 2.0 — Mai 2026**
+**Version 3.0 — Juin 2026**
 
 ---
 
@@ -18,9 +18,10 @@
 10. [Mon stock — Délégués](#10-mon-stock--délégués)
 11. [Exercices comptables MAPA](#11-exercices-comptables-mapa)
 12. [Prêts et emprunts](#12-prêts-et-emprunts)
-13. [Statistiques](#13-statistiques)
-14. [Administration](#14-administration)
-15. [FAQ et résolution de problèmes](#15-faq-et-résolution-de-problèmes)
+13. [Bons de commande MAPA (BC MAPA)](#13-bons-de-commande-mapa-bc-mapa)
+14. [Statistiques](#14-statistiques)
+15. [Administration](#15-administration)
+16. [FAQ et résolution de problèmes](#16-faq-et-résolution-de-problèmes)
 
 ---
 
@@ -128,6 +129,16 @@ Pour les administrateurs et stockistes, un récapitulatif des gains des délégu
 
 La barre supérieure rappelle en permanence le **numéro d'exercice** en cours, sa date de début, et le **CA cumulé**.
 
+### Widget Commandes MAPA
+
+Le tableau de bord affiche un encadré récapitulant les **bons de commande MAPA en attente de livraison**, c'est-à-dire les BC dont le statut est **Envoyé** ou **Livraison partielle**.
+
+- Pour chaque commande en attente, le widget indique la référence, la date d'envoi et le nombre de produits concernés
+- Une **alerte amber** signale automatiquement toute commande attendant depuis plus de **7 jours** sans réception
+- Un lien direct vers la page **Bons de commande MAPA** permet d'accéder à l'historique complet et de saisir une réception
+
+> Ce widget est visible par les **administrateurs** et les **stockistes** uniquement.
+
 ---
 
 ## 4. Gestion des patients
@@ -198,6 +209,64 @@ Depuis la section **Fichiers** d'une fiche patient, cliquez sur l'icône **œil*
 > L'analyse NFS compare automatiquement les valeurs aux normes de référence avec un code couleur : **normal** (vert), **bas / élevé** (orange), **critique** (rouge). Il s'agit d'une aide à l'analyse, pas d'un diagnostic médical.
 
 > Réservé aux administrateurs et stockistes.
+
+### Renseigner le suivi médical
+
+Le formulaire patient comporte une section **Suivi médical** (pliable, accessible en bas du formulaire).
+
+**Fréquence de suivi**
+
+Sélectionnez la fréquence de suivi du patient parmi : **Mensuel**, **Trimestriel**, **Semestriel**, **Annuel** ou **Sur besoin**.
+
+**Maladies chroniques**
+
+Ajoutez chaque maladie chronique du patient avec :
+- **Nom** de la maladie
+- **Depuis** (date ou année de diagnostic)
+- **Notes** complémentaires éventuelles
+
+Cliquez sur **Ajouter** pour valider chaque entrée. La liste des maladies enregistrées est affichée en dessous et chaque ligne peut être supprimée individuellement.
+
+**Traitements en cours**
+
+Enregistrez les traitements actifs du patient avec :
+- **Médicament** : nom du produit
+- **Dosage** : ex. 500 mg, 1 comprimé
+- **Fréquence** : boutons rapides disponibles (1×/jour, 2×/jour, 3×/jour, matin + soir) ou saisie libre
+- **Depuis** : date de début du traitement
+
+Cliquez sur **Ajouter** pour valider chaque traitement. La liste est affichée et chaque traitement peut être supprimé.
+
+> Ces informations sont sauvegardées avec le dossier patient et apparaissent dans l'**onglet Médical** de la fiche patient, dans le bloc **Suivi médical actif**.
+
+### Analyses biologiques complètes
+
+La fiche patient propose un onglet **Analyses** permettant de saisir, stocker et visualiser les résultats biologiques du patient.
+
+**3 modes d'accès :**
+
+| Mode | Description |
+|------|-------------|
+| **Charger fichier** | Uploader un PDF ou une image du résultat d'analyse — l'application tente d'extraire les valeurs automatiquement par IA |
+| **Saisie manuelle** | Entrer les valeurs directement dans le formulaire, panel par panel |
+| **Évolution** | Afficher un graphique temporel comparant les valeurs sur plusieurs analyses successives |
+
+**8 panels biologiques disponibles :**
+
+| Panel | Contenu principal |
+|-------|------------------|
+| **NFS** | Globules rouges, blancs, plaquettes, hémoglobine, hématocrite, formule leucocytaire |
+| **Rénal** | Créatinine, urée, DFG estimé |
+| **Glycémie** | Glycémie à jeun, HbA1c |
+| **Lipidique** | Cholestérol total, HDL, LDL, triglycérides |
+| **Ionogramme** | Sodium, potassium, chlore, bicarbonates, calcium |
+| **Hépatique** | ALAT, ASAT, GGT, bilirubine, phosphatases alcalines |
+| **Thyroïdien** | TSH, T3, T4 libre |
+| **Coagulation** | TP, TCA, INR, fibrinogène |
+
+> Chaque valeur saisie est comparée aux **normes de référence** et affiche une interprétation colorée : **normal** (vert), **anormal** (orange), **critique** (rouge). Cette interprétation est une aide à la lecture, pas un diagnostic médical.
+
+> Le **graphique d'évolution** compare les valeurs d'un même paramètre dans le temps, permettant de visualiser les tendances sur plusieurs mois ou années.
 
 ### Archiver un patient
 
@@ -280,15 +349,44 @@ Depuis n'importe quelle ordonnance validée, cliquez sur l'icône **Télécharge
 
 ## 7. Rendez-vous
 
-### Consulter l'agenda
+### Vues de l'agenda
 
-Cliquez sur **Rendez-vous** dans le menu. La vue hebdomadaire s'affiche par défaut, avec les rendez-vous du jour mis en avant.
+Cliquez sur **Rendez-vous** dans le menu latéral.
+
+L'agenda propose deux vues sélectionnables via le bouton toggle en haut à droite :
+
+- **Vue Semaine** (par défaut) : affiche les 7 jours de la semaine en cours avec les créneaux horaires et les rendez-vous positionnés
+- **Vue Mois** : affiche une grille sur 6 semaines. Cliquez sur un jour pour afficher en bas de page la liste détaillée des rendez-vous de ce jour
+
+### Types de rendez-vous
+
+Chaque rendez-vous est associé à un **type** qui détermine la couleur de la bordure dans l'agenda :
+
+| Type | Couleur |
+|------|---------|
+| **Consultation** | Bleu |
+| **Suivi** | Vert |
+| **Urgence** | Rouge |
+| **Analyse** | Amber (orange) |
+| **Autre** | Gris |
 
 ### Créer un rendez-vous
 
 1. Cliquez sur **Nouveau rendez-vous** ou directement sur un créneau dans le calendrier
-2. Renseignez : patient, date, heure, durée, motif
+2. Renseignez : patient, date, heure, durée, type, motif
 3. Enregistrez
+
+### Salle d'attente
+
+En haut de la page Rendez-vous, une **section amber "Salle d'attente"** s'affiche automatiquement lorsque des rendez-vous du jour n'ont pas encore été pris en charge. Elle liste tous les RDVs du jour dont le statut est encore **Programmé** ou **Confirmé**.
+
+Pour chaque RDV en salle d'attente, deux boutons d'action rapide sont disponibles sans ouvrir le formulaire :
+- **Présent** : marque le patient comme arrivé (statut → *Honoré*)
+- **Absent** : marque le patient comme absent (statut → *Absent*)
+
+### Statuts rapides dans la liste du jour
+
+Dans la liste des rendez-vous du jour, des boutons **Présent** et **Absent** sont disponibles directement en ligne pour chaque rendez-vous, sans avoir à ouvrir le formulaire de modification.
 
 ### Statuts des rendez-vous
 
@@ -521,7 +619,60 @@ La liste affiche tous les prêts et emprunts en cours avec leur statut (en cours
 
 ---
 
-## 13. Statistiques
+## 13. Bons de commande MAPA (BC MAPA)
+
+> Accessible aux **administrateurs** et **stockistes** uniquement.
+
+### Qu'est-ce qu'un Bon de Commande MAPA ?
+
+Un BC MAPA est un document officiel envoyé à MAPA pour commander des produits destinés au stock du cabinet. Il retrace l'ensemble du cycle : demande initiale, envoi, livraison (totale ou partielle) et clôture. Chaque BC génère automatiquement un **PDF** à chaque étape clé.
+
+### Créer un bon de commande (Étape 1)
+
+1. Cliquez sur **Bons de commande MAPA** dans le menu latéral
+2. Cliquez sur **Nouveau bon de commande**
+3. Remplissez le formulaire :
+   - **Nom du stockiste MAPA** destinataire
+   - **Lieu de livraison** souhaité
+   - **Date de livraison souhaitée**
+   - **Produits** : ajoutez chaque produit avec sa quantité et son prix unitaire
+4. Cliquez sur **Enregistrer comme brouillon** → le BC est en statut *Brouillon* et peut être modifié à tout moment
+5. Quand le BC est prêt, cliquez sur **Envoyer à MAPA** → le BC passe en statut **Envoyé**, est **verrouillé** (plus modifiable) et un **PDF du bon de commande** est généré automatiquement
+
+### Réceptionner une livraison (Étape 2)
+
+Lorsque les produits arrivent :
+
+1. Dans l'historique des BC, ouvrez le BC en statut **Envoyé** ou **Livraison partielle**
+2. Cliquez sur **Réceptionner**
+3. Pour chaque produit, saisissez la **quantité effectivement reçue**
+4. Cliquez sur **Valider la réception** :
+   - Le **stock est mis à jour automatiquement** pour chaque produit réceptionné
+   - Si toutes les quantités sont reçues → statut **Livré**
+   - Si certaines quantités manquent → statut **Livraison partielle**, les quantités restantes restent visibles
+5. Un **PDF Bon de Réception** est généré avec le détail colonné : quantité commandée / quantité reçue / quantité restante
+
+### Annuler un bon de commande
+
+Sur un BC dont le statut est **Envoyé** ou **Livraison partielle**, cliquez sur **Annuler la commande** et confirmez. Le BC passe en statut **Annulé** et ne peut plus être modifié.
+
+### Statuts des BC MAPA
+
+| Statut | Description |
+|--------|-------------|
+| **Brouillon** | BC en cours de rédaction, modifiable |
+| **Envoyé** | BC transmis à MAPA, verrouillé, en attente de livraison |
+| **Livraison partielle** | Livraison reçue partiellement, solde en attente |
+| **Livré** | Toutes les quantités reçues, BC clôturé |
+| **Annulé** | BC annulé avant livraison complète |
+
+### Filtrer l'historique
+
+En haut de la liste des bons de commande, des **pilules de filtre** par statut permettent d'afficher uniquement les BC d'un statut donné (ex. : afficher uniquement les *Envoyés* pour gérer les livraisons en attente).
+
+---
+
+## 14. Statistiques
 
 > Réservé aux Administrateurs.
 
@@ -537,7 +688,7 @@ Les statistiques permettent de visualiser la performance du cabinet sur une pér
 
 ---
 
-## 14. Administration
+## 15. Administration
 
 > Fonctionnalités réservées aux Administrateurs.
 
@@ -581,7 +732,7 @@ Accédez à **Paramètres** dans le menu latéral.
 
 ---
 
-## 15. FAQ et résolution de problèmes
+## 16. FAQ et résolution de problèmes
 
 ### "Je ne peux pas créer une vente"
 **Cause :** aucun exercice comptable n'est ouvert.
@@ -632,4 +783,4 @@ Accédez à **Paramètres** dans le menu latéral.
 
 *Pour toute question non couverte dans ce manuel, contactez votre administrateur système.*
 
-*Manuel utilisateur ZEZEPAGNON Dossiers Patients — Version 2.0 — Mai 2026*
+*Manuel utilisateur GECAM — Version 3.0 — Juin 2026*

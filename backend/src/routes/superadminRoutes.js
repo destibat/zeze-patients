@@ -60,7 +60,7 @@ const ecrireParam = async (cabinetId, cle, valeur) => {
   );
 };
 
-// GET /api/superadmin/abonnement
+// GET /api/superadmin/abonnement — abonnement du cabinet courant (contexte host)
 router.get('/abonnement', authentifierSuperAdmin, asyncHandler(async (req, res) => {
   const cabinetId = getCabinetId();
   const abonnement = await lireAbonnement(cabinetId);
@@ -74,7 +74,7 @@ router.get('/abonnement', authentifierSuperAdmin, asyncHandler(async (req, res) 
   res.json({ ...abonnement, nb_analyses_ce_mois: Number(stats.nb) });
 }));
 
-// PUT /api/superadmin/abonnement
+// PUT /api/superadmin/abonnement — modifie l'abonnement du cabinet courant
 router.put('/abonnement', authentifierSuperAdmin, asyncHandler(async (req, res) => {
   const cabinetId = getCabinetId();
   const { actif, expire_le, quota_ia_mensuel } = req.body;
@@ -85,6 +85,74 @@ router.put('/abonnement', authentifierSuperAdmin, asyncHandler(async (req, res) 
   }
   invaliderCache(cabinetId);
   res.json({ ok: true, abonnement: await lireAbonnement(cabinetId) });
+}));
+
+// GET /api/superadmin/cabinets — liste tous les cabinets avec statut abonnement
+router.get('/cabinets', authentifierSuperAdmin, asyncHandler(async (req, res) => {
+  const rows = await sequelize.query(`
+    SELECT
+      c.id, c.slug, c.domaine, c.nom, c.actif, c.created_at,
+      MAX(CASE WHEN p.cle = 'abonnement_actif'               THEN p.valeur END) AS abonnement_actif,
+      MAX(CASE WHEN p.cle = 'abonnement_prochaine_echeance'  THEN p.valeur END) AS prochaine_echeance,
+      MAX(CASE WHEN p.cle = 'nom_cabinet'                    THEN p.valeur END) AS nom_affiche
+    FROM cabinets c
+    LEFT JOIN parametres_cabinet p ON p.cabinet_id = c.id
+    GROUP BY c.id, c.slug, c.domaine, c.nom, c.actif, c.created_at
+    ORDER BY c.created_at ASC
+  `, { type: sequelize.QueryTypes.SELECT });
+
+  const maintenant = new Date();
+  const cabinets = rows.map((c) => {
+    const abonnementActif = c.abonnement_actif !== '0';
+    let joursRetard = null;
+
+    if (c.prochaine_echeance) {
+      const echeance = new Date(c.prochaine_echeance);
+      const diffMs = maintenant - echeance;
+      if (diffMs > 0) {
+        joursRetard = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+      }
+    }
+
+    return {
+      ...c,
+      abonnement_actif: abonnementActif,
+      jours_retard: joursRetard,
+    };
+  });
+
+  res.json(cabinets);
+}));
+
+// POST /api/superadmin/cabinets/:cabinetId/valider-paiement — marque le paiement reçu, étend de 30 jours
+router.post('/cabinets/:cabinetId/valider-paiement', authentifierSuperAdmin, asyncHandler(async (req, res) => {
+  const { cabinetId } = req.params;
+
+  const cabinet = await Cabinet.findByPk(cabinetId, { _bypass_cabinet: true });
+  if (!cabinet) return res.status(404).json({ message: 'Cabinet introuvable' });
+
+  const prochaineEcheance = new Date();
+  prochaineEcheance.setDate(prochaineEcheance.getDate() + 30);
+  const echeanceISO = prochaineEcheance.toISOString().split('T')[0];
+
+  await ecrireParam(cabinetId, 'abonnement_actif', '1');
+  await ecrireParam(cabinetId, 'abonnement_prochaine_echeance', echeanceISO);
+  invaliderCache(cabinetId);
+
+  res.json({ ok: true, prochaine_echeance: echeanceISO });
+}));
+
+// POST /api/superadmin/cabinets/:cabinetId/suspendre — suspend immédiatement le cabinet
+router.post('/cabinets/:cabinetId/suspendre', authentifierSuperAdmin, asyncHandler(async (req, res) => {
+  const { cabinetId } = req.params;
+
+  const cabinet = await Cabinet.findByPk(cabinetId, { _bypass_cabinet: true });
+  if (!cabinet) return res.status(404).json({ message: 'Cabinet introuvable' });
+
+  await ecrireParam(cabinetId, 'abonnement_actif', '0');
+  invaliderCache(cabinetId);
+
+  res.json({ ok: true });
 }));
 
 // PUT /api/superadmin/cabinets/:cabinetId/reset-password — réinitialise le mot de passe d'un user
@@ -98,16 +166,6 @@ router.put('/cabinets/:cabinetId/reset-password', authentifierSuperAdmin, asyncH
 
   await user.update({ password_hash: new_password }, { _bypass_cabinet: true });
   res.json({ ok: true, message: `Mot de passe mis à jour pour ${email}` });
-}));
-
-// GET /api/superadmin/cabinets — liste tous les cabinets
-router.get('/cabinets', authentifierSuperAdmin, asyncHandler(async (req, res) => {
-  const cabinets = await Cabinet.findAll({
-    attributes: ['id', 'slug', 'domaine', 'nom', 'actif', 'created_at'],
-    order: [['created_at', 'ASC']],
-    _bypass_cabinet: true,
-  });
-  res.json(cabinets);
 }));
 
 // POST /api/superadmin/cabinets — crée un cabinet + son premier admin
@@ -125,6 +183,11 @@ router.post('/cabinets', authentifierSuperAdmin, asyncHandler(async (req, res) =
 
   const cabinetId = uuidv4();
   const opts = { _bypass_cabinet: true };
+
+  // Prochaine échéance = aujourd'hui + 30 jours
+  const prochaineEcheance = new Date();
+  prochaineEcheance.setDate(prochaineEcheance.getDate() + 30);
+  const echeanceISO = prochaineEcheance.toISOString().split('T')[0];
 
   const transaction = await sequelize.transaction();
   try {
@@ -146,13 +209,15 @@ router.post('/cabinets', authentifierSuperAdmin, asyncHandler(async (req, res) =
       ['commission_stockiste', '30'],
       ['commission_delegue', '15'],
       ['abonnement_actif', '1'],
+      ['abonnement_prochaine_echeance', echeanceISO],
+      ['quota_ia_mensuel', '100'],
     ];
     for (const [cle, valeur] of params) {
       await ParametreCabinet.create({ cabinet_id: cabinetId, cle, valeur }, { ...opts, transaction });
     }
 
     await transaction.commit();
-    res.status(201).json({ ok: true, cabinet_id: cabinetId, slug: slugNormalise, domaine });
+    res.status(201).json({ ok: true, cabinet_id: cabinetId, slug: slugNormalise, domaine, prochaine_echeance: echeanceISO });
   } catch (err) {
     await transaction.rollback();
     throw err;
