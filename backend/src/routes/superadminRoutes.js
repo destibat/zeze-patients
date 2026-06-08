@@ -142,6 +142,22 @@ router.post('/cabinets/:cabinetId/valider-paiement', authentifierSuperAdmin, asy
   res.json({ ok: true, prochaine_echeance: echeanceISO });
 }));
 
+// PUT /api/superadmin/cabinets/:cabinetId/abonnement — modifie l'abonnement d'un cabinet spécifique
+router.put('/cabinets/:cabinetId/abonnement', authentifierSuperAdmin, asyncHandler(async (req, res) => {
+  const { cabinetId } = req.params;
+
+  const cabinet = await Cabinet.findByPk(cabinetId, { _bypass_cabinet: true });
+  if (!cabinet) return res.status(404).json({ message: 'Cabinet introuvable' });
+
+  const { actif, prochaine_echeance, quota_ia_mensuel } = req.body;
+  if (actif !== undefined)              await ecrireParam(cabinetId, 'abonnement_actif', actif ? '1' : '0');
+  if (prochaine_echeance !== undefined) await ecrireParam(cabinetId, 'abonnement_prochaine_echeance', prochaine_echeance || '');
+  if (quota_ia_mensuel !== undefined)   await ecrireParam(cabinetId, 'quota_ia_mensuel', String(Math.max(0, parseInt(quota_ia_mensuel, 10) || 100)));
+  invaliderCache(cabinetId);
+
+  res.json({ ok: true });
+}));
+
 // POST /api/superadmin/cabinets/:cabinetId/suspendre — suspend immédiatement le cabinet
 router.post('/cabinets/:cabinetId/suspendre', authentifierSuperAdmin, asyncHandler(async (req, res) => {
   const { cabinetId } = req.params;

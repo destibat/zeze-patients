@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import {
   loginSuperAdmin, listerCabinets, creerCabinet, resetPasswordAdmin,
-  validerPaiement, suspendre as suspendreCabinet,
+  validerPaiement, suspendre as suspendreCabinet, mettreAJourAbonnement,
 } from '../services/superadminService';
 
 const TOKEN_KEY = 'superadmin_token';
@@ -87,6 +87,83 @@ const LoginForm = ({ onLogin }) => {
         </form>
         <p className="text-center text-xs text-gray-400 mt-4">Accès réservé à l&apos;administrateur ZEZEPAGNON</p>
       </div>
+    </div>
+  );
+};
+
+// ── Gestion détaillée de l'abonnement par cabinet ────────────────────────────
+const GererAbonnement = ({ token, cabinet, onSaved }) => {
+  const [ouvert, setOuvert] = useState(false);
+  const [actif, setActif] = useState(cabinet.abonnement_actif);
+  const [echeance, setEcheance] = useState(cabinet.prochaine_echeance || '');
+  const [quota, setQuota] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState(null);
+
+  const ouvrir = () => {
+    setActif(cabinet.abonnement_actif);
+    setEcheance(cabinet.prochaine_echeance || '');
+    setMsg(null);
+    setOuvert(!ouvert);
+  };
+
+  const submit = async (e) => {
+    e.preventDefault();
+    setSaving(true); setMsg(null);
+    try {
+      await mettreAJourAbonnement(token, cabinet.id, {
+        actif,
+        prochaine_echeance: echeance || null,
+        ...(quota ? { quota_ia_mensuel: parseInt(quota, 10) } : {}),
+      });
+      setMsg({ ok: true, texte: 'Abonnement mis à jour' });
+      onSaved();
+    } catch (err) {
+      setMsg({ ok: false, texte: err?.response?.data?.message || 'Erreur' });
+    } finally { setSaving(false); }
+  };
+
+  return (
+    <div>
+      <button type="button" onClick={ouvrir}
+        className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-600 transition-colors">
+        <Shield size={11} /> Gérer abonnement
+        {ouvert ? <ChevronUp size={10} className="ml-0.5" /> : <ChevronDown size={10} className="ml-0.5" />}
+      </button>
+      {ouvert && (
+        <form onSubmit={submit} className="mt-2 p-3 bg-gray-50 rounded-lg border border-gray-200 space-y-3">
+          {msg && (
+            <p className={`text-xs flex items-center gap-1 ${msg.ok ? 'text-green-700' : 'text-red-600'}`}>
+              {msg.ok ? <CheckCircle2 size={11} /> : <AlertTriangle size={11} />} {msg.texte}
+            </p>
+          )}
+          {/* Actif / suspendu */}
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-medium text-gray-600">Abonnement actif</span>
+            <button type="button" onClick={() => setActif((v) => !v)}
+              className={`relative inline-flex h-5 w-9 rounded-full transition-colors ${actif ? 'bg-green-600' : 'bg-gray-300'}`}>
+              <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${actif ? 'translate-x-4' : 'translate-x-0'}`} />
+            </button>
+          </div>
+          {/* Prochaine échéance */}
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Prochaine échéance</label>
+            <input type="date" value={echeance} onChange={(e) => setEcheance(e.target.value)}
+              className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-green-500" />
+          </div>
+          {/* Quota IA */}
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Quota IA mensuel (laisser vide = inchangé)</label>
+            <input type="number" min="0" max="9999" value={quota} onChange={(e) => setQuota(e.target.value)}
+              placeholder="100"
+              className="w-24 border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-green-500" />
+          </div>
+          <button type="submit" disabled={saving}
+            className="flex items-center gap-1 bg-green-700 hover:bg-green-800 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50">
+            {saving ? <Loader2 size={10} className="animate-spin" /> : <Save size={10} />} Enregistrer
+          </button>
+        </form>
+      )}
     </div>
   );
 };
@@ -304,8 +381,9 @@ const TableauDeBord = ({ token }) => {
                   </div>
                 </div>
 
-                {/* Reset MDP (collapsible) */}
-                <div className="mt-3 pt-2.5 border-t border-gray-100">
+                {/* Actions secondaires (collapsibles) */}
+                <div className="mt-3 pt-2.5 border-t border-gray-100 flex flex-col sm:flex-row gap-3">
+                  <GererAbonnement token={token} cabinet={c} onSaved={charger} />
                   <ResetPassword token={token} cabinetId={c.id} />
                 </div>
               </div>

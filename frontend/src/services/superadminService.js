@@ -51,3 +51,8 @@ export const suspendre = async (token, cabinetId) => {
   const { data } = await superadminApi(token).post(`/superadmin/cabinets/${cabinetId}/suspendre`);
   return data;
 };
+
+export const mettreAJourAbonnement = async (token, cabinetId, payload) => {
+  const { data } = await superadminApi(token).put(`/superadmin/cabinets/${cabinetId}/abonnement`, payload);
+  return data;
+};
