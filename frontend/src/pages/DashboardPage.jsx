@@ -381,9 +381,12 @@ const WidgetBcMapa = () => {
   if (enAttente.length === 0) return null;
 
   const maintenant = new Date();
-  const joursDepuis = (dateStr) => {
+  const joursDepuis = (bc) => {
+    const dateStr = bc.date_commande || bc.created_at || bc.createdAt;
+    if (!dateStr) return null;
     const diff = maintenant - new Date(dateStr);
-    return Math.floor(diff / (1000 * 60 * 60 * 24));
+    const j = Math.floor(diff / (1000 * 60 * 60 * 24));
+    return isNaN(j) ? null : j;
   };
 
   const STATUT = {
@@ -396,7 +399,7 @@ const WidgetBcMapa = () => {
     return s + lignes.reduce((ls, l) => ls + (l.quantite || 0) * (l.prix_unitaire || 0), 0);
   }, 0);
 
-  const nbUrgent = enAttente.filter((bc) => joursDepuis(bc.updatedAt || bc.createdAt) >= 7).length;
+  const nbUrgent = enAttente.filter((bc) => { const j = joursDepuis(bc); return j !== null && j >= 7; }).length;
 
   return (
     <div className={`carte space-y-4 ${nbUrgent > 0 ? 'border-amber-300 bg-amber-50/20' : ''}`}>
@@ -428,7 +431,7 @@ const WidgetBcMapa = () => {
 
       <div className="divide-y divide-bordure">
         {enAttente.slice(0, 5).map((bc) => {
-          const jours = joursDepuis(bc.updatedAt || bc.createdAt);
+          const jours = joursDepuis(bc);
           const cfg   = STATUT[bc.statut];
           const lignes = typeof bc.lignes === 'string' ? JSON.parse(bc.lignes || '[]') : (bc.lignes || []);
           const montantBc = lignes.reduce((s, l) => s + (l.quantite || 0) * (l.prix_unitaire || 0), 0);
@@ -438,10 +441,11 @@ const WidgetBcMapa = () => {
               onClick={() => navigate('/bons-commande-mapa')}>
               <div className="flex items-center gap-3 min-w-0">
                 <div>
-                  <p className="text-sm font-medium text-texte-principal">{bc.numero_bc}</p>
+                  <p className="text-sm font-medium text-texte-principal">{bc.numero}</p>
                   <p className="text-xs text-texte-secondaire">
-                    {bc.nom_stockiste_mapa || 'MAPA'} · il y a {jours} jour{jours > 1 ? 's' : ''}
-                    {jours >= 7 && <span className="ml-1 text-amber-600 font-medium">⚠</span>}
+                    {bc.nom_stockiste_mapa || 'MAPA'}
+                    {jours !== null && <> · il y a {jours} jour{jours > 1 ? 's' : ''}</>}
+                    {jours !== null && jours >= 7 && <span className="ml-1 text-amber-600 font-medium">⚠</span>}
                   </p>
                 </div>
               </div>
