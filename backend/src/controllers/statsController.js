@@ -270,7 +270,7 @@ const obtenirStatsDetaillees = async (req, res) => {
   const debutDate = dateDebut.toISOString().split('T')[0];
   const replacements = { debut: dateDebut, fin: dateFin, debutDate, userId, cabinetId };
 
-  const [rowsConsultations, rowsFactures, patientsParSexe, ordonnances] = await Promise.all([
+  const [rowsConsultations, rowsFactures, patientsParSexe, ordonnances, countFactures] = await Promise.all([
     sequelize.query(sqlGroupConsultations[groupBy], { replacements, type: sequelize.QueryTypes.SELECT }),
     sequelize.query(sqlGroupFactures[groupBy], { replacements, type: sequelize.QueryTypes.SELECT }),
     sequelize.query(`SELECT sexe, COUNT(*) AS total FROM patients WHERE archive = 0 AND cabinet_id = :cabinetId GROUP BY sexe`, { replacements: { cabinetId }, type: sequelize.QueryTypes.SELECT }),
@@ -279,6 +279,10 @@ const obtenirStatsDetaillees = async (req, res) => {
       attributes: ['lignes'],
       raw: true,
     }),
+    sequelize.query(
+      `SELECT COUNT(*) AS nb FROM factures WHERE date_facture BETWEEN :debut AND :fin AND statut NOT IN ('annulee', 'partiellement_payee') AND cabinet_id = :cabinetId ${filtreUser}`,
+      { replacements, type: sequelize.QueryTypes.SELECT },
+    ),
   ]);
 
   // ── Construire les séries ─────────────────────────────────────────────────
@@ -313,6 +317,7 @@ const obtenirStatsDetaillees = async (req, res) => {
   const totalConsultations = consultationsChart.reduce((s, d) => s + d.total, 0);
   const totalFacture = caChart.reduce((s, d) => s + d.facture, 0);
   const totalEncaisse = caChart.reduce((s, d) => s + d.encaisse, 0);
+  const nbFactures = parseInt(countFactures[0]?.nb || 0);
 
   res.json({
     periode,
@@ -321,6 +326,7 @@ const obtenirStatsDetaillees = async (req, res) => {
     total_consultations: totalConsultations,
     total_facture: totalFacture,
     total_encaisse: totalEncaisse,
+    nb_factures: nbFactures,
     consultations_chart: consultationsChart,
     ca_chart: caChart,
     patients_par_sexe: patientsParSexe,
@@ -328,4 +334,79 @@ const obtenirStatsDetaillees = async (req, res) => {
   });
 };
 
-module.exports = { obtenirStats, obtenirStatsDetaillees };
+const obtenirPerformanceDelegues = async (req, res) => {
+  // Accessible admin/stockiste uniquement — vérification faite dans la route
+  const { debut, fin } = req.query;
+  const cabinetId = getCabinetId();
+
+  const debutDate = debut ? new Date(debut) : (() => { const d = new Date(); d.setDate(1); d.setHours(0,0,0,0); return d; })();
+  const finDate = fin ? (() => { const d = new Date(fin); d.setHours(23,59,59,999); return d; })() : new Date();
+
+  // Récupérer tous les délégués actifs du cabinet
+  const delegues = await User.findAll({
+    where: { role: 'delegue', actif: true },
+    attributes: ['id', 'nom', 'prenom'],
+    raw: true,
+  });
+
+  if (!delegues.length) return res.json([]);
+
+  // Agrégat des mouvements type='achat' (achats délégué au stockiste) sur la période
+  const rows = await sequelize.query(`
+    SELECT
+      md.delegue_id,
+      COUNT(*) AS nb_achats,
+      COALESCE(SUM(md.montant_total), 0) AS ca_total,
+      COALESCE(SUM(md.gain_delegue), 0) AS gains_delegue,
+      COALESCE(SUM(md.commission_stockiste), 0) AS commission_stockiste
+    FROM mouvements_delegue md
+    WHERE md.type = 'achat'
+      AND md.statut = 'valide'
+      AND md.date_mouvement BETWEEN :debut AND :fin
+      AND md.cabinet_id = :cabinetId
+    GROUP BY md.delegue_id
+  `, {
+    replacements: { debut: debutDate, fin: finDate, cabinetId },
+    type: sequelize.QueryTypes.SELECT,
+  });
+
+  const mapAchats = Object.fromEntries(rows.map((r) => [r.delegue_id, r]));
+
+  // Ventes directes (type='vente') sur la même période
+  const rowsVentes = await sequelize.query(`
+    SELECT
+      md.delegue_id,
+      COALESCE(SUM(md.montant_total), 0) AS ca_ventes_directes,
+      COUNT(*) AS nb_ventes_directes
+    FROM mouvements_delegue md
+    WHERE md.type = 'vente'
+      AND md.statut = 'valide'
+      AND md.date_mouvement BETWEEN :debut AND :fin
+      AND md.cabinet_id = :cabinetId
+    GROUP BY md.delegue_id
+  `, {
+    replacements: { debut: debutDate, fin: finDate, cabinetId },
+    type: sequelize.QueryTypes.SELECT,
+  });
+  const mapVentes = Object.fromEntries(rowsVentes.map((r) => [r.delegue_id, r]));
+
+  const performance = delegues.map((d) => {
+    const achats = mapAchats[d.id] || { nb_achats: 0, ca_total: 0, gains_delegue: 0, commission_stockiste: 0 };
+    const ventes = mapVentes[d.id] || { ca_ventes_directes: 0, nb_ventes_directes: 0 };
+    return {
+      delegue_id: d.id,
+      nom: d.nom,
+      prenom: d.prenom,
+      nb_achats: parseInt(achats.nb_achats),
+      ca_total: parseInt(achats.ca_total),
+      gains_delegue: parseInt(achats.gains_delegue),
+      commission_stockiste: parseInt(achats.commission_stockiste),
+      nb_ventes_directes: parseInt(ventes.nb_ventes_directes),
+      ca_ventes_directes: parseInt(ventes.ca_ventes_directes),
+    };
+  }).sort((a, b) => b.ca_total - a.ca_total);
+
+  res.json(performance);
+};
+
+module.exports = { obtenirStats, obtenirStatsDetaillees, obtenirPerformanceDelegues };

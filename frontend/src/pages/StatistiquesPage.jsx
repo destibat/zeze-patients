@@ -3,9 +3,10 @@ import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../services/api';
 import { useExercices, useBilanExercice } from '../hooks/useExercices';
-import { TrendingUp, Users, Stethoscope, Package, ChevronLeft, ChevronRight, Printer, BookOpen } from 'lucide-react';
+import { TrendingUp, Users, Stethoscope, Package, ChevronLeft, ChevronRight, Printer, BookOpen, Download, UserCheck } from 'lucide-react';
 import { formatNombre } from '../utils/formatMontant';
 import useFormatMontant from '../hooks/useFormatMontant';
+import { exportStatsVentes } from '../utils/exportExcel';
 
 const PERIODES = [
   { val: 'annee',     label: 'Année' },
@@ -21,6 +22,14 @@ const useStatsDetaillees = (params) =>
   useQuery({
     queryKey: ['stats-detaillees', params],
     queryFn: () => api.get('/stats/detaillees', { params }).then((r) => r.data),
+    keepPreviousData: true,
+    enabled: !!params,
+  });
+
+const usePerformanceDelegues = (params) =>
+  useQuery({
+    queryKey: ['performance-delegues', params],
+    queryFn: () => api.get('/stats/performance-delegues', { params: { debut: params?.debut_iso, fin: params?.fin_iso } }).then((r) => r.data),
     keepPreviousData: true,
     enabled: !!params,
   });
@@ -297,6 +306,52 @@ const ColonneExercice = ({ exercice, bilan, stats, isLoading }) => {
   );
 };
 
+const TableauDelegues = ({ performance, isLoading, formatMontant }) => {
+  if (isLoading) return <div className="flex justify-center py-6"><div className="animate-spin rounded-full h-6 w-6 border-4 border-zeze-vert border-t-transparent" /></div>;
+  if (!performance?.length) return <p className="text-sm text-texte-secondaire italic">Aucun délégué actif sur cette période</p>;
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b border-bordure text-xs text-texte-secondaire">
+            <th className="text-left pb-2 font-semibold">Délégué</th>
+            <th className="text-right pb-2 font-semibold">Achats stock</th>
+            <th className="text-right pb-2 font-semibold">CA achats</th>
+            <th className="text-right pb-2 font-semibold">Gains délégué</th>
+            <th className="text-right pb-2 font-semibold">Commission</th>
+            <th className="text-right pb-2 font-semibold">Ventes directes</th>
+            <th className="text-right pb-2 font-semibold">CA ventes</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-bordure">
+          {performance.map((d) => (
+            <tr key={d.delegue_id} className="hover:bg-fond-secondaire/30 transition-colors">
+              <td className="py-2 font-medium text-texte-principal">{d.prenom} {d.nom}</td>
+              <td className="py-2 text-right text-texte-secondaire">{d.nb_achats}</td>
+              <td className="py-2 text-right font-mono">{formatMontant(d.ca_total)}</td>
+              <td className="py-2 text-right text-zeze-vert font-mono font-medium">{formatMontant(d.gains_delegue)}</td>
+              <td className="py-2 text-right font-mono">{formatMontant(d.commission_stockiste)}</td>
+              <td className="py-2 text-right text-texte-secondaire">{d.nb_ventes_directes}</td>
+              <td className="py-2 text-right font-mono">{formatMontant(d.ca_ventes_directes)}</td>
+            </tr>
+          ))}
+        </tbody>
+        <tfoot>
+          <tr className="border-t-2 border-bordure text-xs text-texte-secondaire font-semibold">
+            <td className="pt-2">Total</td>
+            <td className="pt-2 text-right">{performance.reduce((s, d) => s + d.nb_achats, 0)}</td>
+            <td className="pt-2 text-right font-mono">{formatMontant(performance.reduce((s, d) => s + d.ca_total, 0))}</td>
+            <td className="pt-2 text-right font-mono text-zeze-vert">{formatMontant(performance.reduce((s, d) => s + d.gains_delegue, 0))}</td>
+            <td className="pt-2 text-right font-mono">{formatMontant(performance.reduce((s, d) => s + d.commission_stockiste, 0))}</td>
+            <td className="pt-2 text-right">{performance.reduce((s, d) => s + d.nb_ventes_directes, 0)}</td>
+            <td className="pt-2 text-right font-mono">{formatMontant(performance.reduce((s, d) => s + d.ca_ventes_directes, 0))}</td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  );
+};
+
 const StatsParExercice = () => {
   const { data: exercicesData, isLoading: exLoading } = useExercices({ limite: 50 });
   const exercices = exercicesData?.exercices ?? [];
@@ -436,7 +491,28 @@ const StatistiquesPage = () => {
     return { periode, debut, fin };
   })();
 
+  // Plage ISO pour l'endpoint performance-délégués
+  const paramsISO = (() => {
+    if (!estAdmin) return null;
+    if (periode === 'annee') return { debut_iso: `${annee}-01-01`, fin_iso: `${annee}-12-31` };
+    if (periode === 'mois') {
+      const dernierJour = new Date(annee, mois, 0).getDate();
+      return { debut_iso: `${annee}-${String(mois).padStart(2,'0')}-01`, fin_iso: `${annee}-${String(mois).padStart(2,'0')}-${dernierJour}` };
+    }
+    if (periode === 'semaine') {
+      const base = semaine ? new Date(semaine) : now;
+      const lundi = new Date(base);
+      const jourSem = lundi.getDay() === 0 ? 6 : lundi.getDay() - 1;
+      lundi.setDate(lundi.getDate() - jourSem);
+      const dim = new Date(lundi); dim.setDate(dim.getDate() + 6);
+      return { debut_iso: toDateInput(lundi), fin_iso: toDateInput(dim) };
+    }
+    if (periode === 'jour') return { debut_iso: jour, fin_iso: jour };
+    return { debut_iso: debut, fin_iso: fin };
+  })();
+
   const { data, isLoading } = useStatsDetaillees(params);
+  const { data: performance, isLoading: perfLoading } = usePerformanceDelegues(paramsISO);
 
   return (
     <div className="space-y-6">
@@ -491,6 +567,15 @@ const StatistiquesPage = () => {
                 {periode === 'jour'      && <FiltresJour jour={jour} setJour={setJour} />}
                 {periode === 'intervalle'&& <FiltresIntervalle debut={debut} setDebut={setDebut} fin={fin} setFin={setFin} />}
               </div>
+              {estAdmin && data && (
+                <button
+                  onClick={() => exportStatsVentes(data.top_produits, performance, libellePeriode(data))}
+                  className="flex items-center gap-2 text-sm px-3 py-1.5 border border-bordure rounded-bouton hover:bg-fond-secondaire text-texte-principal transition-colors whitespace-nowrap"
+                >
+                  <Download size={14} />
+                  Exporter Excel
+                </button>
+              )}
             </div>
           </div>
         )}
@@ -505,7 +590,7 @@ const StatistiquesPage = () => {
       ) : (
         <>
           {/* KPI */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className={`grid grid-cols-1 ${estAdmin ? 'sm:grid-cols-2 lg:grid-cols-4' : 'sm:grid-cols-3'} gap-4`}>
             <div className="carte flex items-center gap-4">
               <div className="w-10 h-10 rounded-bouton bg-blue-100 flex items-center justify-center">
                 <Stethoscope size={18} className="text-blue-600" />
@@ -537,6 +622,20 @@ const StatistiquesPage = () => {
                 </p>
               </div>
             </div>
+            {estAdmin && (
+              <div className="carte flex items-center gap-4">
+                <div className="w-10 h-10 rounded-bouton bg-amber-100 flex items-center justify-center">
+                  <Package size={18} className="text-amber-600" />
+                </div>
+                <div>
+                  <p className="text-xs text-texte-secondaire">Ticket moyen · {data?.nb_factures || 0} vente{data?.nb_factures !== 1 ? 's' : ''}</p>
+                  <p className="text-2xl font-titres font-bold text-texte-principal">
+                    {data?.nb_factures ? formatNombre(Math.round(data.total_facture / data.nb_factures)) : '—'}{' '}
+                    <span className="text-sm font-normal text-texte-secondaire">FCFA</span>
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
@@ -605,6 +704,26 @@ const StatistiquesPage = () => {
               )}
             </div>
           </div>
+
+          {/* Performance délégués — admin/stockiste uniquement */}
+          {estAdmin && (
+            <div className="carte">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-sm font-semibold text-texte-principal flex items-center gap-2">
+                  <UserCheck size={15} className="text-indigo-500" /> Performance délégués · {libellePeriode(data)}
+                </h2>
+                {performance?.length > 0 && (
+                  <button
+                    onClick={() => exportStatsVentes([], performance, libellePeriode(data))}
+                    className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 border border-bordure rounded-bouton hover:bg-fond-secondaire text-texte-secondaire transition-colors"
+                  >
+                    <Download size={12} /> Excel
+                  </button>
+                )}
+              </div>
+              <TableauDelegues performance={performance} isLoading={perfLoading} formatMontant={formatMontant} />
+            </div>
+          )}
         </>
       ))}
     </div>
