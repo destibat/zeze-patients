@@ -10,6 +10,7 @@ module.exports = (sequelize) => {
       Facture.belongsTo(models.User, { foreignKey: 'created_by', as: 'createur' });
       Facture.belongsTo(models.Exercice, { foreignKey: 'exercice_id', as: 'exercice' });
       Facture.belongsTo(models.Exercice, { foreignKey: 'recouvrement_exercice_id', as: 'exercice_recouvrement' });
+      Facture.hasMany(models.DeclarationProduit, { foreignKey: 'facture_id', as: 'declarations' });
     }
 
     get montant_restant() {
@@ -32,8 +33,18 @@ module.exports = (sequelize) => {
         type: DataTypes.ENUM('especes', 'orange_money', 'momo_mtn', 'wave', 'moov', 'western_union', 'moneygram', 'ria', 'virement', 'cheque', 'mobile_money', 'autre'),
         allowNull: true,
       },
+      montant_declare: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        defaultValue: 0,
+      },
+      avoir: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        defaultValue: 0,
+      },
       statut: {
-        type: DataTypes.ENUM('en_attente', 'partiellement_payee', 'payee', 'annulee'),
+        type: DataTypes.ENUM('en_attente', 'partiellement_soldee', 'soldee', 'annulee'),
         allowNull: false,
         defaultValue: 'en_attente',
       },

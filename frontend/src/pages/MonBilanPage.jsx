@@ -238,11 +238,11 @@ const MonBilanPage = () => {
                         <td className="px-4 py-2.5 text-right font-mono text-xs text-zeze-vert">{fmt(f.montant_paye)}</td>
                         <td className="px-4 py-2.5 text-center">
                           <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                            f.statut === 'payee'            ? 'bg-green-100 text-green-700' :
-                            f.statut === 'partiellement_payee' ? 'bg-yellow-100 text-yellow-700' :
+                            f.statut === 'soldee'              ? 'bg-green-100 text-green-700' :
+                            f.statut === 'partiellement_soldee' ? 'bg-blue-100 text-blue-700' :
                             'bg-gray-100 text-gray-600'
                           }`}>
-                            {f.statut === 'payee' ? 'Payée' : f.statut === 'partiellement_payee' ? 'Partiel' : 'En attente'}
+                            {f.statut === 'soldee' ? 'Soldée' : f.statut === 'partiellement_soldee' ? 'Partielle' : 'En attente'}
                           </span>
                         </td>
                       </tr>

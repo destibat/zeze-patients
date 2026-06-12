@@ -1,8 +1,9 @@
 'use strict';
 
-const { Facture, Ordonnance, Patient, User, Exercice, MouvementDelegue } = require('../models');
+const { Facture, Ordonnance, Patient, User, Exercice, MouvementDelegue, DeclarationProduit, sequelize } = require('../models');
 const { Op } = require('sequelize');
 const { getCabinetId } = require('../config/cabinetContext');
+const { allouerFacture } = require('../services/allocationService');
 
 // Valide les MouvementDelegue type='achat' en_attente liés à une ordonnance
 const validerMouvDelegueOrdonnance = async (ordonnance) => {
@@ -41,10 +42,11 @@ const genererNumero = async () => {
   return `${prefixe}${String(seq).padStart(5, '0')}`;
 };
 
-const calculerStatut = (total, paye) => {
-  if (paye <= 0) return 'en_attente';
-  if (paye >= total) return 'payee';
-  return 'partiellement_payee';
+// Statut basé sur les DÉCLARATIONS (pas seulement le paiement)
+const calculerStatut = (montantDeclare, montantTotal) => {
+  if (montantDeclare <= 0) return 'en_attente';
+  if (montantDeclare >= montantTotal) return 'soldee';
+  return 'partiellement_soldee';
 };
 
 const lister = async (req, res) => {
@@ -119,78 +121,133 @@ const creerDepuisOrdonnance = async (req, res) => {
   }
 
   const paye = Math.min(parseInt(montant_paye) || 0, ordonnance.montant_total);
-  const statut = calculerStatut(ordonnance.montant_total, paye);
   const numero = await genererNumero();
 
-  const facture = await Facture.create({
-    numero,
-    patient_id: ordonnance.patient_id,
-    ordonnance_id: ordonnanceId,
-    created_by: ordonnance.medecin_id,
-    date_facture: new Date().toISOString().split('T')[0],
-    montant_total: ordonnance.montant_total,
-    montant_paye: paye,
-    mode_paiement: mode_paiement || null,
-    statut,
-    lignes: ordonnance.lignes,
-    notes,
-    exercice_id: exercice.id,
-  });
+  const tx = await sequelize.transaction();
+  try {
+    const facture = await Facture.create({
+      numero,
+      patient_id: ordonnance.patient_id,
+      ordonnance_id: ordonnanceId,
+      created_by: ordonnance.medecin_id,
+      date_facture: new Date().toISOString().split('T')[0],
+      montant_total: ordonnance.montant_total,
+      montant_paye: paye,
+      mode_paiement: mode_paiement || null,
+      statut: 'en_attente',
+      montant_declare: 0,
+      avoir: 0,
+      lignes: ordonnance.lignes,
+      notes,
+      exercice_id: exercice.id,
+    }, { transaction: tx });
 
-  if (statut === 'payee') await validerMouvDelegueOrdonnance(ordonnance);
+    let statutFinal = 'en_attente';
+    if (paye > 0) {
+      const { montantDeclare, avoir, statut } = await allouerFacture(facture.id, {
+        transaction: tx,
+        exerciceId: exercice.id,
+        models: { Facture, DeclarationProduit },
+      });
+      await facture.update({ montant_declare: montantDeclare, avoir, statut }, { transaction: tx });
+      statutFinal = statut;
+    }
 
-  const factureComplete = await Facture.findByPk(facture.id, { include: INCLUDE_BASE });
-  res.status(201).json(factureComplete);
+    await tx.commit();
+
+    if (statutFinal === 'soldee') await validerMouvDelegueOrdonnance(ordonnance);
+
+    const factureComplete = await Facture.findByPk(facture.id, { include: INCLUDE_BASE });
+    res.status(201).json(factureComplete);
+  } catch (err) {
+    await tx.rollback();
+    throw err;
+  }
 };
 
 const enregistrerPaiement = async (req, res) => {
   const facture = await Facture.findByPk(req.params.id);
   if (!facture) return res.status(404).json({ message: 'Facture introuvable' });
   if (facture.statut === 'annulee') return res.status(409).json({ message: 'Facture annulée' });
+  if (facture.statut === 'soldee')  return res.status(409).json({ message: 'Facture déjà soldée' });
 
   const { montant, mode_paiement } = req.body;
-  const nouveauPaye = Math.min(facture.montant_paye + (parseInt(montant) || 0), facture.montant_total);
-  const nouveauStatut = calculerStatut(facture.montant_total, nouveauPaye);
+  const montantSaisi = parseInt(montant, 10) || 0;
+  if (montantSaisi <= 0) return res.status(400).json({ message: 'Montant invalide' });
 
-  const updateData = {
-    montant_paye: nouveauPaye,
-    mode_paiement: mode_paiement || facture.mode_paiement,
-    statut: nouveauStatut,
-  };
+  // Plafonner au reste à payer
+  const resteAPayer = facture.montant_total - facture.montant_paye;
+  const montantAccepte = Math.min(montantSaisi, resteAPayer);
 
-  // Créance soldée dans un exercice différent de celui d'origine → recouvrement
-  if (nouveauStatut === 'payee' && !facture.recouvrement_exercice_id) {
-    const exerciceActuel = await Exercice.findOne({
-      where: { statut: { [Op.in]: ['ouvert', 'rouvert'] } },
-      attributes: ['id'],
+  // Récupérer l'exercice ouvert (nécessaire pour horodater la déclaration)
+  const exercice = await Exercice.findOne({
+    where: { statut: { [Op.in]: ['ouvert', 'rouvert'] } },
+    attributes: ['id'],
+  });
+  if (!exercice) {
+    return res.status(422).json({ message: 'Aucun exercice ouvert. Ouvrez un exercice avant d\'enregistrer un paiement.', code: 'EXERCICE_REQUIS' });
+  }
+
+  const tx = await sequelize.transaction();
+  try {
+    // 1. Enregistrer le paiement
+    const nouveauPaye = facture.montant_paye + montantAccepte;
+    await facture.update({
+      montant_paye:  nouveauPaye,
+      mode_paiement: mode_paiement || facture.mode_paiement,
+    }, { transaction: tx });
+
+    // 2. Allouer produit par produit
+    const { montantDeclare, avoir, statut } = await allouerFacture(facture.id, {
+      transaction:  tx,
+      exerciceId:   exercice.id,
+      models:       { Facture, DeclarationProduit },
     });
-    if (exerciceActuel && exerciceActuel.id !== facture.exercice_id) {
-      updateData.recouvrement_exercice_id = exerciceActuel.id;
+
+    // 3. Mise à jour statut + montant_declare + avoir
+    const updateFinale = { montant_declare: montantDeclare, avoir, statut };
+
+    // Gestion recouvrement : première fois que la facture est soldée dans un exercice différent
+    if (statut === 'soldee' && !facture.recouvrement_exercice_id && exercice.id !== facture.exercice_id) {
+      updateFinale.recouvrement_exercice_id = exercice.id;
     }
-  }
 
-  await facture.update(updateData);
+    await facture.update(updateFinale, { transaction: tx });
 
-  if (nouveauStatut === 'payee' && facture.ordonnance_id) {
-    const ordonnance = await Ordonnance.findByPk(facture.ordonnance_id, {
-      attributes: ['medecin_id', 'date_ordonnance'],
+    await tx.commit();
+
+    // Valider les MouvementDelegue associés si facture soldée
+    if (statut === 'soldee' && facture.ordonnance_id) {
+      const ordonnance = await Ordonnance.findByPk(facture.ordonnance_id, { attributes: ['medecin_id', 'date_ordonnance'] });
+      await validerMouvDelegueOrdonnance(ordonnance);
+    }
+
+    const factureComplete = await Facture.findByPk(facture.id, {
+      include: [
+        ...INCLUDE_BASE,
+        { model: DeclarationProduit, as: 'declarations', attributes: ['ligne_index', 'nom_produit', 'prix_unitaire', 'exercice_id', 'date_declaration'] },
+      ],
     });
-    await validerMouvDelegueOrdonnance(ordonnance);
+    res.json(factureComplete);
+  } catch (err) {
+    await tx.rollback();
+    throw err;
   }
-
-  res.json(facture);
 };
 
 const annuler = async (req, res) => {
   const facture = await Facture.findByPk(req.params.id);
   if (!facture) return res.status(404).json({ message: 'Facture introuvable' });
+  if (facture.montant_declare > 0) {
+    return res.status(409).json({ message: 'Impossible d\'annuler : des produits ont déjà été déclarés et comptabilisés.' });
+  }
   await facture.update({ statut: 'annulee' });
   res.json(facture);
 };
 
 const listerCreanciers = async (req, res) => {
   const estAdmin = ['administrateur', 'stockiste'].includes(req.utilisateur.role);
-  const where = { statut: { [Op.in]: ['en_attente', 'partiellement_payee'] } };
+  const where = { statut: { [Op.in]: ['en_attente', 'partiellement_soldee'] } };
 
   if (!estAdmin) {
     if (req.utilisateur.role === 'stockiste') {

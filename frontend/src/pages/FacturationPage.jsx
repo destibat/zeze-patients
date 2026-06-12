@@ -58,10 +58,10 @@ const useAnnulerFacture = () => {
 // ── Config statuts ────────────────────────────────────────────────────────────
 
 const STATUT = {
-  en_attente:           { label: 'En attente',          couleur: 'bg-yellow-100 text-yellow-800 border-yellow-200', icone: Clock },
-  partiellement_payee:  { label: 'Partiellement payée', couleur: 'bg-blue-100 text-blue-800 border-blue-200',       icone: AlertCircle },
-  payee:                { label: 'Payée',                couleur: 'bg-green-100 text-green-800 border-green-200',    icone: CheckCircle },
-  annulee:              { label: 'Annulée',              couleur: 'bg-gray-100 text-gray-500 border-gray-200',       icone: XCircle },
+  en_attente:            { label: 'En attente',          couleur: 'bg-yellow-100 text-yellow-800 border-yellow-200', icone: Clock },
+  partiellement_soldee:  { label: 'Partielle',           couleur: 'bg-blue-100 text-blue-800 border-blue-200',       icone: AlertCircle },
+  soldee:                { label: 'Soldée',               couleur: 'bg-green-100 text-green-800 border-green-200',    icone: CheckCircle },
+  annulee:               { label: 'Annulée',              couleur: 'bg-gray-100 text-gray-500 border-gray-200',       icone: XCircle },
 };
 
 const MODE_PAIEMENT = LABELS_MODES_PAIEMENT;
@@ -213,11 +213,15 @@ const LigneFacture = ({ facture, onPayer, onAnnuler }) => {
           <div className="flex flex-wrap gap-4 text-xs text-texte-secondaire">
             {facture.mode_paiement && <span>Mode : <strong>{MODE_PAIEMENT[facture.mode_paiement]}</strong></span>}
             {facture.montant_paye > 0 && <span>Payé : <strong className="text-zeze-vert">{formatMontant(facture.montant_paye)}</strong></span>}
+            {facture.montant_declare > 0 && facture.montant_declare < facture.montant_total && (
+              <span>Déclaré : <strong className="text-blue-600">{formatMontant(facture.montant_declare)}</strong></span>
+            )}
+            {facture.avoir > 0 && <span>Avoir : <strong className="text-orange-600">{formatMontant(facture.avoir)}</strong></span>}
             {facture.notes && <span>Notes : {facture.notes}</span>}
           </div>
 
           <div className="flex flex-wrap gap-2">
-            {facture.statut !== 'payee' && facture.statut !== 'annulee' && (
+            {facture.statut !== 'soldee' && facture.statut !== 'annulee' && (
               <Button variante="primaire" icone={CreditCard} onClick={(e) => { e.stopPropagation(); onPayer(facture); }}>
                 Paiement
               </Button>
@@ -326,7 +330,7 @@ const PatientRelance = ({ patient, factures, onPayer, onAnnuler }) => {
 
 const VueRelances = ({ factures, onPayer, onAnnuler }) => {
   const { formatMontant } = useFormatMontant();
-  const aRelancer = factures.filter((f) => f.statut === 'en_attente' || f.statut === 'partiellement_payee');
+  const aRelancer = factures.filter((f) => f.statut === 'en_attente' || f.statut === 'partiellement_soldee');
 
   const parPatient = aRelancer.reduce((acc, f) => {
     const id = f.patient_id;
@@ -419,7 +423,7 @@ const VueGains = ({ factures, ventesDirectes = [], parametres, estAdmin }) => {
   // Agréger les ventes par créateur (ordonnances)
   const parCreateur = {};
   factures.forEach((f) => {
-    if (f.statut === 'annulee' || f.statut === 'partiellement_payee' || !f.createur) return;
+    if (f.statut === 'annulee' || f.statut === 'partiellement_soldee' || !f.createur) return;
     const cId = f.createur.id;
     if (!parCreateur[cId]) {
       parCreateur[cId] = {
@@ -1004,7 +1008,7 @@ const VueCreanciers = ({ onPayer }) => {
               return facs.map((f, fIdx) => {
                 const lignes = parseLignes(f.lignes);
                 const restant = f.montant_total - f.montant_paye;
-                const partielle = f.statut === 'partiellement_payee';
+                const partielle = f.statut === 'partiellement_soldee';
                 return (
                   <tr key={f.id} className={`hover:bg-fond-secondaire/40 ${fIdx === 0 ? 'border-t-2 border-t-bordure' : ''}`}>
                     {fIdx === 0 && (
@@ -1052,8 +1056,8 @@ const VueCreanciers = ({ onPayer }) => {
                       {formatMontant(restant)}
                     </td>
                     <td className="px-4 py-3 text-center">
-                      <span className={`text-xs px-2 py-0.5 rounded-full border whitespace-nowrap ${partielle ? 'bg-orange-50 text-orange-700 border-orange-200' : 'bg-yellow-50 text-yellow-700 border-yellow-200'}`}>
-                        {partielle ? 'Acompte reçu' : 'Non payée'}
+                      <span className={`text-xs px-2 py-0.5 rounded-full border whitespace-nowrap ${partielle ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-yellow-50 text-yellow-700 border-yellow-200'}`}>
+                        {partielle ? 'Partielle' : 'En attente'}
                       </span>
                     </td>
                     <td className="px-4 py-3">
@@ -1107,7 +1111,7 @@ const FacturationPage = () => {
 
   const totalVentesDirectes = ventesDirectes.reduce((s, v) => s + v.ventes_total, 0);
 
-  const nbRelances = factures.filter((f) => f.statut === 'en_attente' || f.statut === 'partiellement_payee').length;
+  const nbRelances = factures.filter((f) => f.statut === 'en_attente' || f.statut === 'partiellement_soldee').length;
 
   const handleAnnuler = async (facture) => {
     if (!window.confirm(`Annuler la facture ${facture.numero} ?`)) return;

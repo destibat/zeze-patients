@@ -1,6 +1,6 @@
 'use strict';
 
-const { Exercice, MouvementDelegue, Facture, User, Produit, sequelize } = require('../models');
+const { Exercice, MouvementDelegue, Facture, User, Produit, DeclarationProduit, sequelize } = require('../models');
 const { Op } = require('sequelize');
 
 // ── Génération du numéro séquentiel ──────────────────────────────────────────
@@ -27,20 +27,19 @@ const calculerBilan = async (exerciceId, statut = null) => {
   const dateCloture    = ex?.date_cloture;
   const recalculer = ['ouvert', 'rouvert'].includes(exerciceStatut);
 
-  // ── Toutes les Factures de l'exercice (normales + recouvrements de créances) ──
-  // Cas 1 : facture créée dans cet exercice, non transférée à un autre exercice
-  // Cas 2 : créance d'un ancien exercice soldée intégralement dans cet exercice
-  const factures = await Facture.findAll({
-    where: {
-      [Op.or]: [
-        { exercice_id: exerciceId, recouvrement_exercice_id: null, statut: { [Op.notIn]: ['annulee', 'partiellement_payee'] } },
-        { recouvrement_exercice_id: exerciceId, statut: 'payee' },
-      ],
-    },
+  // ── CA factures : basé sur les déclarations produit de cet exercice ──────────
+  // Chaque ligne = 1 unité produit déclarée lors d'un paiement patient.
+  // Inclut automatiquement les recouvrements (créances soldées dans cet exercice).
+  const declarationsExercice = await DeclarationProduit.findAll({
+    where: { exercice_id: exerciceId },
+    attributes: ['facture_id', 'nom_produit', 'prix_unitaire'],
     include: [{
-      model: User, as: 'createur',
-      attributes: ['id', 'nom', 'prenom', 'role', 'commission_rate', 'stockiste_id'],
-      include: [{ model: User, as: 'stockiste', attributes: ['id', 'nom', 'prenom', 'commission_rate'] }],
+      model: Facture, as: 'facture', attributes: ['id'],
+      include: [{
+        model: User, as: 'createur',
+        attributes: ['id', 'nom', 'prenom', 'role', 'commission_rate', 'stockiste_id'],
+        include: [{ model: User, as: 'stockiste', attributes: ['id', 'nom', 'prenom', 'commission_rate'] }],
+      }],
     }],
     raw: false,
   });
@@ -142,22 +141,30 @@ const calculerBilan = async (exerciceId, statut = null) => {
     parStockiste[id].commission_delegues += commStockiste;
   };
 
-  // ── Traitement des Factures ────────────────────────────────────────────────
-  for (const f of factures) {
-    const createur = f.createur;
-    const montant  = f.montant_paye || 0;
+  // ── Grouper les déclarations par facture (canal non-délégué) ─────────────────
+  // Les factures créées par un délégué sont ignorées ici : leur CA est comptabilisé
+  // via ventesDeleg / achatsDeleg (MouvementDelegue).
+  const caParFacture = {}; // facture_id → { createur, montant }
+  for (const d of declarationsExercice) {
+    const createur = d.facture?.createur;
+    if (createur?.role === 'delegue') continue;
 
-    if (createur?.role === 'delegue') {
-      // Factures délégués = facturation patient uniquement.
-      // Produits et commissions sont déjà capturés via achatsDeleg / ventesDeleg.
-      continue;
-    }
+    const fid = d.facture_id;
+    if (!caParFacture[fid]) caParFacture[fid] = { createur, montant: 0 };
+    caParFacture[fid].montant += d.prix_unitaire || 0;
 
-    if (montant > 0) ajouterProduits(f.lignes);
+    // Alimenter le top produits depuis les déclarations (1 unité = 1 ligne)
+    const nom = d.nom_produit || 'Inconnu';
+    if (!produitsMap[nom]) produitsMap[nom] = { quantite: 0, ca: 0 };
+    produitsMap[nom].quantite += 1;
+    produitsMap[nom].ca += d.prix_unitaire || 0;
+  }
 
-    // Canal direct (secrétaire / stockiste / admin) : commission 100 % au stockiste
+  // ── Traitement des Factures (canal direct) ────────────────────────────────
+  for (const { createur, montant } of Object.values(caParFacture)) {
+    if (montant <= 0) continue;
+
     let tauxComm = 0, stockisteId = null, stockisteNom = '';
-
     if (createur?.role === 'stockiste' || createur?.role === 'administrateur') {
       tauxComm     = parseFloat(createur.commission_rate ?? 0);
       stockisteId  = createur.id;
@@ -223,9 +230,7 @@ const calculerBilan = async (exerciceId, statut = null) => {
   }
 
   // ── Totaux ─────────────────────────────────────────────────────────────────
-  const ca_factures_total = factures
-    .filter((f) => f.createur?.role !== 'delegue')
-    .reduce((s, f) => s + (f.montant_paye || 0), 0);
+  const ca_factures_total = Object.values(caParFacture).reduce((s, f) => s + f.montant, 0);
   const ca_delegues_total =
     ventesDeleg.reduce((s, v) => s + (v.montant_total || 0), 0) +
     achatsDeleg.reduce((s, a) => s + (a.montant_total || 0), 0);
@@ -237,7 +242,7 @@ const calculerBilan = async (exerciceId, statut = null) => {
     .reduce((s, d) => s + d.gain_delegue, 0);
   const net_mapa = ca_total - commissions_stockistes_total - commissions_delegues_total;
 
-  const nb_factures_directes = factures.filter((f) => f.createur?.role !== 'delegue').length;
+  const nb_factures_directes = Object.keys(caParFacture).length;
   const nb_ventes_delegues   = Object.values(parDelegue).reduce((s, d) => s + d.nb_ventes, 0);
 
   const stockistesDetail = Object.values(parStockiste).map((st) => ({
@@ -408,32 +413,27 @@ const obtenirActuel = async (req, res) => {
     return res.json({ exercice: null, message: 'Aucun exercice ouvert en ce moment' });
   }
 
-  // Exclure les délégués de caFactures (leurs ordonnances patients ≠ CA du stockiste)
+  // CA accumulé depuis les déclarations produit de l'exercice (exclut les délégués)
   const delegueUsers = await User.findAll({ where: { role: 'delegue' }, attributes: ['id'], raw: true });
   const delegueIds = delegueUsers.map((u) => u.id);
 
-  // CA accumulé : ventes directes stockiste + recouvrements + achats des délégués
-  const exclusionDelegues = delegueIds.length > 0 ? { created_by: { [Op.notIn]: delegueIds } } : {};
-  const [caFactures, caApprovisionnements] = await Promise.all([
-    Facture.sum('montant_paye', {
-      where: {
-        ...exclusionDelegues,
-        [Op.or]: [
-          // Factures normales de cet exercice (non transférées)
-          { exercice_id: exercice.id, recouvrement_exercice_id: null, statut: { [Op.notIn]: ['annulee', 'partiellement_payee'] } },
-          // Créances d'anciens exercices soldées dans cet exercice
-          { recouvrement_exercice_id: exercice.id, statut: 'payee' },
-        ],
-      },
-    }),
-    MouvementDelegue.sum('montant_total', {
-      where: {
-        type: 'achat',
-        statut: 'valide',
-        date_mouvement: { [Op.gte]: new Date(exercice.date_ouverture).toISOString().split('T')[0] },
-      },
-    }),
-  ]);
+  const declarationsRaw = await DeclarationProduit.findAll({
+    where: { exercice_id: exercice.id },
+    attributes: ['prix_unitaire', 'facture_id'],
+    include: [{ model: Facture, as: 'facture', attributes: ['created_by'], required: true }],
+    raw: true,
+  });
+  const caFactures = declarationsRaw
+    .filter((d) => !delegueIds.includes(d['facture.created_by']))
+    .reduce((s, d) => s + (d.prix_unitaire || 0), 0);
+
+  const caApprovisionnements = (await MouvementDelegue.sum('montant_total', {
+    where: {
+      type: 'achat',
+      statut: 'valide',
+      date_mouvement: { [Op.gte]: new Date(exercice.date_ouverture).toISOString().split('T')[0] },
+    },
+  })) || 0;
 
   const dureeJours = Math.floor(
     (new Date() - new Date(exercice.date_ouverture)) / 86400000
@@ -441,9 +441,9 @@ const obtenirActuel = async (req, res) => {
 
   res.json({
     exercice,
-    ca_accumule: (caFactures || 0) + (caApprovisionnements || 0),
-    ca_factures: caFactures || 0,
-    ca_approvisionnements: caApprovisionnements || 0,
+    ca_accumule: caFactures + caApprovisionnements,
+    ca_factures: caFactures,
+    ca_approvisionnements: caApprovisionnements,
     duree_jours: dureeJours,
   });
 };

@@ -27,17 +27,17 @@ const ROUGE       = '#C62828';
 const ORANGE      = '#E65100';
 
 const STATUT_LABEL = {
-  en_attente:          'EN ATTENTE',
-  partiellement_payee: 'PARTIELLEMENT PAYEE',
-  payee:               'PAYEE',
-  annulee:             'ANNULEE',
+  en_attente:            'EN ATTENTE',
+  partiellement_soldee:  'PARTIELLEMENT SOLDEE',
+  soldee:                'SOLDEE',
+  annulee:               'ANNULEE',
 };
 
 const STATUT_COULEUR = {
-  en_attente:          ORANGE,
-  partiellement_payee: BLEU,
-  payee:               VERT,
-  annulee:             GRIS,
+  en_attente:            ORANGE,
+  partiellement_soldee:  BLEU,
+  soldee:                VERT,
+  annulee:               GRIS,
 };
 
 const MODE_LABEL = {

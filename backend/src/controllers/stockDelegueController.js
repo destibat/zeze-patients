@@ -296,7 +296,7 @@ const obtenirGainsDelegues = async (req, res) => {
     Facture.findAll({
       where: {
         created_by: { [Op.in]: ids },
-        statut: { [Op.notIn]: ['annulee', 'partiellement_payee'] },
+        statut: { [Op.notIn]: ['annulee'] },
         date_facture: { [Op.gte]: exercice.date_ouverture },
       },
       attributes: ['created_by', 'montant_total'],
@@ -543,7 +543,7 @@ const monBilan = async (req, res) => {
     Facture.findAll({
       where: {
         created_by: userId,
-        statut: { [Op.notIn]: ['annulee', 'partiellement_payee'] },
+        statut: { [Op.notIn]: ['annulee'] },
         date_facture: { [Op.between]: [debutStr, finStr] },
       },
       include: [{ model: Patient, as: 'patient', attributes: ['id', 'nom', 'prenom', 'numero_dossier'] }],

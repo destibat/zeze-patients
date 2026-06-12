@@ -69,8 +69,10 @@ const genererRapportMensuel = async (req, res) => {
     ParametreCabinet.findOne({ where: { cle: 'nom_cabinet' } }).then((p) => p?.valeur || 'Cabinet ZEZEPAGNON'),
     Patient.count({ where: { archive: 0 } }),
     sequelize.query(
-      `SELECT COUNT(*) AS nb, COALESCE(SUM(montant_total),0) AS facture, COALESCE(SUM(montant_paye),0) AS encaisse
-       FROM factures WHERE date_facture BETWEEN :debut AND :fin AND statut NOT IN ('annulee','partiellement_payee') AND cabinet_id = :cabinetId`,
+      `SELECT COUNT(*) AS nb, COALESCE(SUM(montant_total),0) AS facture,
+              (SELECT COALESCE(SUM(prix_unitaire),0) FROM declarations_produit
+               WHERE DATE(date_declaration) BETWEEN :debut AND :fin AND cabinet_id = :cabinetId) AS encaisse
+       FROM factures WHERE date_facture BETWEEN :debut AND :fin AND statut != 'annulee' AND cabinet_id = :cabinetId`,
       { replacements: { debut: dateDebutStr, fin: dateFinStr, cabinetId }, type: sequelize.QueryTypes.SELECT }
     ),
     sequelize.query(
@@ -78,9 +80,10 @@ const genererRapportMensuel = async (req, res) => {
       { replacements: { debut: dateDebutStr, fin: dateFinStr, cabinetId }, type: sequelize.QueryTypes.SELECT }
     ),
     sequelize.query(
-      `SELECT DAY(date_facture) AS jour, COALESCE(SUM(montant_paye),0) AS encaisse
-       FROM factures WHERE date_facture BETWEEN :debut AND :fin AND statut NOT IN ('annulee','partiellement_payee') AND cabinet_id = :cabinetId
-       GROUP BY DAY(date_facture) ORDER BY jour`,
+      `SELECT DAY(date_declaration) AS jour, COALESCE(SUM(prix_unitaire),0) AS encaisse
+       FROM declarations_produit
+       WHERE DATE(date_declaration) BETWEEN :debut AND :fin AND cabinet_id = :cabinetId
+       GROUP BY DAY(date_declaration) ORDER BY jour`,
       { replacements: { debut: dateDebutStr, fin: dateFinStr, cabinetId }, type: sequelize.QueryTypes.SELECT }
     ),
     sequelize.query(
