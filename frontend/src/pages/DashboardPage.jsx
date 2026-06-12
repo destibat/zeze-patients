@@ -53,9 +53,9 @@ const SectionChartsAnalytiques = () => {
           Tendances — {new Date().getFullYear()}
         </h2>
         <div className="flex items-center gap-3">
-          <button onClick={() => navigate('/rapports')}
+          <button onClick={() => navigate('/statistiques')}
             className="flex items-center gap-1.5 text-xs font-medium text-zeze-vert hover:underline">
-            <FileBarChart2 size={13} />Générer rapport PDF →
+            <FileBarChart2 size={13} />Rapport PDF →
           </button>
           <button onClick={() => navigate('/statistiques')}
             className="text-xs text-texte-secondaire hover:underline">

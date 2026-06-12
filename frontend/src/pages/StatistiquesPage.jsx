@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../services/api';
 import { useExercices, useBilanExercice } from '../hooks/useExercices';
-import { TrendingUp, Users, Stethoscope, Package, ChevronLeft, ChevronRight, Printer, BookOpen, Download, UserCheck } from 'lucide-react';
+import { TrendingUp, Users, Stethoscope, Package, ChevronLeft, ChevronRight, Printer, BookOpen, Download, UserCheck, FileBarChart2, Loader2 } from 'lucide-react';
 import { formatNombre } from '../utils/formatMontant';
 import useFormatMontant from '../hooks/useFormatMontant';
 import { exportStatsVentes } from '../utils/exportExcel';
@@ -478,6 +478,7 @@ const StatistiquesPage = () => {
   const [periode, setPeriode] = useState('annee');
   const [annee, setAnnee] = useState(now.getFullYear());
   const [mois, setMois] = useState(now.getMonth() + 1);
+  const [dlRapport, setDlRapport] = useState(false);
   const [semaine, setSemaine] = useState(toDateInput(now));
   const [jour, setJour] = useState(toDateInput(now));
   const [debut, setDebut] = useState(toDateInput(new Date(now.getFullYear(), now.getMonth(), 1)));
@@ -568,13 +569,41 @@ const StatistiquesPage = () => {
                 {periode === 'intervalle'&& <FiltresIntervalle debut={debut} setDebut={setDebut} fin={fin} setFin={setFin} />}
               </div>
               {estAdmin && data && (
-                <button
-                  onClick={() => exportStatsVentes(data.top_produits, performance, libellePeriode(data))}
-                  className="flex items-center gap-2 text-sm px-3 py-1.5 border border-bordure rounded-bouton hover:bg-fond-secondaire text-texte-principal transition-colors whitespace-nowrap"
-                >
-                  <Download size={14} />
-                  Exporter Excel
-                </button>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <button
+                    onClick={() => exportStatsVentes(data.top_produits, performance, libellePeriode(data))}
+                    className="flex items-center gap-2 text-sm px-3 py-1.5 border border-bordure rounded-bouton hover:bg-fond-secondaire text-texte-principal transition-colors whitespace-nowrap"
+                  >
+                    <Download size={14} />
+                    Exporter Excel
+                  </button>
+                  {periode === 'mois' && (
+                    <button
+                      disabled={dlRapport}
+                      onClick={async () => {
+                        setDlRapport(true);
+                        try {
+                          const resp = await api.get('/rapports/mensuel', {
+                            params: { mois: `${annee}-${String(mois).padStart(2, '0')}` },
+                            responseType: 'blob',
+                          });
+                          const url = URL.createObjectURL(new Blob([resp.data], { type: 'application/pdf' }));
+                          const a = document.createElement('a');
+                          a.href = url;
+                          a.download = `rapport-${annee}-${String(mois).padStart(2, '0')}.pdf`;
+                          a.click();
+                          URL.revokeObjectURL(url);
+                        } finally {
+                          setDlRapport(false);
+                        }
+                      }}
+                      className="flex items-center gap-2 text-sm px-3 py-1.5 border border-zeze-vert/40 rounded-bouton hover:bg-zeze-vert/10 text-zeze-vert transition-colors whitespace-nowrap disabled:opacity-50"
+                    >
+                      {dlRapport ? <Loader2 size={14} className="animate-spin" /> : <FileBarChart2 size={14} />}
+                      Rapport PDF
+                    </button>
+                  )}
+                </div>
               )}
             </div>
           </div>
