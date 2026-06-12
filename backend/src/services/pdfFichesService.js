@@ -1035,10 +1035,212 @@ const genererBilanStockistePDF = (exercice, stockiste, factures, resumeAppros, i
   });
 
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// FICHE 6 — BILAN COMPLET EXERCICE (Synthèse générale)
+// ═══════════════════════════════════════════════════════════════════════════════
+const genererBilanCompletPDF = (exercice, bilan, infos = {}) =>
+  new Promise((resolve, reject) => {
+    const doc = new PDFDocument({ margin: ML, size: 'A4', autoFirstPage: true });
+    const chunks = [];
+    doc.on('data', (c) => chunks.push(c));
+    doc.on('end', () => resolve(Buffer.concat(chunks)));
+    doc.on('error', reject);
+
+    if (exercice.statut !== 'cloture') dessinerFiligrane(doc);
+    dessinerEntete(doc, 'BILAN COMPLET — SYNTHÈSE GÉNÉRALE', exercice, infos);
+
+    const MENTION = `Bilan Complet GECAM — Exercice ${exercice.numero} — Confidentiel`;
+
+    const sautDePage = () => {
+      dessinerPiedDePage(doc, MENTION);
+      doc.addPage();
+      if (exercice.statut !== 'cloture') dessinerFiligrane(doc);
+      doc.rect(0, 0, 595, 6).fill(VERT);
+      doc.y = MT + 10;
+      return doc.y;
+    };
+
+    const enteteTableau = (cols, headers) => {
+      const yH = doc.y;
+      doc.rect(ML, yH, PAGE_W, 14).fill('#CFD8DC');
+      doc.fontSize(8).font('Helvetica-Bold').fillColor('#37474F');
+      headers.forEach((h, i) =>
+        doc.text(h, cols[i].x, yH + 3, { width: cols[i].width, align: cols[i].align })
+      );
+      doc.y = yH + 16;
+      return doc.y;
+    };
+
+    // ── 4 KPI boxes ──────────────────────────────────────────────────────────
+    const ySynth = doc.y;
+    const wBloc  = (PAGE_W - 12) / 4;
+    [
+      { label: 'CA Total Exercice',     val: fmtMontant(bilan.ca_total),                col: VERT       },
+      { label: 'Commissions Stockistes', val: fmtMontant(bilan.commissions_stockistes), col: BLEU       },
+      { label: 'Commissions Revendeurs', val: fmtMontant(bilan.commissions_delegues),   col: ORANGE     },
+      { label: 'Net MAPA',              val: fmtMontant(bilan.net_mapa),                col: VERT_FONCE },
+    ].forEach((bloc, i) => {
+      const xBloc = ML + i * (wBloc + 4);
+      doc.rect(xBloc, ySynth, wBloc, 46).fill(bloc.col);
+      doc.fontSize(7.5).font('Helvetica').fillColor('white')
+        .text(bloc.label, xBloc + 4, ySynth + 6, { width: wBloc - 8, align: 'center' });
+      doc.fontSize(11).font('Helvetica-Bold').fillColor('white')
+        .text(bloc.val, xBloc + 4, ySynth + 22, { width: wBloc - 8, align: 'center' });
+    });
+    doc.y = ySynth + 52;
+
+    doc.fontSize(8).font('Helvetica').fillColor(GRIS)
+      .text(
+        `${bilan.nb_factures ?? 0} facture${(bilan.nb_factures ?? 0) !== 1 ? 's' : ''} directe${(bilan.nb_factures ?? 0) !== 1 ? 's' : ''} · ` +
+        `${bilan.nb_ventes_delegues ?? 0} vente${(bilan.nb_ventes_delegues ?? 0) !== 1 ? 's' : ''} revendeur${(bilan.nb_ventes_delegues ?? 0) !== 1 ? 's' : ''} · ` +
+        `CA Factures : ${fmtMontant(bilan.ca_factures)} · CA Revendeurs : ${fmtMontant(bilan.ca_delegues)}`,
+        ML, doc.y, { width: PAGE_W }
+      );
+    doc.y = doc.y + 12;
+
+    // ── SECTION : ACTIVITÉ ────────────────────────────────────────────────────
+    titreSection(doc, 'ACTIVITÉ', VERT);
+
+    const colsAct = [
+      { x: ML + 4,   width: 265, align: 'left'  },
+      { x: ML + 274, width: 90,  align: 'right' },
+      { x: ML + 368, width: 127, align: 'right' },
+    ];
+    enteteTableau(colsAct, ['Catégorie', 'Nb opérations', "Chiffre d'affaires"]);
+    let yRow = doc.y;
+
+    yRow = ligneTableau(doc, yRow, colsAct, [
+      'Factures directes (cabinet)',
+      String(bilan.nb_factures ?? 0),
+      fmtMontant(bilan.ca_factures),
+    ]);
+    yRow = ligneTableau(doc, yRow, colsAct, [
+      'Ventes revendeurs (approvisionnements)',
+      String(bilan.nb_ventes_delegues ?? 0),
+      fmtMontant(bilan.ca_delegues),
+    ], false, FOND_GRIS);
+    yRow = ligneTableau(doc, yRow, colsAct, [
+      'TOTAL',
+      String((bilan.nb_factures ?? 0) + (bilan.nb_ventes_delegues ?? 0)),
+      fmtMontant(bilan.ca_total),
+    ], true);
+    doc.y = yRow + 12;
+
+    // ── SECTION : STOCKISTES ─────────────────────────────────────────────────
+    const stockistes = bilan.par_stockiste ?? [];
+    if (stockistes.length > 0) {
+      if (doc.y > PAGE_H - MB - 120) doc.y = sautDePage();
+      titreSection(doc, 'STOCKISTES', BLEU);
+
+      const colsSt = [
+        { x: ML + 4,   width: 164, align: 'left'  },
+        { x: ML + 173, width: 82,  align: 'right' },
+        { x: ML + 259, width: 82,  align: 'right' },
+        { x: ML + 345, width: 82,  align: 'right' },
+        { x: ML + 431, width: 64,  align: 'right' },
+      ];
+      enteteTableau(colsSt, ['Stockiste', 'CA Factures', 'Gain Factures', 'Com. Revendeurs', 'Com. Totale']);
+      let ySt = doc.y;
+
+      stockistes.forEach((s, idx) => {
+        if (ySt > PAGE_H - MB - 20) ySt = sautDePage();
+        ySt = ligneTableau(doc, ySt, colsSt, [
+          `${s.prenom || ''} ${s.nom || ''}`.trim() || '—',
+          fmtMontant(s.ca_factures),
+          fmtMontant(s.gain_factures),
+          fmtMontant(s.commission_delegues),
+          fmtMontant(s.commission_totale),
+        ], false, idx % 2 === 0 ? null : FOND_GRIS);
+      });
+
+      if (ySt > PAGE_H - MB - 20) ySt = sautDePage();
+      ySt = ligneTableau(doc, ySt, colsSt, [
+        `TOTAL (${stockistes.length} stockiste${stockistes.length !== 1 ? 's' : ''})`,
+        fmtMontant(stockistes.reduce((s, x) => s + (x.ca_factures ?? 0), 0)),
+        fmtMontant(stockistes.reduce((s, x) => s + (x.gain_factures ?? 0), 0)),
+        fmtMontant(stockistes.reduce((s, x) => s + (x.commission_delegues ?? 0), 0)),
+        fmtMontant(bilan.commissions_stockistes),
+      ], true);
+      doc.y = ySt + 12;
+    }
+
+    // ── SECTION : REVENDEURS ─────────────────────────────────────────────────
+    const delegues = bilan.par_delegue ?? [];
+    if (delegues.length > 0) {
+      if (doc.y > PAGE_H - MB - 120) doc.y = sautDePage();
+      titreSection(doc, 'REVENDEURS', ORANGE);
+
+      const colsDel = [
+        { x: ML + 4,   width: 200, align: 'left'  },
+        { x: ML + 209, width: 110, align: 'right' },
+        { x: ML + 323, width: 110, align: 'right' },
+        { x: ML + 437, width: 58,  align: 'right' },
+      ];
+      enteteTableau(colsDel, ['Revendeur', 'CA Revendeur', 'Commission', 'Nb ventes']);
+      let yDel = doc.y;
+
+      delegues.forEach((d, idx) => {
+        if (yDel > PAGE_H - MB - 20) yDel = sautDePage();
+        yDel = ligneTableau(doc, yDel, colsDel, [
+          `${d.prenom || ''} ${d.nom || ''}`.trim() || '—',
+          fmtMontant(d.ca),
+          fmtMontant(d.gain_delegue),
+          String(d.nb_ventes ?? 0),
+        ], false, idx % 2 === 0 ? null : FOND_GRIS);
+      });
+
+      if (yDel > PAGE_H - MB - 20) yDel = sautDePage();
+      yDel = ligneTableau(doc, yDel, colsDel, [
+        `TOTAL (${delegues.length} revendeur${delegues.length !== 1 ? 's' : ''})`,
+        fmtMontant(delegues.reduce((s, d) => s + (d.ca ?? 0), 0)),
+        fmtMontant(bilan.commissions_delegues),
+        String(delegues.reduce((s, d) => s + (d.nb_ventes ?? 0), 0)),
+      ], true);
+      doc.y = yDel + 12;
+    }
+
+    // ── SECTION : TOP PRODUITS ───────────────────────────────────────────────
+    const produits = (bilan.top_produits ?? []).slice(0, 20);
+    if (produits.length > 0) {
+      if (doc.y > PAGE_H - MB - 120) doc.y = sautDePage();
+      titreSection(doc, 'TOP PRODUITS', GRIS);
+
+      const colsProd = [
+        { x: ML + 4,   width: 265, align: 'left'  },
+        { x: ML + 274, width: 90,  align: 'right' },
+        { x: ML + 368, width: 127, align: 'right' },
+      ];
+      enteteTableau(colsProd, ['Produit', 'Quantité vendue', 'CA Produit']);
+      let yProd = doc.y;
+
+      produits.forEach((p, idx) => {
+        if (yProd > PAGE_H - MB - 20) yProd = sautDePage();
+        yProd = ligneTableau(doc, yProd, colsProd, [
+          p.nom || '—',
+          String(p.quantite ?? 0),
+          fmtMontant(p.ca),
+        ], false, idx % 2 === 0 ? null : FOND_GRIS);
+      });
+
+      if (yProd > PAGE_H - MB - 20) yProd = sautDePage();
+      yProd = ligneTableau(doc, yProd, colsProd, [
+        `TOTAL (${produits.length} produit${produits.length !== 1 ? 's' : ''})`,
+        String(produits.reduce((s, p) => s + (p.quantite ?? 0), 0)),
+        fmtMontant(produits.reduce((s, p) => s + (p.ca ?? 0), 0)),
+      ], true);
+      doc.y = yProd;
+    }
+
+    dessinerPiedDePage(doc, MENTION);
+    doc.end();
+  });
+
+
 module.exports = {
   genererFicheMAPAPDF,
   genererDetailProduitsPDF,
   genererRecapDeleguesPDF,
   genererBilanIndividuelPDF,
   genererBilanStockistePDF,
+  genererBilanCompletPDF,
 };

@@ -9,6 +9,7 @@ const {
   genererRecapDeleguesPDF,
   genererBilanIndividuelPDF,
   genererBilanStockistePDF,
+  genererBilanCompletPDF,
 } = require('../services/pdfFichesService');
 
 // ── Charge les infos cabinet depuis parametres_cabinet ────────────────────────
@@ -268,4 +269,16 @@ const ficheBilanStockiste = async (req, res) => {
   envoyerPDF(res, buffer, `bilan-stockiste-${nom}-${exercice.numero}.pdf`);
 };
 
-module.exports = { ficheMapa, ficheDetailProduits, ficheRecapDelegues, ficheBilanDelegue, ficheBilanStockiste };
+// ── GET /exercices/:id/fiches/bilan-complet.pdf ───────────────────────────────
+const ficheBilanComplet = async (req, res) => {
+  const resultat = await chargerExerciceEtBilan(req.params.id);
+  if (!resultat) return res.status(404).json({ message: 'Exercice introuvable' });
+
+  const { exercice, bilan } = resultat;
+  const infos = await chargerInfosCabinet();
+
+  const buffer = await genererBilanCompletPDF(exercice, bilan, infos);
+  envoyerPDF(res, buffer, `bilan-complet-${exercice.numero}.pdf`);
+};
+
+module.exports = { ficheMapa, ficheDetailProduits, ficheRecapDelegues, ficheBilanDelegue, ficheBilanStockiste, ficheBilanComplet };

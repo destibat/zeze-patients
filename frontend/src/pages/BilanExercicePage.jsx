@@ -271,6 +271,8 @@ const BilanExercicePage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
 
+  const [chargementBilanPdf, setChargementBilanPdf] = useState(false);
+
   const { data: exerciceData, isLoading: loadExercice } = useExercice(id);
   const { data: bilanData, isLoading: loadBilan } = useBilanExercice(id);
 
@@ -293,9 +295,23 @@ const BilanExercicePage = () => {
             </h1>
           )}
         </div>
-        <Button variante="secondaire" icone={Printer} onClick={() => window.print()}>
-          Imprimer
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variante="primaire"
+            icone={chargementBilanPdf ? Loader2 : Download}
+            chargement={chargementBilanPdf}
+            onClick={() => telechargerPDF(
+              `/exercices/${id}/fiches/bilan-complet.pdf`,
+              `bilan-complet-${exercice?.numero ?? id}.pdf`,
+              setChargementBilanPdf
+            )}
+          >
+            Exporter PDF
+          </Button>
+          <Button variante="secondaire" icone={Printer} onClick={() => window.print()}>
+            Imprimer
+          </Button>
+        </div>
       </div>
 
       {/* En-tête impression */}
