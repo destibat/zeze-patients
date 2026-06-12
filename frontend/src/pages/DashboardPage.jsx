@@ -11,11 +11,149 @@ import {
   Users, Stethoscope, Calendar, TrendingUp, Bell,
   Clock, CheckCircle, AlertCircle, Phone,
   ShoppingCart, ShoppingBag, Package, BookOpen, AlertTriangle, ArrowRightLeft, FileBarChart,
-  Truck,
+  Truck, BarChart3, FileBarChart2,
 } from 'lucide-react';
 import { useBonsCommandeMapa } from '../hooks/useBonsCommandeMapa';
 
 const toDateInput = (d) => d.toISOString().split('T')[0];
+
+const useStatsAnnuelles = () => {
+  const annee = new Date().getFullYear();
+  return useQuery({
+    queryKey: ['stats-annuelles-dashboard', annee],
+    queryFn: () => api.get('/stats/detaillees', { params: { periode: 'annee', annee } }).then((r) => r.data),
+    staleTime: 5 * 60 * 1000,
+  });
+};
+
+// ── Section graphiques analytiques (admin/stockiste) ─────────────────────────
+const SectionChartsAnalytiques = () => {
+  const navigate = useNavigate();
+  const { formatMontant } = useFormatMontant();
+  const { data, isLoading } = useStatsAnnuelles();
+
+  if (isLoading) return (
+    <div className="carte flex items-center justify-center py-6">
+      <div className="animate-spin rounded-full h-5 w-5 border-4 border-zeze-vert border-t-transparent" />
+    </div>
+  );
+  if (!data) return null;
+
+  const caChart = data.ca_chart || [];
+  const consultChart = data.consultations_chart || [];
+  const topProduits = (data.top_produits || []).slice(0, 5);
+  const maxCA = Math.max(...caChart.map((d) => d.encaisse || 0), 1);
+  const maxConsult = Math.max(...consultChart.map((d) => d.total || 0), 1);
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h2 className="text-sm font-semibold text-texte-secondaire uppercase tracking-wide flex items-center gap-2">
+          <BarChart3 size={14} className="text-zeze-vert" />
+          Tendances — {new Date().getFullYear()}
+        </h2>
+        <div className="flex items-center gap-3">
+          <button onClick={() => navigate('/rapports')}
+            className="flex items-center gap-1.5 text-xs font-medium text-zeze-vert hover:underline">
+            <FileBarChart2 size={13} />Générer rapport PDF →
+          </button>
+          <button onClick={() => navigate('/statistiques')}
+            className="text-xs text-texte-secondaire hover:underline">
+            Statistiques complètes →
+          </button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+        {/* CA mensuel */}
+        <div className="carte">
+          <p className="text-xs font-semibold text-texte-secondaire uppercase tracking-wide mb-1">
+            CA encaissé par mois
+          </p>
+          <div className="flex items-end gap-0.5 h-28 mt-3 overflow-hidden">
+            {caChart.map((d, i) => {
+              const h = Math.max(2, Math.round(((d.encaisse || 0) / maxCA) * 100));
+              const hF = Math.max(1, Math.round(((d.facture || 0) / maxCA) * 100));
+              return (
+                <div key={i} className="flex-1 flex flex-col items-center gap-1 group relative">
+                  {(d.encaisse > 0 || d.facture > 0) && (
+                    <div className="absolute -top-7 left-1/2 -translate-x-1/2 bg-texte-principal text-white text-[10px] px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
+                      {formatMontant(d.encaisse)}
+                    </div>
+                  )}
+                  <div className="w-full flex items-end gap-px" style={{ height: '96px' }}>
+                    <div className="flex-1 rounded-t bg-zeze-vert/25" style={{ height: `${hF}%`, minHeight: d.facture > 0 ? '3px' : '0' }} />
+                    <div className="flex-1 rounded-t bg-zeze-vert" style={{ height: `${h}%`, minHeight: d.encaisse > 0 ? '3px' : '0' }} />
+                  </div>
+                  <span className="text-[9px] text-texte-secondaire truncate">{d.label}</span>
+                </div>
+              );
+            })}
+          </div>
+          <div className="flex items-center gap-3 mt-2">
+            <span className="flex items-center gap-1 text-[10px] text-texte-secondaire">
+              <span className="w-3 h-2 rounded-sm bg-zeze-vert/25 inline-block" />Facturé
+            </span>
+            <span className="flex items-center gap-1 text-[10px] text-texte-secondaire">
+              <span className="w-3 h-2 rounded-sm bg-zeze-vert inline-block" />Encaissé
+            </span>
+          </div>
+        </div>
+
+        {/* Consultations mensuelles */}
+        <div className="carte">
+          <p className="text-xs font-semibold text-texte-secondaire uppercase tracking-wide mb-1">
+            Consultations par mois
+          </p>
+          <div className="flex items-end gap-0.5 h-28 mt-3 overflow-hidden">
+            {consultChart.map((d, i) => {
+              const h = Math.max(2, Math.round(((d.total || 0) / maxConsult) * 100));
+              return (
+                <div key={i} className="flex-1 flex flex-col items-center gap-1 group relative">
+                  {d.total > 0 && (
+                    <div className="absolute -top-7 left-1/2 -translate-x-1/2 bg-texte-principal text-white text-[10px] px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
+                      {d.total}
+                    </div>
+                  )}
+                  <div className="w-full flex items-end" style={{ height: '96px' }}>
+                    <div className="w-full rounded-t bg-blue-500" style={{ height: `${h}%`, minHeight: d.total > 0 ? '3px' : '0' }} />
+                  </div>
+                  <span className="text-[9px] text-texte-secondaire truncate">{d.label}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      {/* Top produits */}
+      {topProduits.length > 0 && (
+        <div className="carte">
+          <p className="text-xs font-semibold text-texte-secondaire uppercase tracking-wide mb-3">
+            Top 5 produits vendus — {new Date().getFullYear()}
+          </p>
+          <div className="space-y-2.5">
+            {topProduits.map((p, i) => {
+              const pct = Math.round((p.quantite / topProduits[0].quantite) * 100);
+              return (
+                <div key={i} className="flex items-center gap-3">
+                  <span className="w-4 text-xs font-bold text-texte-secondaire shrink-0">{i + 1}</span>
+                  <span className="text-sm text-texte-principal truncate w-36 shrink-0">{p.nom}</span>
+                  <div className="flex-1 h-2.5 bg-gray-100 rounded-full overflow-hidden">
+                    <div className="h-full bg-zeze-or rounded-full transition-all" style={{ width: `${pct}%` }} />
+                  </div>
+                  <span className="text-xs font-semibold text-texte-principal shrink-0 w-16 text-right">
+                    {p.quantite} unités
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
 
 const useStats = () =>
   useQuery({
@@ -923,6 +1061,9 @@ const DashboardStandard = ({ utilisateur }) => {
           <span className="text-xs text-red-700 font-semibold">Voir →</span>
         </button>
       )}
+
+      {/* Section graphiques — admin et stockiste */}
+      {estStockisteOuAdmin && <SectionChartsAnalytiques />}
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
         {/* RDV du jour */}

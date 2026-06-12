@@ -4,7 +4,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useAlertesStock } from '../../hooks/useStock';
 import {
   LayoutDashboard, Users, UserRound, Calendar, FileText,
-  Receipt, Package, BarChart3, Settings, X, Boxes, BookOpen, ShoppingCart, ArrowRightLeft, FileBarChart, ClipboardList,
+  Receipt, Package, BarChart3, Settings, X, Boxes, BookOpen, ShoppingCart, ArrowRightLeft, FileBarChart, ClipboardList, FileBarChart2,
 } from 'lucide-react';
 import logoMapa from '../../assets/logo-mapa.png';
 
@@ -20,6 +20,7 @@ const entresNav = [
   { cle: 'approvisionnements', chemin: '/approvisionnements', icone: ShoppingCart, roles: ['delegue', 'stockiste', 'administrateur'] },
   { cle: 'stock', chemin: '/stock', icone: Package, roles: ['administrateur', 'stockiste', 'secretaire'] },
   { cle: 'statistiques', chemin: '/statistiques', icone: BarChart3, roles: ['administrateur', 'stockiste'] },
+  { cle: 'rapports', chemin: '/rapports', icone: FileBarChart2, roles: ['administrateur', 'stockiste'] },
   { cle: 'exercices', chemin: '/exercices', icone: BookOpen, roles: ['administrateur', 'stockiste'] },
   { cle: 'prets_emprunts', chemin: '/prets-emprunts', icone: ArrowRightLeft, roles: ['administrateur', 'stockiste'] },
   { cle: 'bons_commande_mapa', chemin: '/bons-commande-mapa', icone: ClipboardList, roles: ['administrateur', 'stockiste'] },

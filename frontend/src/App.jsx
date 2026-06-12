@@ -32,6 +32,7 @@ import BilanExercicePage from './pages/BilanExercicePage';
 import ApprovisionnementsPage from './pages/ApprovisionnementsPage';
 import PretsEmpruntsPage from './pages/PretsEmpruntsPage';
 import BonsCommandeMapaPage from './pages/BonsCommandeMapaPage';
+import RapportsPage from './pages/RapportsPage';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -141,6 +142,14 @@ const App = () => (
               }
             />
             <Route path="statistiques" element={<StatistiquesPage />} />
+            <Route
+              path="rapports"
+              element={
+                <ProtectedRoute roles={['administrateur', 'stockiste']}>
+                  <RapportsPage />
+                </ProtectedRoute>
+              }
+            />
             <Route path="parametres" element={<ParametresPage />} />
             <Route
               path="exercices"

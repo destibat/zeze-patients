@@ -74,6 +74,7 @@ router.get('/stats/detaillees', authentifier, asyncHandler(obtenirStatsDetaillee
 router.get('/stats/performance-delegues', authentifier, autoriser('administrateur', 'stockiste'), asyncHandler(obtenirPerformanceDelegues));
 router.use('/prets-emprunts', require('./pretEmpruntRoutes'));
 router.use('/bons-commande-mapa', require('./bonCommandeMapaRoutes'));
+router.use('/rapports', require('./rapportRoutes'));
 router.use('/admin', require('./adminRoutes'));
 
 // Routes de développement — jamais chargées en production
