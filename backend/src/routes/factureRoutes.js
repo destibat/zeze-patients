@@ -11,6 +11,7 @@ router.use(authentifier);
 
 router.get('/', tousLesRoles, asyncHandler(ctrl.lister));
 router.get('/creanciers', tousLesRoles, asyncHandler(ctrl.listerCreanciers));
+router.get('/avoirs', tousLesRoles, asyncHandler(ctrl.listerAvoirs));
 router.get('/:id/pdf', tousLesRoles, asyncHandler(ctrl.telechargerPdf));
 router.get('/:id', tousLesRoles, asyncHandler(ctrl.obtenir));
 router.post('/depuis-ordonnance/:ordonnanceId', tousLesRoles, asyncHandler(ctrl.creerDepuisOrdonnance));

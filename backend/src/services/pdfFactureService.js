@@ -202,6 +202,24 @@ const genererPdfFacture = (facture, patient, emetteur) =>
       drawLigneRecap('Reste a payer', formatMontant(restant), ROUGE, true);
     }
 
+    // Avoir disponible
+    const avoir = facture.avoir || 0;
+    if (avoir > 0) {
+      doc.moveDown(0.6);
+      const yAvoir = doc.y;
+      const avoirBoxX = MARGIN_LEFT;
+      const avoirBoxW = PAGE_W;
+      doc.rect(avoirBoxX, yAvoir, avoirBoxW, 28).fill('#FFF3E0');
+      doc.rect(avoirBoxX, yAvoir, avoirBoxW, 28).strokeColor(ORANGE).lineWidth(0.8).stroke();
+      doc.font('Helvetica-Bold').fontSize(9).fillColor(ORANGE)
+         .text('AVOIR DISPONIBLE :', avoirBoxX + 8, yAvoir + 5, { continued: true })
+         .font('Helvetica-Bold').fontSize(11)
+         .text(`  ${formatMontant(avoir)}`, { continued: false });
+      doc.font('Helvetica').fontSize(7.5).fillColor(GRIS)
+         .text('Credit applicable sur le prochain achat de ce patient.', avoirBoxX + 8, yAvoir + 17);
+      doc.y = yAvoir + 36;
+    }
+
     // Mode de paiement
     if (facture.mode_paiement) {
       doc.moveDown(0.3);

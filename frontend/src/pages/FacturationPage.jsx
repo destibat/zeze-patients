@@ -7,7 +7,7 @@ import Alert from '../components/ui/Alert';
 import Button from '../components/ui/Button';
 import {
   Receipt, CreditCard, CheckCircle, Clock, AlertCircle,
-  XCircle, Plus, X, ChevronDown, ChevronUp, Bell, Phone, User, TrendingUp, ShoppingBag, Check, Package, FileDown,
+  XCircle, Plus, X, ChevronDown, ChevronUp, Bell, Phone, User, TrendingUp, ShoppingBag, Check, Package, FileDown, Wallet,
 } from 'lucide-react';
 import { useVentesDirectesDelegues, useVentesEnAttente, useValiderVente, useEnregistrerPaiement, useRefuserVente } from '../hooks/useStockDelegue';
 import { useFacturesAchat, useMarquerPaye } from '../hooks/useFacturesAchat';
@@ -45,6 +45,13 @@ const useCreanciers = () =>
     queryKey: ['factures-creanciers'],
     queryFn: () => api.get('/factures/creanciers').then((r) => r.data),
     refetchInterval: 60 * 1000,
+  });
+
+const useAvoirs = () =>
+  useQuery({
+    queryKey: ['factures-avoirs'],
+    queryFn: () => api.get('/factures/avoirs').then((r) => r.data),
+    refetchInterval: 2 * 60 * 1000,
   });
 
 const useAnnulerFacture = () => {
@@ -1076,6 +1083,140 @@ const VueCreanciers = ({ onPayer }) => {
   );
 };
 
+// ── Vue Avoirs ────────────────────────────────────────────────────────────────
+
+const VueAvoirs = ({ onPayer }) => {
+  const { formatMontant } = useFormatMontant();
+  const { data: factures = [], isLoading } = useAvoirs();
+
+  if (isLoading) {
+    return <div className="flex justify-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-4 border-zeze-vert border-t-transparent" /></div>;
+  }
+
+  // Regrouper par patient
+  const parPatient = factures.reduce((acc, f) => {
+    const id = f.patient_id;
+    if (!acc[id]) acc[id] = { patient: f.patient, factures: [] };
+    acc[id].factures.push(f);
+    return acc;
+  }, {});
+
+  const groupes = Object.values(parPatient).sort((a, b) => {
+    const avoirA = a.factures.reduce((s, f) => s + (f.avoir || 0), 0);
+    const avoirB = b.factures.reduce((s, f) => s + (f.avoir || 0), 0);
+    return avoirB - avoirA;
+  });
+
+  const totalAvoirs = factures.reduce((s, f) => s + (f.avoir || 0), 0);
+
+  if (groupes.length === 0) {
+    return (
+      <div className="carte text-center py-12 text-texte-secondaire">
+        <Wallet size={32} className="mx-auto mb-3 opacity-30" />
+        <p className="font-medium text-texte-principal">Aucun avoir en cours</p>
+        <p className="text-sm mt-1">Les avoirs apparaissent lorsqu'un paiement reçu dépasse le montant déclarable.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Résumé */}
+      <div className="bg-orange-50 border border-orange-200 rounded-carte px-4 py-3 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Wallet size={14} className="text-orange-600" />
+          <span className="text-sm text-orange-800 font-medium">
+            {factures.length} facture{factures.length > 1 ? 's' : ''} avec avoir — {groupes.length} patient{groupes.length > 1 ? 's' : ''}
+          </span>
+        </div>
+        <span className="text-sm font-bold text-orange-700">{formatMontant(totalAvoirs)} de crédits</span>
+      </div>
+
+      <p className="text-xs text-texte-secondaire bg-blue-50 border border-blue-100 rounded-bouton px-3 py-2">
+        Un avoir est un crédit restant après allocation des produits déclarés. Il est applicable sur le prochain achat du patient, en déduisant ce montant du paiement demandé.
+      </p>
+
+      {/* Tableau */}
+      <div className="overflow-x-auto rounded-carte border border-bordure">
+        <table className="w-full text-sm">
+          <thead className="bg-fond-secondaire">
+            <tr className="text-left text-xs text-texte-secondaire uppercase tracking-wide">
+              <th className="px-4 py-3">Patient</th>
+              <th className="px-4 py-3">Réf. facture</th>
+              <th className="px-4 py-3">Date</th>
+              <th className="px-4 py-3">Exercice</th>
+              <th className="px-4 py-3 text-right">Total facture</th>
+              <th className="px-4 py-3 text-right">Payé</th>
+              <th className="px-4 py-3 text-right">Déclaré</th>
+              <th className="px-4 py-3 text-right font-semibold text-orange-700">Avoir</th>
+              <th className="px-4 py-3"></th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-bordure">
+            {groupes.map(({ patient, factures: facs }, gIdx) => {
+              const totalAvoirPatient = facs.reduce((s, f) => s + (f.avoir || 0), 0);
+              return facs.map((f, fIdx) => (
+                <tr key={f.id} className={`hover:bg-fond-secondaire/40 ${fIdx === 0 ? 'border-t-2 border-t-bordure' : ''}`}>
+                  {fIdx === 0 && (
+                    <td className="px-4 py-3 align-top" rowSpan={facs.length}>
+                      <div>
+                        <p className="font-semibold text-texte-principal">{patient?.prenom} {patient?.nom}</p>
+                        <p className="text-xs text-texte-secondaire font-mono">{patient?.numero_dossier}</p>
+                        {facs.length > 1 && (
+                          <p className="text-xs text-orange-600 font-bold mt-1">
+                            Total : {formatMontant(totalAvoirPatient)}
+                          </p>
+                        )}
+                        {patient?.telephone && (
+                          <a href={`tel:${patient.telephone}`} className="flex items-center gap-1 text-xs text-zeze-vert hover:underline mt-0.5">
+                            <Phone size={10} /> {patient.telephone}
+                          </a>
+                        )}
+                      </div>
+                    </td>
+                  )}
+                  <td className="px-4 py-3 font-mono text-xs text-texte-principal whitespace-nowrap">{f.numero}</td>
+                  <td className="px-4 py-3 text-xs text-texte-secondaire whitespace-nowrap">
+                    {new Date(f.date_facture).toLocaleDateString('fr-FR')}
+                  </td>
+                  <td className="px-4 py-3 whitespace-nowrap">
+                    {f.exercice ? (
+                      <span className={`text-xs px-2 py-0.5 rounded-full border font-mono ${f.exercice.statut === 'cloture' ? 'bg-gray-100 text-gray-600 border-gray-200' : 'bg-green-50 text-green-700 border-green-200'}`}>
+                        {f.exercice.numero}
+                      </span>
+                    ) : <span className="text-xs text-texte-secondaire italic">—</span>}
+                  </td>
+                  <td className="px-4 py-3 text-right font-mono text-xs font-semibold text-texte-principal whitespace-nowrap">
+                    {formatMontant(f.montant_total)}
+                  </td>
+                  <td className="px-4 py-3 text-right font-mono text-xs text-zeze-vert whitespace-nowrap">
+                    {formatMontant(f.montant_paye)}
+                  </td>
+                  <td className="px-4 py-3 text-right font-mono text-xs text-blue-600 whitespace-nowrap">
+                    {formatMontant(f.montant_declare)}
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    <span className="inline-block bg-orange-100 text-orange-700 border border-orange-200 rounded-full px-2 py-0.5 text-xs font-bold font-mono whitespace-nowrap">
+                      {formatMontant(f.avoir)}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3">
+                    {f.statut !== 'soldee' && f.statut !== 'annulee' && (
+                      <Button variante="primaire" icone={CreditCard} onClick={() => onPayer(f)}>
+                        Payer
+                      </Button>
+                    )}
+                  </td>
+                </tr>
+              ));
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+};
+
 // ── Page principale ───────────────────────────────────────────────────────────
 
 const FacturationPage = () => {
@@ -1096,6 +1237,7 @@ const FacturationPage = () => {
   const { data: parametres = {} } = useParametres();
   const { data: ventesDirectes = [] } = useVentesDirectesDelegues(estStockisteOuAdmin);
   const { data: ventesAttente = [] } = useVentesEnAttente(estStockisteOuAdmin);
+  const { data: avoirsFacilities = [] } = useAvoirs();
   const [gainsVisibles, setGainsVisibles] = useState(false);
 
   const totaux = factures.reduce(
@@ -1187,6 +1329,17 @@ const FacturationPage = () => {
             {estDelegue ? 'Mes achats' : 'Factures revendeurs'}
           </button>
         )}
+        <button
+          onClick={() => setVue('avoirs')}
+          className={`flex items-center gap-2 px-4 py-2 text-sm transition-colors ${vue === 'avoirs' ? 'bg-orange-500 text-white font-medium' : 'text-texte-secondaire hover:bg-fond-secondaire'}`}
+        >
+          <Wallet size={14} /> Avoirs
+          {avoirsFacilities.length > 0 && (
+            <span className={`text-xs px-1.5 py-0.5 rounded-full font-bold ${vue === 'avoirs' ? 'bg-white text-orange-600' : 'bg-orange-100 text-orange-700'}`}>
+              {avoirsFacilities.length}
+            </span>
+          )}
+        </button>
       </div>
 
       {/* Résumé financier */}
@@ -1250,7 +1403,9 @@ const FacturationPage = () => {
       )}
 
       {/* Contenu */}
-      {vue === 'achats' ? (
+      {vue === 'avoirs' ? (
+        <VueAvoirs onPayer={setModalPaiement} />
+      ) : vue === 'achats' ? (
         <VueFacturesAchat estDelegue={estDelegue} />
       ) : vue === 'delegues' ? (
         <VueValidationDelegues />

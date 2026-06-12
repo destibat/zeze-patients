@@ -245,6 +245,31 @@ const annuler = async (req, res) => {
   res.json(facture);
 };
 
+const listerAvoirs = async (req, res) => {
+  const estAdmin = ['administrateur', 'stockiste'].includes(req.utilisateur.role);
+  const where = { avoir: { [Op.gt]: 0 } };
+
+  if (!estAdmin) {
+    if (req.utilisateur.role === 'stockiste') {
+      const delegues = await User.findAll({ where: { stockiste_id: req.utilisateur.id }, attributes: ['id'] });
+      where.created_by = { [Op.in]: [req.utilisateur.id, ...delegues.map((d) => d.id)] };
+    } else {
+      where.created_by = req.utilisateur.id;
+    }
+  }
+
+  const factures = await Facture.findAll({
+    where,
+    include: [
+      { model: Patient, as: 'patient', attributes: ['id', 'nom', 'prenom', 'telephone', 'numero_dossier'] },
+      { model: User, as: 'createur', attributes: ['id', 'nom', 'prenom', 'role'] },
+      { model: Exercice, as: 'exercice', attributes: ['id', 'numero', 'statut'] },
+    ],
+    order: [['patient_id', 'ASC'], ['date_facture', 'ASC']],
+  });
+  res.json(factures);
+};
+
 const listerCreanciers = async (req, res) => {
   const estAdmin = ['administrateur', 'stockiste'].includes(req.utilisateur.role);
   const where = { statut: { [Op.in]: ['en_attente', 'partiellement_soldee'] } };
@@ -286,4 +311,4 @@ const telechargerPdf = async (req, res) => {
   res.send(buffer);
 };
 
-module.exports = { lister, obtenir, creerDepuisOrdonnance, enregistrerPaiement, annuler, listerCreanciers, telechargerPdf };
+module.exports = { lister, obtenir, creerDepuisOrdonnance, enregistrerPaiement, annuler, listerAvoirs, listerCreanciers, telechargerPdf };
