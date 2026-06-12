@@ -1,6 +1,12 @@
 'use strict';
 
-const { v4: uuidv4 } = require('uuid');
+// Génération UUID compatible MariaDB/MySQL sans dépendance externe
+function uuidv4() {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = Math.random() * 16 | 0;
+    return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+  });
+}
 
 // Reproduit l'algorithme sousEnsembleSommeMax sans dépendances extérieures
 function sousEnsembleSommeMax(prix, capacite) {
