@@ -60,7 +60,8 @@ const formatDate = (d) => {
   return new Date(d).toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' });
 };
 
-const formatMontant = (n) => new Intl.NumberFormat('fr-FR').format(n || 0) + ' FCFA';
+// Intl fr-FR utilise   comme séparateur milliers — PDFKit le mesure mal → remplacer par espace normale
+const formatMontant = (n) => new Intl.NumberFormat('fr-FR').format(n || 0).replace(/\s/g, ' ') + ' FCFA';
 
 const parseLignes = (raw) => {
   if (!raw) return [];
@@ -135,13 +136,14 @@ const genererPdfFacture = (facture, patient, emetteur) =>
     doc.font('Helvetica-Bold').fontSize(9).fillColor(BLEU_FONCE).text('DETAIL DE LA FACTURE');
     doc.moveDown(0.3);
 
+    // Colonnes : produit 185 | qte 35 | pu 120 | total 155 = 495 (= PAGE_W)
     const C = {
       produit: MARGIN_LEFT,
-      qte:     MARGIN_LEFT + 220,
-      pu:      MARGIN_LEFT + 265,
-      total:   MARGIN_LEFT + 370,
+      qte:     MARGIN_LEFT + 185,
+      pu:      MARGIN_LEFT + 220,
+      total:   MARGIN_LEFT + 340,
     };
-    const COL_W = { produit: 215, qte: 40, pu: 100, total: PAGE_W - 370 };
+    const COL_W = { produit: 181, qte: 35, pu: 118, total: 155 };
 
     // En-tête tableau
     const yTh = doc.y;
