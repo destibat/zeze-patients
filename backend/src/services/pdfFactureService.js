@@ -215,8 +215,11 @@ const genererPdfFacture = (facture, patient, emetteur) =>
          .text('AVOIR DISPONIBLE :', avoirBoxX + 8, yAvoir + 5, { continued: true })
          .font('Helvetica-Bold').fontSize(11)
          .text(`  ${formatMontant(avoir)}`, { continued: false });
+      const msgAvoir = restant > 0
+        ? `Ce credit sera deduit du solde restant de cette facture (reste a payer : ${formatMontant(restant)}).`
+        : 'Credit applicable sur le prochain achat de ce patient.';
       doc.font('Helvetica').fontSize(7.5).fillColor(GRIS)
-         .text('Credit applicable sur le prochain achat de ce patient.', avoirBoxX + 8, yAvoir + 17);
+         .text(msgAvoir, avoirBoxX + 8, yAvoir + 17);
       doc.y = yAvoir + 36;
     }
 
