@@ -447,7 +447,6 @@ const TableauDeBord = ({ token }) => {
             const statut = getStatut(c);
             const isLoading = !!enCours[c.id];
             const nomAffiche = c.nom_affiche || c.nom;
-            const peutValider = statut !== 'actif';
             const peutSuspendre = c.abonnement_actif && statut !== 'suspendu_auto';
 
             // Calcul jours avant suspension auto (pour cabinets en retard entre J+1 et J+4)
@@ -492,13 +491,11 @@ const TableauDeBord = ({ token }) => {
 
                   {/* Actions */}
                   <div className="flex items-center gap-2 shrink-0">
-                    {peutValider && (
-                      <button onClick={() => handleValiderPaiement(c.id)} disabled={isLoading}
-                        className="flex items-center gap-1.5 bg-green-700 hover:bg-green-800 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50 whitespace-nowrap">
-                        {isLoading ? <Loader2 size={12} className="animate-spin" /> : <Banknote size={12} />}
-                        Paiement reçu
-                      </button>
-                    )}
+                    <button onClick={() => handleValiderPaiement(c.id)} disabled={isLoading}
+                      className="flex items-center gap-1.5 bg-green-700 hover:bg-green-800 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50 whitespace-nowrap">
+                      {isLoading ? <Loader2 size={12} className="animate-spin" /> : <Banknote size={12} />}
+                      Paiement reçu
+                    </button>
                     {peutSuspendre && (
                       <button onClick={() => handleSuspendre(c.id, nomAffiche)} disabled={isLoading}
                         className="flex items-center gap-1 text-xs text-red-500 hover:text-red-700 border border-red-200 hover:border-red-400 px-2.5 py-1.5 rounded-lg transition-colors disabled:opacity-50">
