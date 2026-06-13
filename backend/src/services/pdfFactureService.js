@@ -61,7 +61,7 @@ const formatDate = (d) => {
 };
 
 // Intl fr-FR utilise   comme séparateur milliers — PDFKit le mesure mal → remplacer par espace normale
-const formatMontant = (n) => new Intl.NumberFormat('fr-FR').format(n || 0).replace(/\s/g, ' ') + ' FCFA';
+const formatMontant = (n) => { const num = Math.round(n || 0); const str = String(num).replace(/\B(?=(\d{3})+(?!\d))/g, ' '); return str + ' FCFA'; };
 
 const parseLignes = (raw) => {
   if (!raw) return [];
@@ -77,8 +77,10 @@ const genererPdfFacture = (facture, patient, emetteur) =>
     doc.on('end', () => resolve(Buffer.concat(chunks)));
     doc.on('error', reject);
 
-    const lignes = parseLignes(facture.lignes);
+    const lignes  = parseLignes(facture.lignes);
     const restant = (facture.montant_total || 0) - (facture.montant_paye || 0);
+    // Avoir = excédent réel (calculé à la volée, pas lu en DB pour éviter les valeurs périmées)
+    const avoirReel = Math.max(0, (facture.montant_paye || 0) - (facture.montant_total || 0));
 
     // ── En-tête image ───────────────────────────────────────────────────────
     if (fs.existsSync(HEADER)) {
@@ -136,46 +138,65 @@ const genererPdfFacture = (facture, patient, emetteur) =>
     doc.font('Helvetica-Bold').fontSize(9).fillColor(BLEU_FONCE).text('DETAIL DE LA FACTURE');
     doc.moveDown(0.3);
 
-    // Colonnes : produit 185 | qte 35 | pu 120 | total 155 = 495 (= PAGE_W)
-    const C = {
-      produit: MARGIN_LEFT,
-      qte:     MARGIN_LEFT + 185,
-      pu:      MARGIN_LEFT + 220,
-      total:   MARGIN_LEFT + 340,
+    // Tableau 3 colonnes : Produit | Qté | Montant
+    // RIGHT_TOT = 300 → centre de la page (50% de la zone de contenu)
+    const TAB_W   = 250;                 // 50→300
+    const X_PROD  = MARGIN_LEFT + 4;     // 54
+    const W_PROD  = 150;                 // 54→204
+    const X_QTE   = 210;                 // colonne Qté centrée 210→230
+    const RIGHT_TOT = MARGIN_LEFT + TAB_W; // 300
+
+    const ROW_H = 24;                    // 2 lignes dans la cellule produit
+
+    const textRight8 = (str, rightX, y) => {
+      doc.font('Helvetica').fontSize(8);
+      const w = doc.widthOfString(str);
+      doc.text(str, rightX - w, y, { lineBreak: false });
     };
-    const COL_W = { produit: 181, qte: 35, pu: 118, total: 155 };
 
     // En-tête tableau
     const yTh = doc.y;
-    doc.rect(MARGIN_LEFT, yTh, PAGE_W, 16).fill(BLEU);
-    doc.font('Helvetica-Bold').fontSize(8).fillColor('white')
-       .text('Produit / Description', C.produit + 4, yTh + 4, { width: COL_W.produit })
-       .text('Qte',    C.qte,   yTh + 4, { width: COL_W.qte,   align: 'center' })
-       .text('P.U.',   C.pu,    yTh + 4, { width: COL_W.pu,    align: 'right' })
-       .text('Total',  C.total, yTh + 4, { width: COL_W.total,  align: 'right' });
+    doc.rect(MARGIN_LEFT, yTh, TAB_W, 16).fill(BLEU);
+    doc.font('Helvetica-Bold').fontSize(8).fillColor('white');
+    doc.text('Produit / Description', X_PROD, yTh + 4, { width: W_PROD, lineBreak: false });
+    const qteHW = doc.widthOfString('Qte');
+    const totHW = doc.widthOfString('Montant');
+    doc.text('Qte',     X_QTE,                yTh + 4, { lineBreak: false });
+    doc.text('Montant', RIGHT_TOT - totHW,    yTh + 4, { lineBreak: false });
     doc.y = yTh + 18;
 
     if (lignes.length === 0) {
       const yL = doc.y;
-      doc.rect(MARGIN_LEFT, yL, PAGE_W, 18).fill('#F5F5F5');
+      doc.rect(MARGIN_LEFT, yL, TAB_W, ROW_H).fill('#F5F5F5');
       doc.font('Helvetica').fontSize(8).fillColor(GRIS)
-         .text('Aucune ligne', MARGIN_LEFT + 4, yL + 4, { width: PAGE_W - 8, align: 'center' });
-      doc.y = yL + 20;
+         .text('Aucune ligne', MARGIN_LEFT + 4, yL + (ROW_H - 8) / 2, { width: TAB_W - 8, align: 'center' });
+      doc.y = yL + ROW_H + 2;
     } else {
       lignes.forEach((l, i) => {
         const yL = doc.y;
         const fond = i % 2 === 0 ? 'white' : BLEU_FOND;
-        doc.rect(MARGIN_LEFT, yL, PAGE_W, 18).fill(fond);
-        doc.rect(MARGIN_LEFT, yL, PAGE_W, 18).strokeColor(GRIS_BORD).lineWidth(0.2).stroke();
+        doc.rect(MARGIN_LEFT, yL, TAB_W, ROW_H).fill(fond);
+        doc.rect(MARGIN_LEFT, yL, TAB_W, ROW_H).strokeColor(GRIS_BORD).lineWidth(0.2).stroke();
 
+        // Ligne 1 : nom du produit
         doc.font('Helvetica-Bold').fontSize(8).fillColor(NOIR)
-           .text(l.nom_produit || '—', C.produit + 4, yL + 4, { width: COL_W.produit - 4, lineBreak: false });
-        doc.font('Helvetica').fontSize(8).fillColor(NOIR)
-           .text(String(l.quantite || 0), C.qte,   yL + 4, { width: COL_W.qte,   align: 'center', lineBreak: false })
-           .text(formatMontant(l.prix_unitaire),    C.pu,    yL + 4, { width: COL_W.pu,    align: 'right',  lineBreak: false })
-           .text(formatMontant((l.prix_unitaire || 0) * (l.quantite || 0)),
-                               C.total, yL + 4, { width: COL_W.total,  align: 'right',  lineBreak: false });
-        doc.y = yL + 20;
+           .text(l.nom_produit || '—', X_PROD, yL + 3, { width: W_PROD, lineBreak: false });
+        // Ligne 2 : prix unitaire en gris
+        if (l.prix_unitaire > 0) {
+          doc.font('Helvetica').fontSize(7).fillColor(GRIS)
+             .text(`(P.U.: ${formatMontant(l.prix_unitaire)})`, X_PROD, yL + 14, { width: W_PROD, lineBreak: false });
+        }
+
+        // Qté centrée verticalement
+        const qteStr = String(l.quantite || 0);
+        doc.font('Helvetica').fontSize(8).fillColor(NOIR);
+        const qteW = doc.widthOfString(qteStr);
+        doc.text(qteStr, X_QTE + (20 - qteW) / 2, yL + (ROW_H - 8) / 2, { lineBreak: false });
+
+        // Montant total ligne, centré verticalement, bord droit à RIGHT_TOT
+        textRight8(formatMontant((l.prix_unitaire || 0) * (l.quantite || 0)), RIGHT_TOT, yL + (ROW_H - 8) / 2);
+
+        doc.y = yL + ROW_H + 2;
       });
     }
 
@@ -204,8 +225,8 @@ const genererPdfFacture = (facture, patient, emetteur) =>
       drawLigneRecap('Reste a payer', formatMontant(restant), ROUGE, true);
     }
 
-    // Avoir disponible
-    const avoir = facture.avoir || 0;
+    // Avoir disponible (recalculé depuis les montants, pas lu en DB pour éviter valeurs périmées)
+    const avoir = avoirReel;
     if (avoir > 0) {
       doc.moveDown(0.6);
       const yAvoir = doc.y;

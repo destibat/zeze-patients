@@ -258,6 +258,7 @@ const LigneFacture = ({ facture, onPayer, onAnnuler }) => {
 const PatientRelance = ({ patient, factures, onPayer, onAnnuler }) => {
   const { formatMontant } = useFormatMontant();
   const [ouverte, setOuverte] = useState(false);
+  const telecharger = useTelechargePdfFacture();
   const totalRestant = factures.reduce((s, f) => s + (f.montant_total - f.montant_paye), 0);
   const totalFacture = factures.reduce((s, f) => s + f.montant_total, 0);
 
@@ -322,8 +323,13 @@ const PatientRelance = ({ patient, factures, onPayer, onAnnuler }) => {
                   <span className={`flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border ${cfg.couleur}`}>
                     <Icone size={10} /> {cfg.label}
                   </span>
-                  <Button variante="primaire" icone={CreditCard} onClick={() => onPayer(f)}>
-                    Payer
+                  {f.statut !== 'soldee' && f.statut !== 'annulee' && (
+                    <Button variante="primaire" icone={CreditCard} onClick={() => onPayer(f)}>
+                      Payer
+                    </Button>
+                  )}
+                  <Button variante="secondaire" icone={FileDown} chargement={telecharger.isPending} onClick={() => telecharger.mutate(f)}>
+                    PDF
                   </Button>
                 </div>
               </div>
@@ -940,6 +946,7 @@ const VueFacturesAchat = ({ estDelegue }) => {
 const VueCreanciers = ({ onPayer }) => {
   const { formatMontant } = useFormatMontant();
   const { data: factures = [], isLoading } = useCreanciers();
+  const telecharger = useTelechargePdfFacture();
 
   if (isLoading) {
     return <div className="flex justify-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-4 border-zeze-vert border-t-transparent" /></div>;
@@ -1068,9 +1075,14 @@ const VueCreanciers = ({ onPayer }) => {
                       </span>
                     </td>
                     <td className="px-4 py-3">
-                      <Button variante="primaire" icone={CreditCard} onClick={() => onPayer(f)}>
-                        Payer
-                      </Button>
+                      <div className="flex gap-2">
+                        <Button variante="primaire" icone={CreditCard} onClick={() => onPayer(f)}>
+                          Payer
+                        </Button>
+                        <Button variante="secondaire" icone={FileDown} chargement={telecharger.isPending} onClick={() => telecharger.mutate(f)}>
+                          PDF
+                        </Button>
+                      </div>
                     </td>
                   </tr>
                 );
