@@ -138,16 +138,16 @@ const genererPdfFacture = (facture, patient, emetteur) =>
     doc.font('Helvetica-Bold').fontSize(9).fillColor(BLEU_FONCE).text('DETAIL DE LA FACTURE');
     doc.moveDown(0.3);
 
-    // Tableau 3 colonnes : Produit | Qté | Montant
-    // RIGHT_TOT = 300 → centre de la page (50% de la zone de contenu)
-    const TAB_W   = 250;                 // 50→300
-    const X_PROD  = MARGIN_LEFT + 4;     // 54
-    const W_PROD  = 150;                 // 54→204
-    const X_QTE   = 210;                 // colonne Qté centrée 210→230
-    const RIGHT_TOT = MARGIN_LEFT + TAB_W; // 300
+    // Tableau 4 colonnes pleine largeur — marge interne 10pt à droite pour éviter le débordement
+    const TAB_W    = PAGE_W;                          // 495 (50→545, pleine largeur)
+    const X_PROD   = MARGIN_LEFT + 4;                 // 54
+    const W_PROD   = 220;                             // 54→274
+    const X_QTE    = MARGIN_LEFT + 285;               // 335, colonne Qté
+    const RIGHT_PU = MARGIN_LEFT + PAGE_W - 105;      // 440, bord droit P.U.
+    const RIGHT_TOT = MARGIN_LEFT + PAGE_W - 10;      // 535, bord droit Total (10pt de marge)
+    const ROW_H    = 18;
 
-    const ROW_H = 24;                    // 2 lignes dans la cellule produit
-
+    // Positionne le texte avec son bord droit exactement à rightX
     const textRight8 = (str, rightX, y) => {
       doc.font('Helvetica').fontSize(8);
       const w = doc.widthOfString(str);
@@ -159,17 +159,18 @@ const genererPdfFacture = (facture, patient, emetteur) =>
     doc.rect(MARGIN_LEFT, yTh, TAB_W, 16).fill(BLEU);
     doc.font('Helvetica-Bold').fontSize(8).fillColor('white');
     doc.text('Produit / Description', X_PROD, yTh + 4, { width: W_PROD, lineBreak: false });
-    const qteHW = doc.widthOfString('Qte');
-    const totHW = doc.widthOfString('Montant');
-    doc.text('Qte',     X_QTE,                yTh + 4, { lineBreak: false });
-    doc.text('Montant', RIGHT_TOT - totHW,    yTh + 4, { lineBreak: false });
+    doc.text('Qte', X_QTE, yTh + 4, { lineBreak: false });
+    const puHW  = doc.widthOfString('P.U.');
+    const totHW = doc.widthOfString('Total');
+    doc.text('P.U.',  RIGHT_PU  - puHW,  yTh + 4, { lineBreak: false });
+    doc.text('Total', RIGHT_TOT - totHW, yTh + 4, { lineBreak: false });
     doc.y = yTh + 18;
 
     if (lignes.length === 0) {
       const yL = doc.y;
       doc.rect(MARGIN_LEFT, yL, TAB_W, ROW_H).fill('#F5F5F5');
       doc.font('Helvetica').fontSize(8).fillColor(GRIS)
-         .text('Aucune ligne', MARGIN_LEFT + 4, yL + (ROW_H - 8) / 2, { width: TAB_W - 8, align: 'center' });
+         .text('Aucune ligne', MARGIN_LEFT + 4, yL + 4, { width: TAB_W - 8, align: 'center' });
       doc.y = yL + ROW_H + 2;
     } else {
       lignes.forEach((l, i) => {
@@ -178,23 +179,14 @@ const genererPdfFacture = (facture, patient, emetteur) =>
         doc.rect(MARGIN_LEFT, yL, TAB_W, ROW_H).fill(fond);
         doc.rect(MARGIN_LEFT, yL, TAB_W, ROW_H).strokeColor(GRIS_BORD).lineWidth(0.2).stroke();
 
-        // Ligne 1 : nom du produit
         doc.font('Helvetica-Bold').fontSize(8).fillColor(NOIR)
-           .text(l.nom_produit || '—', X_PROD, yL + 3, { width: W_PROD, lineBreak: false });
-        // Ligne 2 : prix unitaire en gris
-        if (l.prix_unitaire > 0) {
-          doc.font('Helvetica').fontSize(7).fillColor(GRIS)
-             .text(`(P.U.: ${formatMontant(l.prix_unitaire)})`, X_PROD, yL + 14, { width: W_PROD, lineBreak: false });
-        }
+           .text(l.nom_produit || '—', X_PROD, yL + 4, { width: W_PROD, lineBreak: false });
 
-        // Qté centrée verticalement
-        const qteStr = String(l.quantite || 0);
         doc.font('Helvetica').fontSize(8).fillColor(NOIR);
-        const qteW = doc.widthOfString(qteStr);
-        doc.text(qteStr, X_QTE + (20 - qteW) / 2, yL + (ROW_H - 8) / 2, { lineBreak: false });
+        doc.text(String(l.quantite || 0), X_QTE, yL + 4, { lineBreak: false });
 
-        // Montant total ligne, centré verticalement, bord droit à RIGHT_TOT
-        textRight8(formatMontant((l.prix_unitaire || 0) * (l.quantite || 0)), RIGHT_TOT, yL + (ROW_H - 8) / 2);
+        textRight8(formatMontant(l.prix_unitaire || 0), RIGHT_PU, yL + 4);
+        textRight8(formatMontant((l.prix_unitaire || 0) * (l.quantite || 0)), RIGHT_TOT, yL + 4);
 
         doc.y = yL + ROW_H + 2;
       });
