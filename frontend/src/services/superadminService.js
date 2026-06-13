@@ -12,8 +12,8 @@ const superadminApi = (token) =>
     timeout: 15000,
   });
 
-export const loginSuperAdmin = async (secret) => {
-  const { data } = await axios.post(`${API_URL}/superadmin/auth`, { secret });
+export const loginSuperAdmin = async (totp) => {
+  const { data } = await axios.post(`${API_URL}/superadmin/auth`, { totp });
   return data.token;
 };
 

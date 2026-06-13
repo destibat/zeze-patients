@@ -13,7 +13,8 @@
     "test": "jest --runInBand --forceExit",
     "test:watch": "jest --watch --runInBand",
     "test:coverage": "jest --coverage --runInBand --forceExit",
-    "lint": "eslint src/ --ext .js"
+    "lint": "eslint src/ --ext .js",
+    "setup-totp": "node scripts/setup-totp.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.97.1",
@@ -36,6 +37,8 @@
     "pdfkit": "^0.15.0",
     "sequelize": "^6.37.3",
     "tesseract.js": "^7.0.0",
+    "otplib": "^12.0.1",
+    "qrcode": "^1.5.4",
     "uuid": "^10.0.0",
     "winston": "^3.13.0",
     "winston-daily-rotate-file": "^5.0.0"

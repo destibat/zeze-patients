@@ -42,22 +42,55 @@ const BadgeStatut = ({ statut }) => {
   );
 };
 
-// ── Page de connexion ─────────────────────────────────────────────────────────
+// ── Minuterie TOTP (compte à rebours 30s) ────────────────────────────────────
+const MinuterieTOTP = () => {
+  const [restant, setRestant] = useState(() => 30 - (Math.floor(Date.now() / 1000) % 30));
+
+  useEffect(() => {
+    const id = setInterval(() => setRestant(30 - (Math.floor(Date.now() / 1000) % 30)), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  const pct = (restant / 30) * 100;
+  const couleur = restant <= 5 ? '#ef4444' : restant <= 10 ? '#f59e0b' : '#16a34a';
+  const txtCls  = restant <= 5 ? 'text-red-500' : restant <= 10 ? 'text-amber-500' : 'text-green-600';
+  const circ    = 2 * Math.PI * 10;
+
+  return (
+    <div className="flex items-center gap-2">
+      <svg width="24" height="24" viewBox="0 0 24 24" style={{ transform: 'rotate(-90deg)' }}>
+        <circle cx="12" cy="12" r="10" fill="none" stroke="#e5e7eb" strokeWidth="2.5" />
+        <circle cx="12" cy="12" r="10" fill="none" stroke={couleur} strokeWidth="2.5"
+          strokeDasharray={circ} strokeDashoffset={circ * (1 - pct / 100)}
+          strokeLinecap="round" style={{ transition: 'stroke-dashoffset 1s linear, stroke 0.5s' }} />
+      </svg>
+      <span className={`text-xs font-mono font-semibold tabular-nums ${txtCls}`}>{restant}s</span>
+    </div>
+  );
+};
+
+// ── Page de connexion OTP ─────────────────────────────────────────────────────
 const LoginForm = ({ onLogin }) => {
-  const [secret, setSecret] = useState('');
+  const [otp, setOtp] = useState('');
   const [loading, setLoading] = useState(false);
   const [erreur, setErreur] = useState('');
 
-  const submit = async (e) => {
-    e.preventDefault();
-    if (!secret.trim()) return;
+  const submit = useCallback(async (code) => {
     setLoading(true); setErreur('');
     try {
-      const token = await loginSuperAdmin(secret.trim());
+      const token = await loginSuperAdmin(code);
       onLogin(token);
     } catch (err) {
-      setErreur(err?.response?.data?.message || 'Erreur de connexion');
+      setErreur(err?.response?.data?.message || 'Code invalide ou expiré');
+      setOtp('');
     } finally { setLoading(false); }
+  }, [onLogin]);
+
+  const handleChange = (e) => {
+    const val = e.target.value.replace(/\D/g, '').slice(0, 6);
+    setOtp(val);
+    setErreur('');
+    if (val.length === 6) submit(val);
   };
 
   return (
@@ -70,24 +103,45 @@ const LoginForm = ({ onLogin }) => {
           <h1 className="text-2xl font-bold text-gray-900">Super-Admin GECAM</h1>
           <p className="text-sm text-gray-500 mt-1">ZEZEPAGNON — Administration des cabinets</p>
         </div>
-        <form onSubmit={submit} className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">Secret d&apos;accès</label>
-            <input
-              type="password" value={secret} onChange={(e) => setSecret(e.target.value)}
-              className="w-full border border-gray-300 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-600 focus:border-transparent"
-              placeholder="••••••••••••" autoFocus required
-            />
+
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 space-y-5">
+          <div className="text-center">
+            <p className="text-sm font-medium text-gray-700">Code d&apos;authentification</p>
+            <p className="text-xs text-gray-400 mt-1">Ouvrez Google Authenticator ou Authy</p>
           </div>
-          {erreur && <p className="text-sm text-red-600 flex items-center gap-1.5"><AlertTriangle size={14} />{erreur}</p>}
-          <button
-            type="submit" disabled={loading || !secret.trim()}
-            className="w-full bg-green-700 hover:bg-green-800 disabled:opacity-50 text-white font-semibold py-2.5 rounded-xl text-sm transition-colors flex items-center justify-center gap-2"
-          >
-            {loading ? <Loader2 size={16} className="animate-spin" /> : <Shield size={16} />}
-            Accéder
-          </button>
-        </form>
+
+          <div className="relative">
+            <input
+              type="text" inputMode="numeric" pattern="[0-9]*"
+              value={otp} onChange={handleChange}
+              maxLength={6} autoFocus autoComplete="one-time-code"
+              placeholder="— — — — — —"
+              className={`w-full text-center text-3xl font-mono font-bold tracking-[0.5em] border-2 rounded-xl py-4 focus:outline-none transition-colors ${erreur ? 'border-red-400 bg-red-50' : 'border-gray-200 focus:border-green-500'}`}
+              disabled={loading}
+            />
+            {loading && (
+              <div className="absolute inset-0 flex items-center justify-center bg-white/70 rounded-xl">
+                <Loader2 size={24} className="animate-spin text-green-600" />
+              </div>
+            )}
+          </div>
+
+          <div className="flex items-center justify-between px-1">
+            <span className="text-xs text-gray-400">Validité du code</span>
+            <MinuterieTOTP />
+          </div>
+
+          {erreur && (
+            <p className="text-sm text-red-600 flex items-center gap-1.5 bg-red-50 rounded-lg px-3 py-2">
+              <AlertTriangle size={14} className="shrink-0" />{erreur}
+            </p>
+          )}
+
+          <p className="text-xs text-gray-400 text-center">
+            Connexion automatique dès les 6 chiffres saisis.
+          </p>
+        </div>
+
         <p className="text-center text-xs text-gray-400 mt-4">Accès réservé à l&apos;administrateur ZEZEPAGNON</p>
       </div>
     </div>

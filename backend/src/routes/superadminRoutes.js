@@ -2,6 +2,7 @@
 
 const express = require('express');
 const jwt = require('jsonwebtoken');
+const { authenticator } = require('otplib');
 const { asyncHandler } = require('../middlewares/errorHandler');
 const { sequelize, Cabinet, User, ParametreCabinet } = require('../models');
 const { invaliderCache } = require('../middlewares/verifierAbonnement');
@@ -24,14 +25,24 @@ const authentifierSuperAdmin = (req, res, next) => {
   }
 };
 
-// POST /api/superadmin/auth
+// POST /api/superadmin/auth — vérifie le code TOTP (Google Authenticator / Authy)
 router.post('/auth', (req, res) => {
-  const secret = process.env.SUPERADMIN_SECRET;
-  if (!secret) {
-    return res.status(503).json({ message: 'Super-admin non configuré sur ce serveur' });
+  const totpSecret = process.env.SUPERADMIN_TOTP_SECRET;
+  if (!totpSecret) {
+    return res.status(503).json({ message: 'OTP non configuré sur ce serveur (SUPERADMIN_TOTP_SECRET manquant — lancez npm run setup-totp)' });
   }
-  if (!req.body.secret || req.body.secret !== secret) {
-    return res.status(401).json({ message: 'Secret incorrect' });
+  const { totp } = req.body;
+  if (!totp || !/^\d{6}$/.test(String(totp))) {
+    return res.status(400).json({ message: 'Code OTP à 6 chiffres requis' });
+  }
+  let isValid = false;
+  try {
+    isValid = authenticator.verify({ token: String(totp), secret: totpSecret });
+  } catch {
+    return res.status(401).json({ message: 'Code OTP invalide' });
+  }
+  if (!isValid) {
+    return res.status(401).json({ message: 'Code OTP incorrect ou expiré' });
   }
   const token = jwt.sign({ role: 'superadmin' }, process.env.JWT_SECRET, { expiresIn: '4h' });
   res.json({ token });
