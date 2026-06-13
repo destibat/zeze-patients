@@ -171,6 +171,18 @@ router.post('/cabinets/:cabinetId/suspendre', authentifierSuperAdmin, asyncHandl
   res.json({ ok: true });
 }));
 
+// GET /api/superadmin/cabinets/:cabinetId/users — liste les utilisateurs d'un cabinet
+router.get('/cabinets/:cabinetId/users', authentifierSuperAdmin, asyncHandler(async (req, res) => {
+  const { cabinetId } = req.params;
+  const users = await User.findAll({
+    where: { cabinet_id: cabinetId },
+    attributes: ['id', 'nom', 'prenom', 'email', 'role', 'actif'],
+    order: [['role', 'ASC'], ['nom', 'ASC']],
+    _bypass_cabinet: true,
+  });
+  res.json(users);
+}));
+
 // PUT /api/superadmin/cabinets/:cabinetId/reset-password — réinitialise le mot de passe d'un user
 router.put('/cabinets/:cabinetId/reset-password', authentifierSuperAdmin, asyncHandler(async (req, res) => {
   const { cabinetId } = req.params;

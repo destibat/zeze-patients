@@ -56,3 +56,8 @@ export const mettreAJourAbonnement = async (token, cabinetId, payload) => {
   const { data } = await superadminApi(token).put(`/superadmin/cabinets/${cabinetId}/abonnement`, payload);
   return data;
 };
+
+export const listerUtilisateurs = async (token, cabinetId) => {
+  const { data } = await superadminApi(token).get(`/superadmin/cabinets/${cabinetId}/users`);
+  return data;
+};

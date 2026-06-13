@@ -2,11 +2,12 @@ import { useState, useEffect, useCallback } from 'react';
 import {
   Shield, LogOut, Save, RefreshCw, CheckCircle2, XCircle, Loader2, AlertTriangle,
   PlusCircle, Building2, KeyRound, ChevronDown, ChevronUp, Banknote,
-  AlertCircle, Ban, LayoutDashboard,
+  AlertCircle, Ban, LayoutDashboard, Search, Users,
 } from 'lucide-react';
 import {
   loginSuperAdmin, listerCabinets, creerCabinet, resetPasswordAdmin,
   validerPaiement, suspendre as suspendreCabinet, mettreAJourAbonnement,
+  listerUtilisateurs,
 } from '../services/superadminService';
 
 const TOKEN_KEY = 'superadmin_token';
@@ -29,6 +30,8 @@ const STATUT_CFG = {
   suspendu:      { label: 'Suspendu',  cls: 'bg-red-100   text-red-700',    Ic: XCircle },
   suspendu_auto: { label: 'Suspendu',  cls: 'bg-red-100   text-red-700',    Ic: XCircle },
 };
+
+const ROLE_LABEL = { administrateur: 'Admin', stockiste: 'Stockiste', delegue: 'Revendeur', medecin: 'Médecin' };
 
 const BadgeStatut = ({ statut }) => {
   const s = STATUT_CFG[statut] || STATUT_CFG.actif;
@@ -137,7 +140,6 @@ const GererAbonnement = ({ token, cabinet, onSaved }) => {
               {msg.ok ? <CheckCircle2 size={11} /> : <AlertTriangle size={11} />} {msg.texte}
             </p>
           )}
-          {/* Actif / suspendu */}
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-gray-600">Abonnement actif</span>
             <button type="button" onClick={() => setActif((v) => !v)}
@@ -145,13 +147,11 @@ const GererAbonnement = ({ token, cabinet, onSaved }) => {
               <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${actif ? 'translate-x-4' : 'translate-x-0'}`} />
             </button>
           </div>
-          {/* Prochaine échéance */}
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">Prochaine échéance</label>
             <input type="date" value={echeance} onChange={(e) => setEcheance(e.target.value)}
               className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-green-500" />
           </div>
-          {/* Quota IA */}
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">Quota IA mensuel (laisser vide = inchangé)</label>
             <input type="number" min="0" max="9999" value={quota} onChange={(e) => setQuota(e.target.value)}
@@ -168,21 +168,39 @@ const GererAbonnement = ({ token, cabinet, onSaved }) => {
   );
 };
 
-// ── Réinitialisation mot de passe ─────────────────────────────────────────────
+// ── Réinitialisation mot de passe — sélection utilisateur ────────────────────
 const ResetPassword = ({ token, cabinetId }) => {
   const [ouvert, setOuvert] = useState(false);
-  const [email, setEmail] = useState('');
+  const [users, setUsers] = useState([]);
+  const [loadingUsers, setLoadingUsers] = useState(false);
+  const [userId, setUserId] = useState('');
   const [mdp, setMdp] = useState('');
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState(null);
 
+  const ouvrir = async () => {
+    if (!ouvert && users.length === 0) {
+      setLoadingUsers(true);
+      try {
+        const data = await listerUtilisateurs(token, cabinetId);
+        setUsers(data);
+        if (data.length > 0) setUserId(data[0].email);
+      } catch {
+        setMsg({ ok: false, texte: 'Impossible de charger les utilisateurs' });
+      } finally { setLoadingUsers(false); }
+    }
+    setOuvert((v) => !v);
+    setMsg(null);
+  };
+
   const submit = async (e) => {
     e.preventDefault();
+    if (!userId || !mdp) return;
     setSaving(true); setMsg(null);
     try {
-      await resetPasswordAdmin(token, cabinetId, email, mdp);
+      await resetPasswordAdmin(token, cabinetId, userId, mdp);
       setMsg({ ok: true, texte: 'Mot de passe mis à jour' });
-      setEmail(''); setMdp('');
+      setMdp('');
     } catch (err) {
       setMsg({ ok: false, texte: err?.response?.data?.message || 'Erreur' });
     } finally { setSaving(false); }
@@ -190,36 +208,48 @@ const ResetPassword = ({ token, cabinetId }) => {
 
   return (
     <div>
-      <button
-        type="button" onClick={() => setOuvert(!ouvert)}
-        className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-600 transition-colors"
-      >
-        <KeyRound size={11} /> Réinitialiser MDP admin
+      <button type="button" onClick={ouvrir}
+        className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-600 transition-colors">
+        <KeyRound size={11} /> Réinitialiser MDP
         {ouvert ? <ChevronUp size={10} className="ml-0.5" /> : <ChevronDown size={10} className="ml-0.5" />}
       </button>
       {ouvert && (
-        <form onSubmit={submit} className="mt-2 space-y-1.5">
+        <form onSubmit={submit} className="mt-2 p-3 bg-gray-50 rounded-lg border border-gray-200 space-y-2">
           {msg && (
             <p className={`text-xs flex items-center gap-1 ${msg.ok ? 'text-green-700' : 'text-red-600'}`}>
               {msg.ok ? <CheckCircle2 size={11} /> : <AlertTriangle size={11} />} {msg.texte}
             </p>
           )}
-          <input
-            type="email" value={email} onChange={(e) => setEmail(e.target.value)}
-            placeholder="Email de l'utilisateur" required
-            className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-green-500"
-          />
-          <input
-            type="password" value={mdp} onChange={(e) => setMdp(e.target.value)}
-            placeholder="Nouveau mot de passe" required
-            className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-green-500"
-          />
-          <button
-            type="submit" disabled={saving}
-            className="flex items-center gap-1 bg-gray-800 hover:bg-gray-900 text-white text-xs font-medium px-2.5 py-1.5 rounded-lg transition-colors disabled:opacity-50"
-          >
-            {saving ? <Loader2 size={10} className="animate-spin" /> : <Save size={10} />}
-            Enregistrer
+          {loadingUsers ? (
+            <div className="flex items-center gap-1.5 text-xs text-gray-400">
+              <Loader2 size={11} className="animate-spin" /> Chargement…
+            </div>
+          ) : (
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Utilisateur</label>
+              <select
+                value={userId} onChange={(e) => setUserId(e.target.value)} required
+                className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-green-500 bg-white"
+              >
+                {users.map((u) => (
+                  <option key={u.id} value={u.email}>
+                    {u.prenom} {u.nom} — {ROLE_LABEL[u.role] || u.role} ({u.email})
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Nouveau mot de passe</label>
+            <input
+              type="password" value={mdp} onChange={(e) => setMdp(e.target.value)}
+              placeholder="Nouveau mot de passe" required minLength={6}
+              className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-green-500"
+            />
+          </div>
+          <button type="submit" disabled={saving || loadingUsers || !mdp}
+            className="flex items-center gap-1 bg-gray-800 hover:bg-gray-900 text-white text-xs font-medium px-2.5 py-1.5 rounded-lg transition-colors disabled:opacity-50">
+            {saving ? <Loader2 size={10} className="animate-spin" /> : <Save size={10} />} Enregistrer
           </button>
         </form>
       )}
@@ -231,7 +261,9 @@ const ResetPassword = ({ token, cabinetId }) => {
 const TableauDeBord = ({ token }) => {
   const [cabinets, setCabinets] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [enCours, setEnCours] = useState({}); // { cabinetId: true }
+  const [enCours, setEnCours] = useState({});
+  const [filtreStatut, setFiltreStatut] = useState('tous');
+  const [recherche, setRecherche] = useState('');
 
   const charger = useCallback(async () => {
     setLoading(true);
@@ -249,27 +281,17 @@ const TableauDeBord = ({ token }) => {
 
   const handleValiderPaiement = async (cabinetId) => {
     setAction(cabinetId, true);
-    try {
-      await validerPaiement(token, cabinetId);
-      await charger();
-    } catch {
-      // silencieux, l'utilisateur peut réessayer
-    } finally {
-      setAction(cabinetId, false);
-    }
+    try { await validerPaiement(token, cabinetId); await charger(); }
+    catch { /* silencieux */ }
+    finally { setAction(cabinetId, false); }
   };
 
   const handleSuspendre = async (cabinetId, nomCabinet) => {
     if (!window.confirm(`Suspendre le cabinet "${nomCabinet}" ?\n\nLes utilisateurs ne pourront plus effectuer d'opérations.`)) return;
     setAction(cabinetId, true);
-    try {
-      await suspendreCabinet(token, cabinetId);
-      await charger();
-    } catch {
-      // silencieux
-    } finally {
-      setAction(cabinetId, false);
-    }
+    try { await suspendreCabinet(token, cabinetId); await charger(); }
+    catch { /* silencieux */ }
+    finally { setAction(cabinetId, false); }
   };
 
   if (loading) return <div className="flex justify-center py-12"><Loader2 className="animate-spin text-green-600 w-6 h-6" /></div>;
@@ -282,6 +304,28 @@ const TableauDeBord = ({ token }) => {
     else if (s === 'en_retard') stats.en_retard++;
     else stats.suspendu++;
   });
+
+  // Filtrage
+  const cabinetsAffiches = cabinets.filter((c) => {
+    const statut = getStatut(c);
+    const matchStatut =
+      filtreStatut === 'tous' ||
+      (filtreStatut === 'actif' && statut === 'actif') ||
+      (filtreStatut === 'en_retard' && statut === 'en_retard') ||
+      (filtreStatut === 'suspendu' && (statut === 'suspendu' || statut === 'suspendu_auto'));
+    const terme = recherche.toLowerCase();
+    const matchRecherche = !terme ||
+      (c.nom_affiche || c.nom || '').toLowerCase().includes(terme) ||
+      (c.domaine || '').toLowerCase().includes(terme);
+    return matchStatut && matchRecherche;
+  });
+
+  const FILTRES = [
+    { id: 'tous',      label: `Tous (${cabinets.length})` },
+    { id: 'actif',     label: `Actifs (${stats.actif})` },
+    { id: 'en_retard', label: `En retard (${stats.en_retard})` },
+    { id: 'suspendu',  label: `Suspendus (${stats.suspendu})` },
+  ];
 
   return (
     <div className="space-y-5">
@@ -305,11 +349,32 @@ const TableauDeBord = ({ token }) => {
         </div>
       </div>
 
+      {/* Barre filtre + recherche */}
+      <div className="flex flex-col sm:flex-row gap-2">
+        <div className="flex gap-1 bg-gray-100 rounded-xl p-1 flex-wrap">
+          {FILTRES.map(({ id, label }) => (
+            <button key={id} onClick={() => setFiltreStatut(id)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap ${filtreStatut === id ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+              {label}
+            </button>
+          ))}
+        </div>
+        <div className="relative flex-1">
+          <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+          <input
+            type="text" value={recherche} onChange={(e) => setRecherche(e.target.value)}
+            placeholder="Rechercher un cabinet…"
+            className="w-full pl-8 pr-3 py-2 border border-gray-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-green-500 bg-white"
+          />
+        </div>
+      </div>
+
       {/* Table des cabinets */}
       <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
           <h2 className="font-semibold text-gray-900 flex items-center gap-2">
-            <Building2 size={16} className="text-green-600" /> Cabinets ({cabinets.length})
+            <Building2 size={16} className="text-green-600" />
+            Cabinets {cabinetsAffiches.length !== cabinets.length ? `(${cabinetsAffiches.length}/${cabinets.length})` : `(${cabinets.length})`}
           </h2>
           <button onClick={charger} className="text-xs text-gray-400 hover:text-gray-600 flex items-center gap-1 transition-colors">
             <RefreshCw size={12} /> Actualiser
@@ -317,19 +382,27 @@ const TableauDeBord = ({ token }) => {
         </div>
 
         <div className="divide-y divide-gray-100">
-          {cabinets.length === 0 && (
+          {cabinetsAffiches.length === 0 && (
             <div className="py-12 text-center text-gray-400 text-sm">
               <Building2 size={24} className="mx-auto mb-2 opacity-30" />
-              Aucun cabinet enregistré
+              {cabinets.length === 0 ? 'Aucun cabinet enregistré' : 'Aucun cabinet pour ce filtre'}
             </div>
           )}
 
-          {cabinets.map((c) => {
+          {cabinetsAffiches.map((c) => {
             const statut = getStatut(c);
             const isLoading = !!enCours[c.id];
             const nomAffiche = c.nom_affiche || c.nom;
             const peutValider = statut !== 'actif';
             const peutSuspendre = c.abonnement_actif && statut !== 'suspendu_auto';
+
+            // Calcul jours avant suspension auto (pour cabinets en retard entre J+1 et J+4)
+            let alerteSuspension = null;
+            if (statut === 'en_retard' && c.prochaine_echeance) {
+              const diffJours = Math.floor((Date.now() - new Date(c.prochaine_echeance)) / 86400000);
+              const joursRestants = 5 - diffJours;
+              alerteSuspension = `Suspension auto dans ${joursRestants}j`;
+            }
 
             return (
               <div key={c.id} className="p-4 hover:bg-gray-50/70 transition-colors">
@@ -347,6 +420,12 @@ const TableauDeBord = ({ token }) => {
                       )}
                     </div>
                     <p className="text-xs text-gray-400 font-mono mt-0.5">{c.domaine}</p>
+                    {/* Alerte suspension imminente */}
+                    {alerteSuspension && (
+                      <p className="mt-1 flex items-center gap-1 text-xs font-medium text-amber-600 bg-amber-50 rounded-md px-2 py-0.5 w-fit">
+                        <AlertTriangle size={10} /> {alerteSuspension}
+                      </p>
+                    )}
                   </div>
 
                   {/* Prochaine échéance */}
@@ -360,21 +439,15 @@ const TableauDeBord = ({ token }) => {
                   {/* Actions */}
                   <div className="flex items-center gap-2 shrink-0">
                     {peutValider && (
-                      <button
-                        onClick={() => handleValiderPaiement(c.id)}
-                        disabled={isLoading}
-                        className="flex items-center gap-1.5 bg-green-700 hover:bg-green-800 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50 whitespace-nowrap"
-                      >
+                      <button onClick={() => handleValiderPaiement(c.id)} disabled={isLoading}
+                        className="flex items-center gap-1.5 bg-green-700 hover:bg-green-800 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50 whitespace-nowrap">
                         {isLoading ? <Loader2 size={12} className="animate-spin" /> : <Banknote size={12} />}
                         Paiement reçu
                       </button>
                     )}
                     {peutSuspendre && (
-                      <button
-                        onClick={() => handleSuspendre(c.id, nomAffiche)}
-                        disabled={isLoading}
-                        className="flex items-center gap-1 text-xs text-red-500 hover:text-red-700 border border-red-200 hover:border-red-400 px-2.5 py-1.5 rounded-lg transition-colors disabled:opacity-50"
-                      >
+                      <button onClick={() => handleSuspendre(c.id, nomAffiche)} disabled={isLoading}
+                        className="flex items-center gap-1 text-xs text-red-500 hover:text-red-700 border border-red-200 hover:border-red-400 px-2.5 py-1.5 rounded-lg transition-colors disabled:opacity-50">
                         <Ban size={11} /> Suspendre
                       </button>
                     )}
@@ -413,7 +486,6 @@ const FormulaireCabinet = ({ token, onCreated }) => {
     const val = e.target.value;
     setForm((f) => {
       const next = { ...f, [k]: val };
-      // Auto-remplissage du domaine si slug change
       if (k === 'slug' && !f.domaine.includes('.')) {
         next.domaine = val ? `${val.toLowerCase().replace(/[^a-z0-9-]/g, '-')}.zezepagnon.solutions` : '';
       }
@@ -475,10 +547,8 @@ const FormulaireCabinet = ({ token, onCreated }) => {
 
       <p className="text-xs text-gray-400">L&apos;abonnement sera actif 30 jours à partir de la création.</p>
 
-      <button
-        type="submit" disabled={saving}
-        className="w-full flex items-center justify-center gap-2 bg-green-700 hover:bg-green-800 text-white font-semibold py-2.5 rounded-xl text-sm transition-colors disabled:opacity-50"
-      >
+      <button type="submit" disabled={saving}
+        className="w-full flex items-center justify-center gap-2 bg-green-700 hover:bg-green-800 text-white font-semibold py-2.5 rounded-xl text-sm transition-colors disabled:opacity-50">
         {saving ? <Loader2 size={15} className="animate-spin" /> : <PlusCircle size={15} />}
         Créer le cabinet
       </button>
@@ -523,10 +593,8 @@ const SuperAdminPage = () => {
         {/* Onglets */}
         <div className="flex gap-1 bg-gray-200 rounded-xl p-1 mb-6">
           {ONGLETS.map(({ id, label, Ic }) => (
-            <button
-              key={id} onClick={() => setOnglet(id)}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-sm font-medium transition-colors ${onglet === id ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
-            >
+            <button key={id} onClick={() => setOnglet(id)}
+              className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-sm font-medium transition-colors ${onglet === id ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
               <Ic size={14} /> {label}
             </button>
           ))}
@@ -534,7 +602,6 @@ const SuperAdminPage = () => {
 
         {/* Contenu */}
         {onglet === 'dashboard' && <TableauDeBord token={token} />}
-
         {onglet === 'nouveau' && (
           <div className="bg-white rounded-2xl border border-gray-200 p-5">
             <h2 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
