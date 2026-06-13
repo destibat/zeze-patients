@@ -166,9 +166,8 @@ async function allouerFacture(factureId, { transaction, exerciceId, models }) {
     transaction,
   });
   const montantDeclare = toutesDeclarations.reduce((s, d) => s + (d.prix_unitaire || 0), 0);
-  // Avoir = excédent uniquement si le client a surpayé (paye > total)
-  const montantTotalFacture = unites.reduce((s, u) => s + u.prix, 0);
-  const avoir = Math.max(0, (facture.montant_paye || 0) - montantTotalFacture);
+  // Avoir = crédit restant après déclaration (paye - déclaré)
+  const avoir = Math.max(0, (facture.montant_paye || 0) - montantDeclare);
   const totalUnites = unites.reduce((s, u) => s + 1, 0);
   const toutesDeclarees = toutesDeclarations.length === totalUnites;
 

@@ -79,8 +79,6 @@ const genererPdfFacture = (facture, patient, emetteur) =>
 
     const lignes  = parseLignes(facture.lignes);
     const restant = (facture.montant_total || 0) - (facture.montant_paye || 0);
-    // Avoir = excédent réel (calculé à la volée, pas lu en DB pour éviter les valeurs périmées)
-    const avoirReel = Math.max(0, (facture.montant_paye || 0) - (facture.montant_total || 0));
 
     // ── En-tête image ───────────────────────────────────────────────────────
     if (fs.existsSync(HEADER)) {
@@ -217,8 +215,8 @@ const genererPdfFacture = (facture, patient, emetteur) =>
       drawLigneRecap('Reste a payer', formatMontant(restant), ROUGE, true);
     }
 
-    // Avoir disponible (recalculé depuis les montants, pas lu en DB pour éviter valeurs périmées)
-    const avoir = avoirReel;
+    // Avoir = crédit restant calculé par allocationService et stocké en DB
+    const avoir = facture.avoir || 0;
     if (avoir > 0) {
       doc.moveDown(0.6);
       const yAvoir = doc.y;
