@@ -92,10 +92,27 @@ const PatientsPage = () => {
         ) : isError ? (
           <div className="p-6"><Alert type="erreur" message="Erreur lors du chargement des patients" /></div>
         ) : patients.length === 0 ? (
-          <div className="text-center py-12 text-texte-secondaire">
-            <p className="text-lg font-medium mb-1">Aucun patient trouvé</p>
-            <p className="text-sm">Créez le premier dossier en cliquant sur « Nouveau patient ».</p>
-          </div>
+          (recherche || filtreSexe) ? (
+            <div className="text-center py-12 text-texte-secondaire">
+              <Search size={32} className="mx-auto mb-3 opacity-30" />
+              <p className="text-lg font-medium mb-1">Aucun patient ne correspond</p>
+              <p className="text-sm mb-4">Essayez d'autres termes ou effacez les filtres.</p>
+              <Button variante="secondaire" onClick={() => { setRecherche(''); setFiltreSexe(''); }}>
+                Effacer la recherche
+              </Button>
+            </div>
+          ) : (
+            <div className="text-center py-12">
+              <div className="w-14 h-14 rounded-full bg-zeze-vert/10 flex items-center justify-center mx-auto mb-4">
+                <UserPlus size={26} className="text-zeze-vert" />
+              </div>
+              <p className="text-lg font-medium text-texte-principal mb-1">Aucun patient pour le moment</p>
+              <p className="text-sm text-texte-secondaire mb-5">Créez votre premier dossier patient pour démarrer.</p>
+              <Button variante="primaire" icone={UserPlus} onClick={() => navigate('/patients/nouveau')}>
+                Créer le premier patient
+              </Button>
+            </div>
+          )
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
