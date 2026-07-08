@@ -38,6 +38,7 @@ const PatientsPage = () => {
 
   const patients = data?.data || [];
   const pagination = data?.pagination;
+  const cabinetVierge = !isLoading && !isError && patients.length === 0 && !recherche && !filtreSexe;
 
   return (
     <div className="space-y-6">
@@ -54,9 +55,11 @@ const PatientsPage = () => {
             </p>
           )}
         </div>
-        <Button variante="primaire" icone={UserPlus} onClick={() => navigate('/patients/nouveau')}>
-          Nouveau patient
-        </Button>
+        {!cabinetVierge && (
+          <Button variante="primaire" icone={UserPlus} onClick={() => navigate('/patients/nouveau')}>
+            Nouveau patient
+          </Button>
+        )}
       </div>
 
       {messageSucces && <Alert type="succes" message={messageSucces} fermable />}
