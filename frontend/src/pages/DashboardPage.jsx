@@ -45,6 +45,11 @@ const SectionChartsAnalytiques = () => {
   const maxCA = Math.max(...caChart.map((d) => d.encaisse || 0), 1);
   const maxConsult = Math.max(...consultChart.map((d) => d.total || 0), 1);
 
+  const totalActivite =
+    caChart.reduce((s, d) => s + (d.encaisse || 0) + (d.facture || 0), 0) +
+    consultChart.reduce((s, d) => s + (d.total || 0), 0);
+  if (totalActivite === 0) return null;
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -203,6 +208,62 @@ const CarteKPI = ({ titre, valeur, icone: Icone, couleur, sous, onClick, badge }
   </div>
 );
 
+// ── En-tête (vrai nom du cabinet) + accueil cabinet neuf ─────────────────────
+const useParametresCabinet = () =>
+  useQuery({
+    queryKey: ['parametres'],
+    queryFn: () => api.get('/parametres').then((r) => r.data),
+    staleTime: 5 * 60 * 1000,
+  });
+
+const EnteteDashboard = ({ utilisateur }) => {
+  const { data: params } = useParametresCabinet();
+  const nomCabinet = params?.nom_cabinet?.trim();
+  const adresse = params?.adresse?.trim();
+  return (
+    <div>
+      <h1 className="text-2xl font-titres font-bold text-texte-principal">
+        Bonjour, {utilisateur?.prenom}
+      </h1>
+      <p className="text-texte-secondaire mt-1">
+        {nomCabinet || 'Votre cabinet'}{adresse ? ` — ${adresse}` : ''}
+      </p>
+    </div>
+  );
+};
+
+const CarteBienvenue = ({ exerciceOuvert }) => {
+  const navigate = useNavigate();
+  const etapes = [
+    { fait: exerciceOuvert, titre: 'Ouvrir votre exercice comptable', sous: 'Requis pour la facturation', href: '/exercices',        icone: BookOpen },
+    { fait: false,          titre: 'Créer votre premier patient',      sous: 'Ouvrez un dossier',           href: '/patients/nouveau', icone: Users },
+    { fait: false,          titre: 'Enregistrer une consultation',     sous: 'Documentez une visite',       href: '/consultations',    icone: Stethoscope },
+  ];
+  return (
+    <div className="carte border border-zeze-vert/30 bg-zeze-vert/5 space-y-4">
+      <div>
+        <h2 className="text-lg font-titres font-bold text-texte-principal">Bienvenue sur GECAM 👋</h2>
+        <p className="text-sm text-texte-secondaire mt-1">Votre espace est prêt. Démarrez en 3 étapes :</p>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        {etapes.map(({ fait, titre, sous, href, icone: Icone }, i) => (
+          <button key={href} onClick={() => navigate(href)}
+            className="text-left rounded-carte border border-bordure bg-white px-4 py-3 hover:border-zeze-vert/40 hover:shadow-sm transition-all flex items-start gap-3">
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${fait ? 'bg-zeze-vert' : 'bg-zeze-vert/10'}`}>
+              {fait ? <CheckCircle size={16} className="text-white" /> : <Icone size={16} className="text-zeze-vert" />}
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs font-bold text-texte-secondaire">Étape {i + 1}{fait ? ' ✓' : ''}</p>
+              <p className="text-sm font-semibold text-texte-principal">{titre}</p>
+              <p className="text-xs text-texte-secondaire">{sous}</p>
+            </div>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+};
+
 // ── Widget exercice comptable (admin + stockiste) ─────────────────────────────
 const WidgetExercice = () => {
   const navigate = useNavigate();
@@ -335,14 +396,7 @@ const DashboardDelegue = ({ utilisateur }) => {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-titres font-bold text-texte-principal">
-          Bonjour, {utilisateur?.prenom}
-        </h1>
-        <p className="text-texte-secondaire mt-1">
-          Cabinet médical ZEZEPAGNON — Abidjan, Côte d'Ivoire
-        </p>
-      </div>
+      <EnteteDashboard utilisateur={utilisateur} />
 
       {/* KPI ligne 1 : activité générale */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
@@ -792,14 +846,11 @@ const DashboardStandard = ({ utilisateur }) => {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-titres font-bold text-texte-principal">
-          Bonjour, {utilisateur?.prenom}
-        </h1>
-        <p className="text-texte-secondaire mt-1">
-          Cabinet médical ZEZEPAGNON — Abidjan, Côte d'Ivoire
-        </p>
-      </div>
+      <EnteteDashboard utilisateur={utilisateur} />
+
+      {estStockisteOuAdmin && !isLoading && (stats?.patients_actifs ?? 0) === 0 && (
+        <CarteBienvenue exerciceOuvert={!!exerciceData?.exercice} />
+      )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         <CarteKPI titre="Patients actifs" valeur={val(stats?.patients_actifs)} icone={Users} couleur="bg-zeze-vert" onClick={() => navigate('/patients')} />
