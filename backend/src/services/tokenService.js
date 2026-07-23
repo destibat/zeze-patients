@@ -35,6 +35,9 @@ const genererRefreshToken = async (utilisateur, ip, userAgent) => {
   const expiresAt = new Date(Date.now() + parsedureeMs(config.jwt.refreshExpiresIn));
 
   await RefreshToken.create({
+    // Rattachement explicite au cabinet de l'utilisateur : le contexte ambiant
+    // (Host) peut être absent au login (domaine non résolu) → cabinet_id sinon null.
+    cabinet_id: utilisateur.cabinet_id,
     user_id: utilisateur.id,
     token_hash: tokenHash,
     expires_at: expiresAt,
