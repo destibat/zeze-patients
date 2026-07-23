@@ -25,13 +25,16 @@ const uploaderFichier = async (req, res) => {
 
   if (!req.file) return res.status(400).json({ message: 'Aucun fichier reçu' });
 
-  const patient = await Patient.findByPk(patientId, { attributes: ['id'] });
+  const patient = await Patient.findByPk(patientId, { attributes: ['id', 'cabinet_id'] });
   if (!patient) {
     fs.unlink(req.file.path, () => {});
     return res.status(404).json({ message: 'Patient introuvable' });
   }
 
   const fichier = await FichierPatient.create({
+    // Rattachement explicite au cabinet du patient : le contexte ambiant peut
+    // être absent (Host non résolu) → cabinet_id sinon null (colonne NOT NULL).
+    cabinet_id: patient.cabinet_id,
     patient_id: patientId,
     consultation_id: req.body.consultation_id || null,
     nom_original: req.file.originalname,
