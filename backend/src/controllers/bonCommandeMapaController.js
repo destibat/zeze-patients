@@ -9,6 +9,20 @@ const includeCreateur = [
   { model: User, as: 'createur', attributes: ['id', 'nom', 'prenom', 'email'] },
 ];
 
+// Lignes d'un BC : quantité entière ≥ 1, prix unitaire entier ≥ 0.
+// Des valeurs négatives ou non numériques passeraient les calculs coercitifs
+// (montant_total négatif ou NaN → erreur SQL 500 au lieu d'un 400).
+const validerLignesBC = (lignes) => {
+  for (const l of lignes) {
+    l.quantite = parseInt(l.quantite, 10);
+    l.prix_unitaire = parseInt(l.prix_unitaire, 10);
+    if (!Number.isInteger(l.quantite) || l.quantite < 1 || !Number.isInteger(l.prix_unitaire) || l.prix_unitaire < 0) {
+      return `Ligne invalide pour "${l.nom_produit || 'produit'}" : quantité entière ≥ 1 et prix ≥ 0 requis.`;
+    }
+  }
+  return null;
+};
+
 // ── Lister tous les bons de commande du cabinet ────────────────────────────
 const lister = async (req, res) => {
   const bons = await BonCommandeMapa.findAll({
@@ -27,7 +41,6 @@ const obtenirParId = async (req, res) => {
 
 // ── Créer un nouveau brouillon ─────────────────────────────────────────────
 const creer = async (req, res) => {
-  const numero = await genererNumeroBonCommande();
   const {
     lignes, notes,
     nom_commandeur, prenoms_commandeur, telephone_commandeur,
@@ -35,22 +48,34 @@ const creer = async (req, res) => {
   } = req.body || {};
 
   const lignesValidees = Array.isArray(lignes) ? lignes : [];
-  const montant_total = lignesValidees.reduce((s, l) => s + (l.prix_unitaire || 0) * (l.quantite || 0), 0);
+  const erreurLignes = validerLignesBC(lignesValidees);
+  if (erreurLignes) return res.status(400).json({ message: erreurLignes });
+  const montant_total = lignesValidees.reduce((s, l) => s + l.prix_unitaire * l.quantite, 0);
 
-  const bc = await BonCommandeMapa.create({
-    created_by: req.utilisateur.id,
-    numero,
-    lignes: lignesValidees,
-    montant_total,
-    notes,
-    nom_commandeur,
-    prenoms_commandeur,
-    telephone_commandeur,
-    lieu_livraison,
-    nom_stockiste_mapa,
-    date_livraison_prevue,
-    mention_livraison,
-  });
+  // Le numéro est généré par lecture du max + 1 : en cas de création
+  // concurrente, l'index unique (cabinet_id, numero) rejette → on regénère.
+  let bc;
+  for (let tentative = 0; ; tentative++) {
+    try {
+      bc = await BonCommandeMapa.create({
+        created_by: req.utilisateur.id,
+        numero: await genererNumeroBonCommande(),
+        lignes: lignesValidees,
+        montant_total,
+        notes,
+        nom_commandeur,
+        prenoms_commandeur,
+        telephone_commandeur,
+        lieu_livraison,
+        nom_stockiste_mapa,
+        date_livraison_prevue,
+        mention_livraison,
+      });
+      break;
+    } catch (err) {
+      if (err.name !== 'SequelizeUniqueConstraintError' || tentative >= 2) throw err;
+    }
+  }
   const bcComplet = await BonCommandeMapa.findByPk(bc.id, { include: includeCreateur });
   res.status(201).json(bcComplet);
 };
@@ -64,6 +89,10 @@ const mettreAJour = async (req, res) => {
   }
 
   const { lignes, notes, nom_commandeur, prenoms_commandeur, telephone_commandeur, lieu_livraison, nom_stockiste_mapa, date_livraison_prevue, mention_livraison } = req.body;
+  if (Array.isArray(lignes)) {
+    const erreurLignes = validerLignesBC(lignes);
+    if (erreurLignes) return res.status(400).json({ message: erreurLignes });
+  }
   const montant_total = Array.isArray(lignes)
     ? lignes.reduce((s, l) => s + (l.prix_unitaire || 0) * (l.quantite || 0), 0)
     : bc.montant_total;
@@ -122,22 +151,30 @@ const validerLivraison = async (req, res) => {
 
   const today = new Date().toISOString().split('T')[0];
 
-  // Vérifier cohérence : quantité livrée ≤ quantité commandée
+  // Quantités déjà reçues lors des réceptions précédentes (BC livre_partiel)
+  const cumulRecu = {};
+  for (const dl of (Array.isArray(bc.lignes_livrees) ? bc.lignes_livrees : [])) {
+    cumulRecu[dl.produit_id] = (cumulRecu[dl.produit_id] || 0) + (parseInt(dl.quantite_livree, 10) || 0);
+  }
+
+  // Vérifier cohérence : quantité livrée ≤ reliquat restant à livrer.
+  // parseInt obligatoire : une chaîne "3" passerait les comparaisons puis
+  // concatènerait dans le calcul de stock (10 + "3" = "103").
   for (const ll of lignesLivrees) {
     const lc = lignesCommandees.find((l) => l.produit_id === ll.produit_id);
     if (!lc) return res.status(400).json({ message: `Produit inconnu dans la commande : ${ll.nom_produit}` });
-    if (ll.quantite_livree < 0 || ll.quantite_livree > lc.quantite) {
+    ll.quantite_livree = parseInt(ll.quantite_livree, 10);
+    const restant = lc.quantite - (cumulRecu[ll.produit_id] || 0);
+    if (!Number.isInteger(ll.quantite_livree) || ll.quantite_livree < 0 || ll.quantite_livree > restant) {
       return res.status(400).json({
-        message: `Quantité livrée invalide pour "${lc.nom_produit}" (max : ${lc.quantite})`,
+        message: `Quantité livrée invalide pour "${lc.nom_produit}" (max restant : ${restant})`,
       });
     }
+    cumulRecu[ll.produit_id] = (cumulRecu[ll.produit_id] || 0) + ll.quantite_livree;
   }
 
-  // Statut : livre si tout livré, livre_partiel sinon
-  const toutLivre = lignesCommandees.every((lc) => {
-    const ll = lignesLivrees.find((l) => l.produit_id === lc.produit_id);
-    return ll && ll.quantite_livree >= lc.quantite;
-  });
+  // Statut : livre si tout livré (cumul des réceptions successives), livre_partiel sinon
+  const toutLivre = lignesCommandees.every((lc) => (cumulRecu[lc.produit_id] || 0) >= lc.quantite);
 
   const transaction = await sequelize.transaction();
   try {
@@ -166,7 +203,10 @@ const validerLivraison = async (req, res) => {
     await bc.update({
       statut:                   toutLivre ? 'livre' : 'livre_partiel',
       date_livraison_effective:  today,
-      lignes_livrees:            lignesLivrees,
+      // Cumul de toutes les réceptions, pas seulement la dernière saisie
+      lignes_livrees:            lignesCommandees
+        .map((lc) => ({ produit_id: lc.produit_id, nom_produit: lc.nom_produit, quantite_livree: cumulRecu[lc.produit_id] || 0 }))
+        .filter((l) => l.quantite_livree > 0),
       ...(req.body.notes_livraison !== undefined ? { notes: req.body.notes_livraison } : {}),
     }, { transaction });
 

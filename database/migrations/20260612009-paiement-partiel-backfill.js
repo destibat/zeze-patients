@@ -42,12 +42,19 @@ function decomposerEnUnites(lignes) {
 module.exports = {
   async up(queryInterface) {
     const now = new Date();
+    // Transaction + purge : un run précédent interrompu à mi-course laisserait
+    // des déclarations déjà insérées avec des statuts non renommés → re-run =
+    // doublons silencieux (l'index dp_facture_ligne_idx n'est pas unique).
+    // Sans risque : ce backfill est la seule source d'écriture de la table à ce stade.
+    const transaction = await queryInterface.sequelize.transaction();
+    try {
+    await queryInterface.sequelize.query(`DELETE FROM declarations_produit`, { transaction });
     const [factures] = await queryInterface.sequelize.query(`
       SELECT id, cabinet_id, statut, montant_total, montant_paye, lignes,
              exercice_id, recouvrement_exercice_id
       FROM factures
       WHERE statut IN ('payee', 'partiellement_payee')
-    `);
+    `, { transaction });
 
     for (const f of factures) {
       let lignes = [];
@@ -105,25 +112,31 @@ module.exports = {
       }
 
       if (declarations.length > 0) {
-        await queryInterface.bulkInsert('declarations_produit', declarations);
+        await queryInterface.bulkInsert('declarations_produit', declarations, { transaction });
       }
 
       // Mettre à jour montant_declare, avoir
       await queryInterface.sequelize.query(
         `UPDATE factures SET montant_declare = ?, avoir = ? WHERE id = ?`,
-        { replacements: [montantDeclare, avoir, f.id] }
+        { replacements: [montantDeclare, avoir, f.id], transaction }
       );
     }
 
     // Renommer les statuts : payee → soldee, partiellement_payee → partiellement_soldee
     await queryInterface.sequelize.query(`
       UPDATE factures SET statut = 'soldee' WHERE statut = 'payee'
-    `);
+    `, { transaction });
     await queryInterface.sequelize.query(`
       UPDATE factures SET statut = 'partiellement_soldee' WHERE statut = 'partiellement_payee'
-    `);
+    `, { transaction });
 
-    // Retirer les anciennes valeurs de l'ENUM
+    await transaction.commit();
+    } catch (e) {
+      await transaction.rollback();
+      throw e;
+    }
+
+    // Retirer les anciennes valeurs de l'ENUM (DDL = commit implicite MariaDB, hors transaction)
     await queryInterface.sequelize.query(`
       ALTER TABLE factures
         MODIFY COLUMN statut

@@ -134,6 +134,17 @@ const vendre = async (req, res) => {
   if (lignes.length === 0) {
     return res.status(400).json({ message: 'Ajoutez au moins un produit à vendre.' });
   }
+  // Validation stricte : une quantité négative passerait le contrôle de stock
+  // (5 < -10 est faux) puis CRÉDITERAIT le stock via decrement(by: négatif)
+  for (const ligne of lignes) {
+    const qte = parseInt(ligne.quantite, 10);
+    const pu  = parseInt(ligne.prix_unitaire, 10);
+    if (!ligne.produit_id || !Number.isInteger(qte) || qte < 1 || !Number.isInteger(pu) || pu < 0) {
+      return res.status(400).json({ message: `Ligne invalide pour "${ligne.nom_produit || 'produit'}" : quantité entière ≥ 1 et prix ≥ 0 requis.` });
+    }
+    ligne.quantite = qte;
+    ligne.prix_unitaire = pu;
+  }
 
   // Vérifier qu'un exercice est ouvert
   const exercice = await getExerciceOuvert();
@@ -376,14 +387,39 @@ const validerVente = async (req, res) => {
     return res.status(403).json({ message: 'Accès refusé' });
   }
 
-  const paye = Math.min(parseInt(montant_paye) || mouvement.montant_total, mouvement.montant_total);
-  const estComplet = paye >= mouvement.montant_total;
+  // Champ absent/vide = paiement complet ; sinon entier > 0 exigé
+  // (0 ne doit pas retomber sur le total, un négatif ne doit pas être stocké)
+  const montantFourni = !(montant_paye === undefined || montant_paye === null || montant_paye === '');
+  const saisi = parseInt(montant_paye, 10);
+  if (montantFourni && (!Number.isInteger(saisi) || saisi <= 0)) {
+    return res.status(400).json({ message: 'montant_paye doit être un entier strictement positif' });
+  }
 
-  await mouvement.update({
-    montant_paye: paye,
-    statut: estComplet ? 'valide' : 'partiellement_payee',
-    mode_paiement: mode_paiement || null,
-  });
+  const transaction = await sequelize.transaction();
+  try {
+    // Verrou + re-contrôle du statut : deux validations concurrentes ne
+    // doivent pas passer la garde 'en_attente' ensemble
+    const verrou = await MouvementDelegue.findByPk(mouvement.id, {
+      transaction, lock: transaction.LOCK.UPDATE, attributes: ['id', 'statut', 'montant_total'],
+    });
+    if (verrou.statut !== 'en_attente') {
+      await transaction.rollback();
+      return res.status(409).json({ message: 'Cette vente a déjà été traitée' });
+    }
+
+    const paye = Math.min(montantFourni ? saisi : verrou.montant_total, verrou.montant_total);
+    const estComplet = paye >= verrou.montant_total;
+
+    await mouvement.update({
+      montant_paye: paye,
+      statut: estComplet ? 'valide' : 'partiellement_payee',
+      mode_paiement: mode_paiement || null,
+    }, { transaction });
+    await transaction.commit();
+  } catch (e) {
+    await transaction.rollback();
+    throw e;
+  }
   res.json(mouvement);
 };
 
@@ -409,14 +445,31 @@ const enregistrerPaiement = async (req, res) => {
     return res.status(403).json({ message: 'Accès refusé' });
   }
 
-  const nouveauPaye = Math.min(mouvement.montant_paye + supplement, mouvement.montant_total);
-  const estComplet  = nouveauPaye >= mouvement.montant_total;
+  const transaction = await sequelize.transaction();
+  try {
+    // Verrou : deux compléments simultanés ne doivent pas partir du même
+    // montant_paye (l'un des deux serait perdu)
+    const verrou = await MouvementDelegue.findByPk(mouvement.id, {
+      transaction, lock: transaction.LOCK.UPDATE, attributes: ['id', 'statut', 'montant_paye', 'montant_total'],
+    });
+    if (verrou.statut !== 'partiellement_payee') {
+      await transaction.rollback();
+      return res.status(409).json({ message: 'Cette vente n\'est pas en attente de complément' });
+    }
 
-  await mouvement.update({
-    montant_paye: nouveauPaye,
-    statut: estComplet ? 'valide' : 'partiellement_payee',
-    mode_paiement: mode_paiement || mouvement.mode_paiement,
-  });
+    const nouveauPaye = Math.min(verrou.montant_paye + supplement, verrou.montant_total);
+    const estComplet  = nouveauPaye >= verrou.montant_total;
+
+    await mouvement.update({
+      montant_paye: nouveauPaye,
+      statut: estComplet ? 'valide' : 'partiellement_payee',
+      mode_paiement: mode_paiement || mouvement.mode_paiement,
+    }, { transaction });
+    await transaction.commit();
+  } catch (e) {
+    await transaction.rollback();
+    throw e;
+  }
   res.json(mouvement);
 };
 
@@ -570,7 +623,9 @@ const monBilan = async (req, res) => {
   ]);
 
   const total_achats         = commandesAppro.reduce((s, c) => s + (c.montant_total || 0), 0);
-  const total_ventes_ord     = facturesOrd.reduce((s, f) => s + (f.montant_total || 0), 0);
+  // Part effectivement payée et déclarée (= montant_total une fois soldée) :
+  // une facture impayée ne doit pas compter à 100 % dans le bilan (MANUEL §CA)
+  const total_ventes_ord     = facturesOrd.reduce((s, f) => s + (f.montant_declare || 0), 0);
   const total_ventes_dir     = ventesDirectes.filter((v) => v.statut === 'valide').reduce((s, v) => s + (v.montant_total || 0), 0);
   const total_gains          = mouvAchats.reduce((s, m) => s + (m.gain_delegue || 0), 0);
 

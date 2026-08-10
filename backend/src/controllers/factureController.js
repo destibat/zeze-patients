@@ -175,10 +175,6 @@ const enregistrerPaiement = async (req, res) => {
   const montantSaisi = parseInt(montant, 10) || 0;
   if (montantSaisi <= 0) return res.status(400).json({ message: 'Montant invalide' });
 
-  // Plafonner au reste à payer
-  const resteAPayer = facture.montant_total - facture.montant_paye;
-  const montantAccepte = Math.min(montantSaisi, resteAPayer);
-
   // Récupérer l'exercice ouvert (nécessaire pour horodater la déclaration)
   const exercice = await Exercice.findOne({
     where: { statut: { [Op.in]: ['ouvert', 'rouvert'] } },
@@ -190,7 +186,16 @@ const enregistrerPaiement = async (req, res) => {
 
   const tx = await sequelize.transaction();
   try {
-    // 1. Enregistrer le paiement
+    // Relecture sous verrou : deux paiements concurrents ne doivent pas
+    // partir du même montant_paye (perte silencieuse d'un des deux)
+    await facture.reload({ transaction: tx, lock: tx.LOCK.UPDATE });
+    if (['annulee', 'soldee'].includes(facture.statut)) {
+      await tx.rollback();
+      return res.status(409).json({ message: facture.statut === 'annulee' ? 'Facture annulée' : 'Facture déjà soldée' });
+    }
+
+    // 1. Enregistrer le paiement (plafonné au reste à payer, lu sous verrou)
+    const montantAccepte = Math.min(montantSaisi, facture.montant_total - facture.montant_paye);
     const nouveauPaye = facture.montant_paye + montantAccepte;
     await facture.update({
       montant_paye:  nouveauPaye,
