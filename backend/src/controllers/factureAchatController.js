@@ -89,6 +89,15 @@ const telechargerPdf = async (req, res) => {
   const facture = await FactureAchat.findByPk(req.params.id, { include: includeBase });
   if (!facture) return res.status(404).json({ message: 'Facture introuvable' });
 
+  // Même contrôle de propriété que lister/marquerEnvoye/marquerPaye
+  const { id: userId, role } = req.utilisateur;
+  if (role === 'delegue' && facture.delegue_id !== userId) {
+    return res.status(403).json({ message: 'Accès refusé' });
+  }
+  if (role === 'stockiste' && facture.stockiste_id !== userId) {
+    return res.status(403).json({ message: 'Accès refusé' });
+  }
+
   const buffer = await genererPdfFactureAchat(facture);
 
   const ref = String(facture.id).slice(0, 8).toUpperCase();

@@ -1,5 +1,5 @@
 const { User, AuditLog } = require('../models');
-const { genererAccessToken, genererRefreshToken, verifierRefreshToken, revoquerRefreshToken } = require('../services/tokenService');
+const { genererAccessToken, genererRefreshToken, verifierRefreshToken, revoquerRefreshToken, revoquerTousLesTokensUtilisateur } = require('../services/tokenService');
 const { succes, erreur } = require('../utils/apiResponse');
 const logger = require('../config/logger');
 
@@ -147,6 +147,10 @@ const changerMotDePasse = async (req, res) => {
     password_hash: nouveauMotDePasse,
     doit_changer_mdp: false,
   });
+
+  // Révoque toutes les sessions existantes : un refresh token volé ne doit
+  // pas survivre au changement de mot de passe
+  await revoquerTousLesTokensUtilisateur(utilisateur.id);
 
   await journaliser('CHANGEMENT_MDP', utilisateur.id, req);
 

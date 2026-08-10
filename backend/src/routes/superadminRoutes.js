@@ -4,6 +4,7 @@ const express = require('express');
 const jwt = require('jsonwebtoken');
 const { authenticator } = require('otplib');
 const { asyncHandler } = require('../middlewares/errorHandler');
+const { limiteurAuth } = require('../middlewares/rateLimiter');
 const { sequelize, Cabinet, User, ParametreCabinet } = require('../models');
 const { invaliderCache } = require('../middlewares/verifierAbonnement');
 const { getCabinetId } = require('../config/cabinetContext');
@@ -26,7 +27,11 @@ const authentifierSuperAdmin = (req, res, next) => {
 };
 
 // POST /api/superadmin/auth — vérifie le code TOTP (Google Authenticator / Authy)
-router.post('/auth', (req, res) => {
+// Anti-rejeu (RFC 6238 §5.2) : un code accepté ne peut pas resservir pendant
+// sa fenêtre de validité. Cache mémoire : le backend est mono-instance.
+let dernierCodeAccepte = null;
+let dernierCodeExpireA = 0;
+router.post('/auth', limiteurAuth, (req, res) => {
   const totpSecret = process.env.SUPERADMIN_TOTP_SECRET;
   if (!totpSecret) {
     return res.status(503).json({ message: 'OTP non configuré sur ce serveur (SUPERADMIN_TOTP_SECRET manquant — lancez npm run setup-totp)' });
@@ -44,6 +49,11 @@ router.post('/auth', (req, res) => {
   if (!isValid) {
     return res.status(401).json({ message: 'Code OTP incorrect ou expiré' });
   }
+  if (String(totp) === dernierCodeAccepte && Date.now() < dernierCodeExpireA) {
+    return res.status(401).json({ message: 'Code OTP déjà utilisé, attendez le prochain code' });
+  }
+  dernierCodeAccepte = String(totp);
+  dernierCodeExpireA = Date.now() + 5 * 60 * 1000;
   const token = jwt.sign({ role: 'superadmin' }, process.env.JWT_SECRET, { expiresIn: '4h' });
   res.json({ token });
 });

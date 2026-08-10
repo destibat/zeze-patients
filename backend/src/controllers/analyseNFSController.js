@@ -93,6 +93,12 @@ const modifierAnalyse = async (req, res) => {
     'basophiles_pct', 'basophiles_abs', 'plaquettes',
   ];
   const corps = { ...req.body };
+  // Champs jamais modifiables par le client (mass assignment : cabinet_id
+  // modifié = rupture d'isolation multi-tenant, created_by = falsification d'auteur)
+  delete corps.id;
+  delete corps.cabinet_id;
+  delete corps.patient_id;
+  delete corps.created_by;
   for (const champ of champsNumeriques) {
     if (champ in corps) corps[champ] = dec(corps[champ]);
   }
