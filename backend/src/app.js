@@ -10,6 +10,7 @@ const path = require('path');
 const { connecterDB } = require('./models');
 const routes = require('./routes');
 const { gestionErreurs } = require('./middlewares/errorHandler');
+const { authentifier } = require('./middlewares/authenticate');
 
 const app = express();
 
@@ -64,7 +65,9 @@ app.use(morgan(formatMorgan, {
 }));
 
 // --- Fichiers uploadés (photos patients, examens) ---
-app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
+// Données médicales : accès réservé aux utilisateurs authentifiés (JWT requis,
+// donc récupération côté frontend en fetch + blob, pas en <img src> direct)
+app.use('/uploads', authentifier, express.static(path.join(__dirname, '..', 'uploads')));
 
 // --- Routes API ---
 app.use('/api', routes);

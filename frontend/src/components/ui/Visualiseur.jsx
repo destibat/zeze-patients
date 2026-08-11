@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, Component } from 'react';
 import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
-import { X, RotateCcw, RotateCw, Download, Maximize2, Minimize2, AlertCircle } from 'lucide-react';
+import { X, RotateCcw, RotateCw, Download, Maximize2, Minimize2, AlertCircle, Loader2 } from 'lucide-react';
+import useFichierProtege, { telechargerFichierProtege } from '../../hooks/useFichierProtege';
 
 const TOOLBAR_H = 44;
 
@@ -22,7 +23,10 @@ const Visualiseur = ({ fichier, onFermer }) => {
 
   const estImage = fichier.type_mime?.startsWith('image/');
   const url = `/uploads/${fichier.nom_stocke}`;
+  const { blobUrl, erreur } = useFichierProtege(url);
   const contentH = `calc(100vh - ${TOOLBAR_H}px)`;
+
+  const telecharger = () => telechargerFichierProtege(url, fichier.nom_original);
 
   const basculerPleinEcran = () => {
     if (!document.fullscreenElement) conteneurRef.current?.requestFullscreen();
@@ -63,9 +67,9 @@ const Visualiseur = ({ fichier, onFermer }) => {
               </button>
             </>
           )}
-          <a href={url} download={fichier.nom_original} className="p-2 rounded hover:bg-white/10 transition-colors text-white" title="Télécharger">
+          <button onClick={telecharger} className="p-2 rounded hover:bg-white/10 transition-colors text-white" title="Télécharger">
             <Download size={15} />
-          </a>
+          </button>
           <button onClick={basculerPleinEcran} className="p-2 rounded hover:bg-white/10 transition-colors" title={pleinEcran ? 'Quitter plein écran' : 'Plein écran'}>
             {pleinEcran ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
           </button>
@@ -81,17 +85,26 @@ const Visualiseur = ({ fichier, onFermer }) => {
           <div className="flex flex-col items-center justify-center h-full text-gray-400 gap-3">
             <AlertCircle size={40} />
             <p className="text-sm">Impossible d'afficher ce fichier</p>
-            <a href={url} download={fichier.nom_original} className="text-sm underline text-blue-400 hover:text-blue-300">Télécharger</a>
+            <button onClick={telecharger} className="text-sm underline text-blue-400 hover:text-blue-300">Télécharger</button>
           </div>
         }>
-          {estImage ? (
+          {erreur ? (
+            <div className="flex flex-col items-center justify-center h-full text-gray-400 gap-3">
+              <AlertCircle size={40} />
+              <p className="text-sm">Impossible de charger ce fichier</p>
+            </div>
+          ) : !blobUrl ? (
+            <div className="flex items-center justify-center h-full text-gray-400">
+              <Loader2 size={28} className="animate-spin" />
+            </div>
+          ) : estImage ? (
             <TransformWrapper initialScale={1} minScale={0.2} maxScale={8} centerOnInit>
               <TransformComponent
                 wrapperStyle={{ width: '100%', height: contentH }}
                 contentStyle={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
               >
                 <img
-                  src={url}
+                  src={blobUrl}
                   alt={fichier.nom_original}
                   draggable={false}
                   style={{
@@ -108,7 +121,7 @@ const Visualiseur = ({ fichier, onFermer }) => {
             </TransformWrapper>
           ) : (
             <iframe
-              src={url}
+              src={blobUrl}
               title={fichier.nom_original}
               style={{ width: '100%', height: '100%', border: 'none', display: 'block', background: 'white' }}
             />

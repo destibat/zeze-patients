@@ -6,6 +6,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
 import Alert from '../../components/ui/Alert';
+import ImageProtegee from '../../components/ui/ImageProtegee';
 import { ArrowLeft, Pencil, User, HeartPulse, Phone, Stethoscope, Plus, Trash2, FileText, FolderOpen, FlaskConical, Pill, Activity, Clock } from 'lucide-react';
 
 const FREQUENCES_SUIVI_LABEL = {
@@ -83,13 +84,15 @@ const PatientFichePage = () => {
       {/* Photo + infos rapides */}
       <div className="carte flex flex-col sm:flex-row gap-6">
         <div className="flex-shrink-0">
-          {patient.photo_url ? (
-            <img src={patient.photo_url} alt="" className="w-24 h-24 rounded-carte object-cover" />
-          ) : (
-            <div className="w-24 h-24 rounded-carte bg-zeze-vert-clair/20 flex items-center justify-center text-zeze-vert text-3xl font-semibold">
-              {patient.prenom[0]}{patient.nom[0]}
-            </div>
-          )}
+          <ImageProtegee
+            src={patient.photo_url}
+            className="w-24 h-24 rounded-carte object-cover"
+            fallback={
+              <div className="w-24 h-24 rounded-carte bg-zeze-vert-clair/20 flex items-center justify-center text-zeze-vert text-3xl font-semibold">
+                {patient.prenom[0]}{patient.nom[0]}
+              </div>
+            }
+          />
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 flex-1">
           <Champ label="Sexe" valeur={sexeLabel[patient.sexe]} />

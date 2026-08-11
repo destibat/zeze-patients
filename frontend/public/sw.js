@@ -1,4 +1,4 @@
-const CACHE_NAME = 'zezepagnon-shell-v1';
+const CACHE_NAME = 'zezepagnon-shell-v2';
 
 // Assets statiques à précacher (shell de l'app)
 const SHELL_URLS = ['/', '/index.html'];
@@ -22,8 +22,9 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
 
-  // Les appels API ne sont jamais cachés (données médicales + auth SaaS)
-  if (url.pathname.startsWith('/api/')) {
+  // Les appels API et fichiers uploadés ne sont jamais cachés
+  // (données médicales + auth SaaS — /uploads exige le JWT)
+  if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/uploads/')) {
     event.respondWith(fetch(event.request));
     return;
   }

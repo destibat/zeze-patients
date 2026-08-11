@@ -4,6 +4,7 @@ import { Upload, Trash2, Download, Loader2, FolderOpen, Eye } from 'lucide-react
 import Alert from '../../../components/ui/Alert';
 import Visualiseur from '../../../components/ui/Visualiseur';
 import { useAuth } from '../../../contexts/AuthContext';
+import { telechargerFichierProtege } from '../../../hooks/useFichierProtege';
 
 const CATEGORIES = {
   resultat_analyse: 'Résultat d\'analyse',
@@ -154,14 +155,13 @@ const SectionFichiers = ({ patientId, peutSupprimer = false }) => {
                     <Eye size={15} />
                   </button>
                 )}
-                <a
-                  href={`/uploads/${f.nom_stocke}`}
-                  download={f.nom_original}
+                <button
+                  onClick={() => telechargerFichierProtege(`/uploads/${f.nom_stocke}`, f.nom_original)}
                   className="p-1.5 text-texte-secondaire hover:text-zeze-vert rounded"
                   title="Télécharger"
                 >
                   <Download size={15} />
-                </a>
+                </button>
                 {peutSupprimer && (
                   <button
                     onClick={() => handleSupprimer(f)}

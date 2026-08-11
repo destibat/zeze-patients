@@ -6,6 +6,7 @@ import { usePatients, useArchiverPatient } from '../../hooks/usePatients';
 import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
 import Alert from '../../components/ui/Alert';
+import ImageProtegee from '../../components/ui/ImageProtegee';
 import { UserPlus, Search, Eye, Pencil, Archive } from 'lucide-react';
 
 const sexeLabel = { masculin: 'M', feminin: 'F', autre: 'A' };
@@ -139,13 +140,15 @@ const PatientsPage = () => {
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
-                        {p.photo_url ? (
-                          <img src={p.photo_url} alt="" className="w-8 h-8 rounded-full object-cover flex-shrink-0" />
-                        ) : (
-                          <div className="w-8 h-8 rounded-full bg-zeze-vert-clair/30 flex items-center justify-center text-zeze-vert text-xs font-semibold flex-shrink-0">
-                            {p.prenom[0]}{p.nom[0]}
-                          </div>
-                        )}
+                        <ImageProtegee
+                          src={p.photo_url}
+                          className="w-8 h-8 rounded-full object-cover flex-shrink-0"
+                          fallback={
+                            <div className="w-8 h-8 rounded-full bg-zeze-vert-clair/30 flex items-center justify-center text-zeze-vert text-xs font-semibold flex-shrink-0">
+                              {p.prenom[0]}{p.nom[0]}
+                            </div>
+                          }
+                        />
                         <span className="font-medium text-texte-principal">{p.prenom} {p.nom}</span>
                       </div>
                     </td>
