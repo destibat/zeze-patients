@@ -178,7 +178,6 @@ const rechercherPatients = async (req, res) => {
 
   const whereRecherche = {
     archive: false,
-    ...(req.utilisateur.role === 'stockiste' ? { created_by: req.utilisateur.id } : {}),
     [Op.or]: [
       { nom: { [Op.like]: `%${q}%` } },
       { prenom: { [Op.like]: `%${q}%` } },
