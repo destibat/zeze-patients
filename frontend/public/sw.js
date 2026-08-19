@@ -1,4 +1,4 @@
-const CACHE_NAME = 'zezepagnon-shell-v2';
+const CACHE_NAME = 'zezepagnon-shell-v3';
 
 // Assets statiques à précacher (shell de l'app)
 const SHELL_URLS = ['/', '/index.html'];
