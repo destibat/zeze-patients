@@ -976,7 +976,7 @@ const ParametresPage = () => {
             </Button>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm pt-2 border-t border-bordure">
               {[
-                ['Domaine', 'patients.zezepagnon.solution'],
+                ['Domaine', window.location.hostname],
                 ['Version', 'v1.0 — Phase 6'],
               ].map(([label, val]) => (
                 <div key={label}>
@@ -991,7 +991,7 @@ const ParametresPage = () => {
             {[
               ['Cabinet', parametres.nom_cabinet || 'ZEZEPAGNON — Pharmacopée africaine'],
               ['Adresse', parametres.adresse || 'Abidjan, Côte d\'Ivoire'],
-              ['Domaine', 'patients.zezepagnon.solution'],
+              ['Domaine', window.location.hostname],
               ['Version', 'v1.0 — Phase 6'],
             ].map(([label, val]) => (
               <div key={label}>
