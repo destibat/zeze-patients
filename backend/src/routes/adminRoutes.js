@@ -4,16 +4,38 @@ const express = require('express');
 const { authentifier } = require('../middlewares/authenticate');
 const { autoriser } = require('../middlewares/authorize');
 const { asyncHandler } = require('../middlewares/errorHandler');
-const { sequelize, User, Produit, StockDelegue } = require('../models');
+const { sequelize, User, Produit, StockDelegue, AuditLog } = require('../models');
 const { Op } = require('sequelize');
 const { getCabinetId } = require('../config/cabinetContext');
 
 const router = express.Router();
 router.use(authentifier, autoriser('administrateur'));
 
+const journaliser = async (action, req) => {
+  await AuditLog.create({
+    user_id: req.utilisateur?.id,
+    action,
+    entite: 'Cabinet',
+    ip: req.ip,
+    user_agent: req.headers['user-agent'],
+  }).catch(() => {});
+};
+
+// Les resets sont destructeurs : le mot de passe de l'admin est exigé et vérifié
+// côté serveur (la confirmation affichée par le navigateur ne protège pas un token volé).
+const exigerMotDePasse = asyncHandler(async (req, res, next) => {
+  const utilisateur = await User.findByPk(req.utilisateur.id);
+  const valide = utilisateur && (await utilisateur.verifierMotDePasse(req.body?.password || ''));
+  if (!valide) {
+    await journaliser('RESET_ECHEC', req);
+    return res.status(403).json({ message: 'Mot de passe invalide' });
+  }
+  next();
+});
+
 // POST /api/admin/reset
 // Remet à zéro les données transactionnelles du cabinet courant uniquement.
-router.post('/reset', asyncHandler(async (req, res) => {
+router.post('/reset', exigerMotDePasse, asyncHandler(async (req, res) => {
   const cabinetId = getCabinetId();
   await sequelize.transaction(async (t) => {
     // Tables avec cabinet_id — DELETE scopé au cabinet
@@ -27,11 +49,6 @@ router.post('/reset', asyncHandler(async (req, res) => {
         replacements: { cabinetId }, transaction: t,
       });
     }
-    // audit_logs : pas de cabinet_id — on supprime uniquement les logs du cabinet via les users
-    await sequelize.query(
-      `DELETE FROM audit_logs WHERE user_id IN (SELECT id FROM users WHERE cabinet_id = :cabinetId)`,
-      { replacements: { cabinetId }, transaction: t },
-    );
     // Remet le stock à 20 pour les produits actifs du cabinet uniquement
     await sequelize.query(
       `UPDATE produits SET quantite_stock = 20 WHERE actif = 1 AND cabinet_id = :cabinetId`,
@@ -39,22 +56,25 @@ router.post('/reset', asyncHandler(async (req, res) => {
     );
   });
 
+  // Le journal d'audit survit au reset : il trace notamment le reset lui-même
+  await journaliser('RESET_DONNEES', req);
+
   res.json({
     ok: true,
     message: 'Remise à zéro complète effectuée.',
     tables_videes: [
       'consultations', 'rendez_vous', 'ordonnances', 'factures',
       'factures_achat', 'commandes_approvisionnement', 'mouvements_delegue',
-      'exercices', 'analyses_nfs', 'fichiers_patient', 'audit_logs',
+      'exercices', 'analyses_nfs', 'fichiers_patient',
     ],
     reinitialise: ['produits actifs : quantite_stock → 20', 'stock_delegue → vidé'],
-    conserve: ['users', 'patients', 'produits (catalogue)', 'stock_mouvements', 'parametres_cabinet'],
+    conserve: ['users', 'patients', 'produits (catalogue)', 'stock_mouvements', 'parametres_cabinet', 'audit_logs'],
   });
 }));
 
 // POST /api/admin/reset-stock-delegues
 // Vide le stock de tous les revendeurs et le réinitialise avec N unités par produit actif.
-router.post('/reset-stock-delegues', asyncHandler(async (req, res) => {
+router.post('/reset-stock-delegues', exigerMotDePasse, asyncHandler(async (req, res) => {
   const cabinetId = getCabinetId();
   const unites = Math.max(0, parseInt(req.body.unites_par_produit ?? 5, 10) || 0);
 
@@ -80,6 +100,8 @@ router.post('/reset-stock-delegues', asyncHandler(async (req, res) => {
       if (entrees.length) await StockDelegue.bulkCreate(entrees, { transaction: t });
     }
   });
+
+  await journaliser('RESET_STOCK_DELEGUES', req);
 
   res.json({
     ok: true,

@@ -143,26 +143,83 @@ const SectionImagesOrdonnance = () => {
   );
 };
 
+// Modal de confirmation des actions destructrices : le mot de passe de l'admin
+// est exigé et vérifié côté serveur.
+const ModalConfirmation = ({ titre, contenu, libelleBouton, icone, chargement, erreur, onAnnuler, onConfirmer }) => {
+  const [motDePasse, setMotDePasse] = useState('');
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
+      <div className="bg-fond-principal rounded-carte shadow-xl w-full max-w-md space-y-4 p-6">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
+            <AlertTriangle size={20} className="text-red-600" />
+          </div>
+          <div>
+            <h3 className="font-semibold text-texte-principal">{titre}</h3>
+            <p className="text-xs text-texte-secondaire">Cette action est irréversible.</p>
+          </div>
+        </div>
+
+        {contenu}
+
+        {erreur && <Alert type="erreur" message={erreur} />}
+
+        <div>
+          <label className="block text-sm font-medium text-texte-principal mb-1">
+            Confirmez avec votre mot de passe
+          </label>
+          <input
+            type="password"
+            value={motDePasse}
+            onChange={(e) => setMotDePasse(e.target.value)}
+            className="champ-input"
+            autoFocus
+          />
+        </div>
+
+        <div className="flex gap-2 justify-end">
+          <Button variante="fantome" icone={X} onClick={onAnnuler} disabled={chargement}>
+            Annuler
+          </Button>
+          <Button
+            variante="danger"
+            icone={icone}
+            onClick={() => onConfirmer(motDePasse)}
+            chargement={chargement}
+            disabled={!motDePasse || chargement}
+          >
+            {libelleBouton}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const ZoneDangereuse = () => {
   const qc = useQueryClient();
-  const [confirmation, setConfirmation] = useState('');
   const [ouvert, setOuvert]             = useState(false);
   const [succes, setSucces]             = useState(false);
   const [erreur, setErreur]             = useState('');
   const [chargement, setChargement]     = useState(false);
 
   const [unitesDelegue, setUnitesDelegue]       = useState(5);
+  const [ouvertDelegue, setOuvertDelegue]       = useState(false);
   const [succesDelegue, setSuccesDelegue]       = useState('');
   const [erreurDelegue, setErreurDelegue]       = useState('');
   const [chargementDelegue, setChargementDelegue] = useState(false);
 
-  const handleResetDelegues = async () => {
+  const handleResetDelegues = async (motDePasse) => {
     setChargementDelegue(true);
     setErreurDelegue('');
     setSuccesDelegue('');
     try {
-      const res = await api.post('/admin/reset-stock-delegues', { unites_par_produit: unitesDelegue });
+      const res = await api.post('/admin/reset-stock-delegues', {
+        unites_par_produit: unitesDelegue,
+        password: motDePasse,
+      });
       setSuccesDelegue(res.data.message);
+      setOuvertDelegue(false);
       qc.invalidateQueries();
     } catch (e) {
       setErreurDelegue(e?.response?.data?.message || 'Erreur lors de la réinitialisation');
@@ -171,16 +228,14 @@ const ZoneDangereuse = () => {
     }
   };
 
-  const handleReset = async () => {
-    if (confirmation !== 'RESET') return;
+  const handleReset = async (motDePasse) => {
     setChargement(true);
     setErreur('');
     try {
-      await api.post('/admin/reset');
+      await api.post('/admin/reset', { password: motDePasse });
       qc.invalidateQueries();
       setSucces(true);
       setOuvert(false);
-      setConfirmation('');
     } catch (e) {
       setErreur(e?.response?.data?.message || 'Erreur lors de la remise à zéro');
     } finally {
@@ -195,12 +250,10 @@ const ZoneDangereuse = () => {
       </h2>
 
       {succes && <Alert type="succes" message="Remise à zéro effectuée. Stock produits actifs remis à 20 unités, stock revendeurs vidé." />}
-      {erreur && <Alert type="erreur" message={erreur} />}
 
       {/* Reset stock revendeurs */}
       <div className="border-t border-red-200 pt-4 space-y-3">
         {succesDelegue && <Alert type="succes" message={succesDelegue} />}
-        {erreurDelegue && <Alert type="erreur" message={erreurDelegue} />}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
             <p className="text-sm font-medium text-texte-principal flex items-center gap-1.5">
@@ -225,8 +278,7 @@ const ZoneDangereuse = () => {
             <Button
               variante="danger"
               icone={Users}
-              chargement={chargementDelegue}
-              onClick={handleResetDelegues}
+              onClick={() => { setOuvertDelegue(true); setSuccesDelegue(''); setErreurDelegue(''); }}
             >
               Réinit. revendeurs
             </Button>
@@ -247,25 +299,22 @@ const ZoneDangereuse = () => {
         <Button
           variante="danger"
           icone={RotateCcw}
-          onClick={() => { setOuvert(true); setSucces(false); }}
+          onClick={() => { setOuvert(true); setSucces(false); setErreur(''); }}
         >
           Remettre à zéro
         </Button>
       </div>
 
       {ouvert && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
-          <div className="bg-fond-principal rounded-carte shadow-xl w-full max-w-md space-y-4 p-6">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
-                <AlertTriangle size={20} className="text-red-600" />
-              </div>
-              <div>
-                <h3 className="font-semibold text-texte-principal">Confirmer la remise à zéro</h3>
-                <p className="text-xs text-texte-secondaire">Cette action est irréversible.</p>
-              </div>
-            </div>
-
+        <ModalConfirmation
+          titre="Confirmer la remise à zéro"
+          libelleBouton="Remettre à zéro"
+          icone={RotateCcw}
+          chargement={chargement}
+          erreur={erreur}
+          onAnnuler={() => setOuvert(false)}
+          onConfirmer={handleReset}
+          contenu={
             <div className="bg-red-50 border border-red-200 rounded-bouton p-3 text-xs text-red-700 space-y-1">
               <p className="font-semibold">Seront supprimés :</p>
               <ul className="list-disc list-inside space-y-0.5">
@@ -278,42 +327,26 @@ const ZoneDangereuse = () => {
                 <li>Stock global → remis à 20 unités par produit actif</li>
               </ul>
             </div>
+          }
+        />
+      )}
 
-            <div>
-              <label className="block text-sm font-medium text-texte-principal mb-1">
-                Tapez <span className="font-mono font-bold text-red-600">RESET</span> pour confirmer
-              </label>
-              <input
-                type="text"
-                value={confirmation}
-                onChange={(e) => setConfirmation(e.target.value)}
-                className="champ-input font-mono"
-                placeholder="RESET"
-                autoFocus
-              />
+      {ouvertDelegue && (
+        <ModalConfirmation
+          titre="Réinitialiser le stock des revendeurs"
+          libelleBouton="Réinit. revendeurs"
+          icone={Users}
+          chargement={chargementDelegue}
+          erreur={erreurDelegue}
+          onAnnuler={() => setOuvertDelegue(false)}
+          onConfirmer={handleResetDelegues}
+          contenu={
+            <div className="bg-red-50 border border-red-200 rounded-bouton p-3 text-xs text-red-700">
+              Vide tous les stocks et mouvements des revendeurs, puis redistribue{' '}
+              <span className="font-semibold">{unitesDelegue} unité(s)</span> par produit actif.
             </div>
-
-            <div className="flex gap-2 justify-end">
-              <Button
-                variante="fantome"
-                icone={X}
-                onClick={() => { setOuvert(false); setConfirmation(''); }}
-                disabled={chargement}
-              >
-                Annuler
-              </Button>
-              <Button
-                variante="danger"
-                icone={RotateCcw}
-                onClick={handleReset}
-                chargement={chargement}
-                disabled={confirmation !== 'RESET' || chargement}
-              >
-                Remettre à zéro
-              </Button>
-            </div>
-          </div>
-        </div>
+          }
+        />
       )}
     </div>
   );
