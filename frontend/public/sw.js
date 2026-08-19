@@ -29,32 +29,38 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Assets statiques : cache-first, réseau en fallback
-  if (event.request.method === 'GET') {
+  if (event.request.method !== 'GET') return;
+
+  // Navigations et shell : network-first — les déploiements frontend arrivent
+  // sans bump de CACHE_NAME, le cache ne sert qu'en secours hors ligne
+  if (event.request.mode === 'navigate' || url.pathname === '/' || url.pathname === '/index.html') {
     event.respondWith(
-      caches.match(event.request).then((cached) => {
-        if (cached) return cached;
-        return fetch(event.request).then((response) => {
-          // Met en cache les assets statiques (JS, CSS, images, fonts)
-          if (
-            response.ok &&
-            (url.pathname.match(/\.(js|css|png|svg|ico|woff2?|ttf)$/) ||
-              url.pathname === '/' ||
-              url.pathname === '/index.html')
-          ) {
+      fetch(event.request)
+        .then((response) => {
+          if (response.ok) {
             const clone = response.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+            caches.open(CACHE_NAME).then((cache) => cache.put('/index.html', clone));
           }
           return response;
-        }).catch(() => {
-          // Hors ligne et asset non caché : retourne le shell
-          if (event.request.mode === 'navigate') {
-            return caches.match('/index.html');
-          }
-        });
-      })
+        })
+        .catch(() => caches.match('/index.html'))
     );
+    return;
   }
+
+  // Assets statiques (hashés par Vite, immuables) : cache-first, réseau en fallback
+  event.respondWith(
+    caches.match(event.request).then((cached) => {
+      if (cached) return cached;
+      return fetch(event.request).then((response) => {
+        if (response.ok && url.pathname.match(/\.(js|css|png|svg|ico|woff2?|ttf)$/)) {
+          const clone = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+        }
+        return response;
+      });
+    })
+  );
 });
 
 // Mise à jour : notifie les clients qu'une nouvelle version est disponible
