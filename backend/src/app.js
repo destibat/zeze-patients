@@ -99,6 +99,7 @@ const demarrer = async () => {
   }
 };
 
-demarrer();
+// Sous jest (NODE_ENV=test), l'app est requise par supertest : pas d'écoute réseau
+if (process.env.NODE_ENV !== 'test') demarrer();
 
 module.exports = app;

@@ -5,12 +5,15 @@ const jwt = require('jsonwebtoken');
 const { authenticator } = require('otplib');
 const { asyncHandler } = require('../middlewares/errorHandler');
 const { limiteurAuth } = require('../middlewares/rateLimiter');
-const { sequelize, Cabinet, User, ParametreCabinet } = require('../models');
+const { sequelize, Cabinet, User, ParametreCabinet, Produit } = require('../models');
 const { invaliderCache } = require('../middlewares/verifierAbonnement');
 const { getCabinetId } = require('../config/cabinetContext');
 const { v4: uuidv4 } = require('uuid');
 
 const router = express.Router();
+
+// Cabinet dont le catalogue produits sert de modèle aux nouveaux cabinets
+const SLUG_CATALOGUE_REFERENCE = 'patients';
 
 const authentifierSuperAdmin = (req, res, next) => {
   const header = req.headers['authorization'];
@@ -265,8 +268,35 @@ router.post('/cabinets', authentifierSuperAdmin, asyncHandler(async (req, res) =
       await ParametreCabinet.create({ cabinet_id: cabinetId, cle, valeur }, { ...opts, transaction });
     }
 
+    // Catalogue initial : copie des produits actifs du cabinet de référence,
+    // stock à zéro — l'admin ajuste ensuite produit par produit (page Stock).
+    // Fail-soft : sans référence ou sans produits, le cabinet se crée avec un catalogue vide.
+    let produitsCopies = 0;
+    const reference = await Cabinet.findOne({
+      where: { slug: SLUG_CATALOGUE_REFERENCE }, ...opts, transaction,
+    });
+    if (reference) {
+      const modeles = await Produit.findAll({
+        where: { cabinet_id: reference.id, actif: true },
+        ...opts, transaction,
+      });
+      if (modeles.length) {
+        await Produit.bulkCreate(modeles.map((p) => ({
+          cabinet_id: cabinetId,
+          nom: p.nom,
+          description: p.description,
+          categorie: p.categorie,
+          prix_unitaire: p.prix_unitaire,
+          seuil_alerte: p.seuil_alerte,
+          quantite_stock: 0,
+          actif: true,
+        })), { ...opts, transaction });
+        produitsCopies = modeles.length;
+      }
+    }
+
     await transaction.commit();
-    res.status(201).json({ ok: true, cabinet_id: cabinetId, slug: slugNormalise, domaine, prochaine_echeance: echeanceISO });
+    res.status(201).json({ ok: true, cabinet_id: cabinetId, slug: slugNormalise, domaine, prochaine_echeance: echeanceISO, produits_copies: produitsCopies });
   } catch (err) {
     await transaction.rollback();
     throw err;
