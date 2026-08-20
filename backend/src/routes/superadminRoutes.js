@@ -269,8 +269,9 @@ router.post('/cabinets', authentifierSuperAdmin, asyncHandler(async (req, res) =
       await ParametreCabinet.create({ cabinet_id: cabinetId, cle, valeur }, { ...opts, transaction });
     }
 
-    // Catalogue initial : copie des produits actifs du cabinet de référence,
-    // stock à zéro — l'admin ajuste ensuite produit par produit (page Stock).
+    // Catalogue initial : copie de tous les produits du cabinet de référence
+    // (chacun garde son statut actif/inactif), stock à zéro — l'admin ajuste
+    // ensuite produit par produit (page Stock).
     // Fail-soft : sans référence ou sans produits, le cabinet se crée avec un catalogue vide.
     let produitsCopies = 0;
     const reference = await Cabinet.findOne({
@@ -278,7 +279,7 @@ router.post('/cabinets', authentifierSuperAdmin, asyncHandler(async (req, res) =
     });
     if (reference) {
       const modeles = await Produit.findAll({
-        where: { cabinet_id: reference.id, actif: true },
+        where: { cabinet_id: reference.id },
         ...opts, transaction,
       });
       if (modeles.length) {
@@ -290,7 +291,7 @@ router.post('/cabinets', authentifierSuperAdmin, asyncHandler(async (req, res) =
           prix_unitaire: p.prix_unitaire,
           seuil_alerte: p.seuil_alerte,
           quantite_stock: 0,
-          actif: true,
+          actif: p.actif,
         })), { ...opts, transaction });
         produitsCopies = modeles.length;
       }
