@@ -49,6 +49,7 @@ services:
       ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-claude-sonnet-4-6}
       SUPERADMIN_TOTP_SECRET: ${SUPERADMIN_TOTP_SECRET}
       IA_ENCRYPTION_KEY: ${IA_ENCRYPTION_KEY}
+      CABINET_CATALOGUE_REFERENCE: ${CABINET_CATALOGUE_REFERENCE:-patients}
     volumes:
       - uploads_dev:/app/uploads
     networks:

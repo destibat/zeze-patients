@@ -13,7 +13,8 @@ const { v4: uuidv4 } = require('uuid');
 const router = express.Router();
 
 // Cabinet dont le catalogue produits sert de modèle aux nouveaux cabinets
-const SLUG_CATALOGUE_REFERENCE = 'patients';
+// (en dev, le cabinet historique s'appelle « dev » — surchargé via .env)
+const SLUG_CATALOGUE_REFERENCE = process.env.CABINET_CATALOGUE_REFERENCE || 'patients';
 
 const authentifierSuperAdmin = (req, res, next) => {
   const header = req.headers['authorization'];
